@@ -4,50 +4,52 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 1 — Project specification
+- Current milestone: Milestone 2 — Initialize Go module and package skeleton
 - Completed:
-  - `SPEC.md` drafted and committed
+  - Milestone 1 — Project specification
 - In progress:
-  - `PLAN.md` drafted; update/commit pending
-- Next milestone after docs are committed: Milestone 2 — Initialize Go module and package skeleton
+  - Milestone 2 — Initialize Go module and package skeleton (implemented; commit pending)
+- Next milestone after module/package skeleton is committed: Milestone 3 — Add protocol message encoding
 
 ## Milestone 1 — Project specification
 
-Status: In progress
+Status: Complete
 
 Commit: `docs: add adb-go specification and implementation plan`
 
 Tasks:
 
 - [x] Add `SPEC.md`
-- [ ] Add `PLAN.md`
+- [x] Add `PLAN.md`
 - [x] Keep this milestone documentation-only
 
 Done when:
 
 - [x] The project goals, v0 scope, package layout, API shape, limitations, and roadmap are documented
-- [ ] `PLAN.md` is committed
+- [x] `PLAN.md` is committed
 
 ## Milestone 2 — Initialize Go module and package skeleton
+
+Status: In progress
 
 Commit: `chore: initialize go module and package skeleton`
 
 Tasks:
 
-- Create `go.mod` with module path `github.com/dector/adb-go`
-- Use latest stable Go version
-- Create root package `adb`
-- Create packages:
+- [x] Create `go.mod` with module path `github.com/dector/adb-go`
+- [x] Use latest stable Go version
+- [x] Create root package `adb`
+- [x] Create packages:
   - `client`
   - `protocol`
   - `internal/fakeadb`
-- Add package docs where useful
-- Add placeholder exported errors if needed
+- [x] Add package docs where useful
+- [x] Add placeholder exported errors if needed
 
 Done when:
 
-- `go test ./...` passes
-- No external dependencies are introduced
+- [x] `go test ./...` passes
+- [x] No external dependencies are introduced
 
 ## Milestone 3 — Add protocol message encoding
 
