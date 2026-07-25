@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 14 — Containerized adbd instrumented integration tests
+- Current milestone: Milestone 15 — CI
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -21,7 +21,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 12 — Add optional integration tests
   - Milestone 13 — Local hardening before CI
   - Milestone 14 — Containerized adbd instrumented integration tests
-- Next milestone after containerized adbd instrumented integration tests are accepted: CI
+  - Milestone 15 — CI
+- Next milestone after CI is accepted: Official CLI
 
 ## Milestone 1 — Project specification
 
@@ -360,6 +361,24 @@ Done when:
 - [x] `go test ./...` skips container integration tests by default
 - [x] `ADB_GO_CONTAINER_INTEGRATION=1 ADB_GO_CONTAINER_BUILD=1 go test -timeout 30m ./...` runs them against containerized `adbd`
 
+## Milestone 15 — CI
+
+Status: Implemented
+
+Commit: `ci: run go tests on linux macos and windows`
+
+Tasks:
+
+- [x] Add GitHub Actions workflow
+- [x] Run `go test ./...` on Linux, macOS, and Windows
+- [x] Use the Go version declared by `go.mod`
+- [x] Keep optional real-device and containerized integration tests skipped by default
+
+Done when:
+
+- [x] Pull requests and pushes run the normal test suite on Linux, macOS, and Windows
+- [x] `go test ./...` passes locally
+
 ## Deferred milestones
 
 These are intentionally out of v0 initial scope.
@@ -385,11 +404,3 @@ Potential commit series:
 ### USB transport
 
 Potential commit series depends on feasibility research. Keep pure-Go preference and avoid cgo/native dependencies unless a future decision changes this.
-
-### CI
-
-Add CI after the implementation compiles locally.
-
-Potential commit:
-
-- `ci: run go tests on linux macos and windows`
