@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 6 — Add stream demultiplexing
+- Current milestone: Milestone 7 — Add high-level client connect/open service
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -13,7 +13,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 4 — Add low-level connection handshake
   - Milestone 5 — Add fake ADB server foundation
   - Milestone 6 — Add stream demultiplexing
-- Next milestone after stream demultiplexing is accepted: Milestone 7 — Add high-level client connect/open service
+  - Milestone 7 — Add high-level client connect/open service
+- Next milestone after high-level client connect/open service is accepted: Milestone 8 — Add shell support
 
 ## Milestone 1 — Project specification
 
@@ -163,28 +164,30 @@ Done when:
 
 ## Milestone 7 — Add high-level client connect/open service
 
+Status: Implemented
+
 Commit: `feat(client): add tcp connect and service opening`
 
 Tasks:
 
-- Implement `client.Connect` / `client.ConnectTCP`
-- Default omitted port to `5555`
-- Use `net.Dialer` with context
-- Perform full ADB handshake before returning
-- Implement `Client.Close`
-- Implement `Client.OpenService(ctx, service string)`
-- Re-export high-level API from root package `adb`
+- [x] Implement `client.Connect` / `client.ConnectTCP`
+- [x] Default omitted port to `5555`
+- [x] Use `net.Dialer` with context
+- [x] Perform full ADB handshake before returning
+- [x] Implement `Client.Close`
+- [x] Implement `Client.OpenService(ctx, service string)`
+- [x] Re-export high-level API from root package `adb`
 
 Tests:
 
-- Address normalization with and without port
-- Connect succeeds against fake server
-- Auth response maps to high-level `ErrAuthRequired`
-- `OpenService` works against fake service
+- [x] Address normalization with and without port
+- [x] Connect succeeds against fake server
+- [x] Auth response maps to high-level `ErrAuthRequired`
+- [x] `OpenService` works against fake service
 
 Done when:
 
-- Users can connect to a fake ADB server and open a generic service through high-level API
+- [x] Users can connect to a fake ADB server and open a generic service through high-level API
 
 ## Milestone 8 — Add shell support
 
