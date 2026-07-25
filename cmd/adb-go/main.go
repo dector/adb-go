@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	adb "github.com/dector/adb-go"
@@ -30,24 +31,105 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+type deviceClient interface {
+	Close() error
+	ShellStream(ctx context.Context, cmd string, stdout io.Writer) error
+	PushFile(ctx context.Context, localPath, remotePath string) error
+	PullFile(ctx context.Context, remotePath, localPath string) error
+	PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
+}
+
 type connectionOptions struct {
-	addr *string
+	addr      *string
+	usb       *bool
+	serial    *string
+	usbPath   *string
+	usbBus    *int
+	usbDevice *int
+	usbVID    *string
+	usbPID    *string
+}
+
+type connectionTarget struct {
+	description string
+	tcpAddr     string
+	usb         bool
+	usbOptions  adb.USBOptions
+}
+
+var connectDevice = func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+	if target.usb {
+		return adb.ConnectUSB(ctx, target.usbOptions)
+	}
+	return adb.Connect(ctx, target.tcpAddr)
 }
 
 func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
 	return connectionOptions{
-		addr: fs.String("addr", "", "explicit TCP device address, for example 127.0.0.1:5555"),
+		addr:      fs.String("addr", "", "explicit TCP device address, for example 127.0.0.1:5555"),
+		usb:       fs.Bool("usb", false, "connect over USB instead of TCP; Linux-only initially"),
+		serial:    fs.String("serial", "", "USB serial selector; reserved for future string descriptor support"),
+		usbPath:   fs.String("usb-path", "", "Linux usbfs device path, for example /dev/bus/usb/001/002"),
+		usbBus:    fs.Int("usb-bus", 0, "Linux usbfs bus number for USB selection"),
+		usbDevice: fs.Int("usb-device", 0, "Linux usbfs device number for USB selection"),
+		usbVID:    fs.String("usb-vid", "", "USB vendor ID, for example 18d1 or 0x18d1"),
+		usbPID:    fs.String("usb-pid", "", "USB product ID, for example 4ee7 or 0x4ee7"),
 	}
 }
 
-func (o connectionOptions) address(fs *flag.FlagSet) (string, bool) {
-	if flagWasProvided(fs, "addr") {
+func (o connectionOptions) target(fs *flag.FlagSet) (connectionTarget, error) {
+	addrProvided := flagWasProvided(fs, "addr")
+	usbRequested := *o.usb || flagWasProvided(fs, "usb-path") || flagWasProvided(fs, "serial") || flagWasProvided(fs, "usb-bus") || flagWasProvided(fs, "usb-device") || flagWasProvided(fs, "usb-vid") || flagWasProvided(fs, "usb-pid")
+	if addrProvided && usbRequested {
+		return connectionTarget{}, fmt.Errorf("cannot combine TCP --addr with USB selection flags")
+	}
+
+	if usbRequested {
+		opts := adb.USBOptions{
+			DevicePath:   strings.TrimSpace(*o.usbPath),
+			Serial:       strings.TrimSpace(*o.serial),
+			BusNumber:    *o.usbBus,
+			DeviceNumber: *o.usbDevice,
+		}
+		var err error
+		if opts.VendorID, err = parseUSBID("--usb-vid", *o.usbVID); err != nil {
+			return connectionTarget{}, err
+		}
+		if opts.ProductID, err = parseUSBID("--usb-pid", *o.usbPID); err != nil {
+			return connectionTarget{}, err
+		}
+		return connectionTarget{description: "USB device", usb: true, usbOptions: opts}, nil
+	}
+
+	if addrProvided {
 		addr := strings.TrimSpace(*o.addr)
-		return addr, addr != ""
+		if addr == "" {
+			return connectionTarget{}, fmt.Errorf("missing required --addr value")
+		}
+		return connectionTarget{description: addr, tcpAddr: addr}, nil
 	}
 
 	addr := strings.TrimSpace(os.Getenv("ADB_GO_ADDR"))
-	return addr, addr != ""
+	if addr != "" {
+		return connectionTarget{description: addr, tcpAddr: addr}, nil
+	}
+	return connectionTarget{}, fmt.Errorf("missing required --addr, ADB_GO_ADDR, or USB selection")
+}
+
+func parseUSBID(name, value string) (uint16, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, nil
+	}
+	base := 0
+	if !strings.HasPrefix(value, "0x") && !strings.HasPrefix(value, "0X") {
+		base = 16
+	}
+	id, err := strconv.ParseUint(value, base, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s %q", name, value)
+	}
+	return uint16(id), nil
 }
 
 func flagWasProvided(fs *flag.FlagSet, name string) bool {
@@ -84,14 +166,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 const shellUsage = `Usage:
-  adb-go shell --addr HOST[:PORT] COMMAND [ARG...]
+  adb-go shell (--addr HOST[:PORT] | --usb [USB selection]) COMMAND [ARG...]
 
-Runs one shell command on the explicitly addressed TCP ADB device. The address
-comes from --addr, or from ADB_GO_ADDR when --addr is omitted. COMMAND and all
-following arguments are joined with spaces and sent as one shell command string,
-for example:
+Runs one shell command on the selected ADB device. TCP addresses come from
+--addr, or from ADB_GO_ADDR when --addr is omitted. USB support is Linux-only
+initially; select USB with --usb, --usb-path, --usb-bus/--usb-device,
+--usb-vid/--usb-pid, or --serial. COMMAND and all following arguments are joined
+with spaces and sent as one shell command string, for example:
 
   adb-go shell --addr 127.0.0.1:5555 echo hello
+  adb-go shell --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 `
 
 func runShell(args []string, stdout, stderr io.Writer) int {
@@ -103,9 +187,9 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	addr, ok := conn.address(fs)
-	if !ok {
-		fmt.Fprint(stderr, "adb-go shell: missing required --addr or ADB_GO_ADDR\n\n")
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go shell: %v\n\n", err)
 		fs.Usage()
 		return 2
 	}
@@ -116,9 +200,9 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 	}
 
 	cmd := strings.Join(fs.Args(), " ")
-	client, err := adb.Connect(context.Background(), addr)
+	client, err := connectDevice(context.Background(), target)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go shell: connect to %s: %v\n", addr, err)
+		fmt.Fprintf(stderr, "adb-go shell: connect to %s: %v\n", target.description, err)
 		return 1
 	}
 	defer client.Close()
@@ -131,13 +215,14 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 }
 
 const pushUsage = `Usage:
-  adb-go push --addr HOST[:PORT] LOCAL_PATH REMOTE_PATH
+  adb-go push (--addr HOST[:PORT] | --usb [USB selection]) LOCAL_PATH REMOTE_PATH
 
-Pushes exactly one local file to the explicitly addressed TCP ADB device. The
-address comes from --addr, or from ADB_GO_ADDR when --addr is omitted. For
-example:
+Pushes exactly one local file to the selected ADB device. TCP addresses come from
+--addr, or from ADB_GO_ADDR when --addr is omitted. USB support is Linux-only
+initially. For example:
 
   adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
+  adb-go push --usb-path /dev/bus/usb/001/002 ./local.txt /data/local/tmp/local.txt
 `
 
 func runPush(args []string, stdout, stderr io.Writer) int {
@@ -149,9 +234,9 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	addr, ok := conn.address(fs)
-	if !ok {
-		fmt.Fprint(stderr, "adb-go push: missing required --addr or ADB_GO_ADDR\n\n")
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go push: %v\n\n", err)
 		fs.Usage()
 		return 2
 	}
@@ -162,9 +247,9 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 	}
 
 	localPath, remotePath := fs.Arg(0), fs.Arg(1)
-	client, err := adb.Connect(context.Background(), addr)
+	client, err := connectDevice(context.Background(), target)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go push: connect to %s: %v\n", addr, err)
+		fmt.Fprintf(stderr, "adb-go push: connect to %s: %v\n", target.description, err)
 		return 1
 	}
 	defer client.Close()
@@ -177,14 +262,15 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 }
 
 const pullUsage = `Usage:
-  adb-go pull --addr HOST[:PORT] [--overwrite] REMOTE_PATH LOCAL_PATH
+  adb-go pull (--addr HOST[:PORT] | --usb [USB selection]) [--overwrite] REMOTE_PATH LOCAL_PATH
 
-Pulls exactly one remote file from the explicitly addressed TCP ADB device. The
-address comes from --addr, or from ADB_GO_ADDR when --addr is omitted. By default,
-the command refuses to replace an existing local destination; pass --overwrite to
-replace it deliberately. For example:
+Pulls exactly one remote file from the selected ADB device. TCP addresses come
+from --addr, or from ADB_GO_ADDR when --addr is omitted. USB support is
+Linux-only initially. By default, the command refuses to replace an existing
+local destination; pass --overwrite to replace it deliberately. For example:
 
   adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
+  adb-go pull --usb-path /dev/bus/usb/001/002 /data/local/tmp/remote.txt ./remote.txt
 `
 
 func runPull(args []string, stdout, stderr io.Writer) int {
@@ -197,9 +283,9 @@ func runPull(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	addr, ok := conn.address(fs)
-	if !ok {
-		fmt.Fprint(stderr, "adb-go pull: missing required --addr or ADB_GO_ADDR\n\n")
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go pull: %v\n\n", err)
 		fs.Usage()
 		return 2
 	}
@@ -210,9 +296,9 @@ func runPull(args []string, stdout, stderr io.Writer) int {
 	}
 
 	remotePath, localPath := fs.Arg(0), fs.Arg(1)
-	client, err := adb.Connect(context.Background(), addr)
+	client, err := connectDevice(context.Background(), target)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go pull: connect to %s: %v\n", addr, err)
+		fmt.Fprintf(stderr, "adb-go pull: connect to %s: %v\n", target.description, err)
 		return 1
 	}
 	defer client.Close()

@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 27 — CLI USB connect option
-- Milestones 17–26 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, and high-level USB connection API.
+- Current milestone: Milestone 28 — USB documentation
+- Milestones 17–27 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, and CLI USB connection option.
 - Active focus: pure-Go Linux USB support without cgo, libusb, Android SDK, platform-tools, or the official `adb` binary.
 - Preferred implementation direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This is still pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -139,29 +139,29 @@ Done when:
 
 ## Milestone 27 — CLI USB connect option
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cmd): add usb connection option`
 
 Tasks:
 
-- [ ] Add CLI flags for USB selection, such as `--usb`, `--serial`, or `--usb-path`
-- [ ] Keep TCP `--addr` behavior unchanged
-- [ ] Reject ambiguous combinations such as both TCP address and USB selection in one command
-- [ ] Use the shared CLI connection path for shell, push, and pull
-- [ ] Keep missing or ambiguous USB device errors clear and actionable
-- [ ] Document that USB CLI support is Linux-only initially
+- [x] Add CLI flags for USB selection, such as `--usb`, `--serial`, or `--usb-path`
+- [x] Keep TCP `--addr` behavior unchanged
+- [x] Reject ambiguous combinations such as both TCP address and USB selection in one command
+- [x] Use the shared CLI connection path for shell, push, and pull
+- [x] Keep missing or ambiguous USB device errors clear and actionable
+- [x] Document that USB CLI support is Linux-only initially
 
 Tests:
 
-- [ ] CLI parsing tests cover TCP, USB, missing selection, and conflicting flags
-- [ ] Existing shell/push/pull TCP tests continue to pass
-- [ ] Optional USB integration test remains gated by environment
-- [ ] `go test ./...` passes
+- [x] CLI parsing tests cover TCP, USB, missing selection, and conflicting flags
+- [x] Existing shell/push/pull TCP tests continue to pass
+- [x] Optional USB integration test remains gated by environment
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users on Linux can run shell/push/pull through a selected USB ADB device, while TCP workflows continue unchanged
+- [x] CLI users on Linux can run shell/push/pull through a selected USB ADB device, while TCP workflows continue unchanged
 
 ## Milestone 28 — USB documentation
 

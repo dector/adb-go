@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	adb "github.com/dector/adb-go"
 	"github.com/dector/adb-go/internal/fakeadb"
 	"github.com/dector/adb-go/protocol"
 )
@@ -63,7 +64,7 @@ func TestRunUnknownCommand(t *testing.T) {
 	}
 }
 
-func TestConnectionOptionsAddressFromFlag(t *testing.T) {
+func TestConnectionOptionsTargetFromAddrFlag(t *testing.T) {
 	t.Setenv("ADB_GO_ADDR", "192.0.2.10:5555")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	conn := addConnectionFlags(fs)
@@ -71,17 +72,19 @@ func TestConnectionOptionsAddressFromFlag(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	addr, ok := conn.address(fs)
-
-	if !ok {
-		t.Fatalf("address() ok = false, want true")
+	target, err := conn.target(fs)
+	if err != nil {
+		t.Fatalf("target() error = %v", err)
 	}
-	if addr != "127.0.0.1:5555" {
-		t.Fatalf("address() = %q, want flag value", addr)
+	if target.usb {
+		t.Fatal("target().usb = true, want false")
+	}
+	if target.tcpAddr != "127.0.0.1:5555" {
+		t.Fatalf("target().tcpAddr = %q, want flag value", target.tcpAddr)
 	}
 }
 
-func TestConnectionOptionsMissingAddress(t *testing.T) {
+func TestConnectionOptionsMissingTarget(t *testing.T) {
 	t.Setenv("ADB_GO_ADDR", "")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	conn := addConnectionFlags(fs)
@@ -89,17 +92,12 @@ func TestConnectionOptionsMissingAddress(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	addr, ok := conn.address(fs)
-
-	if ok {
-		t.Fatalf("address() ok = true, want false")
-	}
-	if addr != "" {
-		t.Fatalf("address() = %q, want empty", addr)
+	if _, err := conn.target(fs); err == nil {
+		t.Fatal("target() error = nil, want missing target error")
 	}
 }
 
-func TestConnectionOptionsAddressFromEnvWhenFlagAbsent(t *testing.T) {
+func TestConnectionOptionsTargetFromEnvWhenFlagAbsent(t *testing.T) {
 	t.Setenv("ADB_GO_ADDR", "  127.0.0.1:5555  ")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	conn := addConnectionFlags(fs)
@@ -107,17 +105,16 @@ func TestConnectionOptionsAddressFromEnvWhenFlagAbsent(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	addr, ok := conn.address(fs)
-
-	if !ok {
-		t.Fatalf("address() ok = false, want true")
+	target, err := conn.target(fs)
+	if err != nil {
+		t.Fatalf("target() error = %v", err)
 	}
-	if addr != "127.0.0.1:5555" {
-		t.Fatalf("address() = %q, want trimmed env value", addr)
+	if target.tcpAddr != "127.0.0.1:5555" {
+		t.Fatalf("target().tcpAddr = %q, want trimmed env value", target.tcpAddr)
 	}
 }
 
-func TestConnectionOptionsAddressFlagPreventsEnvFallback(t *testing.T) {
+func TestConnectionOptionsAddrFlagPreventsEnvFallback(t *testing.T) {
 	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	conn := addConnectionFlags(fs)
@@ -125,13 +122,78 @@ func TestConnectionOptionsAddressFlagPreventsEnvFallback(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	addr, ok := conn.address(fs)
-
-	if ok {
-		t.Fatalf("address() ok = true, want false")
+	if _, err := conn.target(fs); err == nil {
+		t.Fatal("target() error = nil, want empty --addr error")
 	}
-	if addr != "" {
-		t.Fatalf("address() = %q, want empty", addr)
+}
+
+func TestConnectionOptionsUSBSelection(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--usb-path", "/dev/bus/usb/001/002", "--usb-vid", "18d1", "--usb-pid", "0x4ee7"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	target, err := conn.target(fs)
+	if err != nil {
+		t.Fatalf("target() error = %v", err)
+	}
+	if !target.usb {
+		t.Fatal("target().usb = false, want true")
+	}
+	if target.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("USB DevicePath = %q, want fixture path", target.usbOptions.DevicePath)
+	}
+	if target.usbOptions.VendorID != 0x18d1 || target.usbOptions.ProductID != 0x4ee7 {
+		t.Fatalf("USB VID/PID = %#x/%#x, want 0x18d1/0x4ee7", target.usbOptions.VendorID, target.usbOptions.ProductID)
+	}
+}
+
+func TestConnectionOptionsRejectsTCPAndUSBCombination(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--addr", "127.0.0.1:5555", "--usb"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if _, err := conn.target(fs); err == nil {
+		t.Fatal("target() error = nil, want TCP/USB conflict error")
+	}
+}
+
+func TestRunShellUsesUSBConnection(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{shellOutput: "usb shell\n"}, nil
+	})
+	defer restore()
+
+	code := run([]string{"shell", "--usb-path", "/dev/bus/usb/001/002", "echo", "hello"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(shell --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+	if stdout.String() != "usb shell\n" {
+		t.Fatalf("stdout = %q, want USB shell output", stdout.String())
+	}
+}
+
+func TestRunRejectsConflictingTCPAndUSBFlags(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"shell", "--addr", "127.0.0.1:5555", "--usb", "echo", "hello"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(conflicting connection flags) exit code = %d, want 2", code)
+	}
+	if got := stderr.String(); !strings.Contains(got, "cannot combine TCP --addr with USB") {
+		t.Fatalf("stderr = %q, want TCP/USB conflict error", got)
 	}
 }
 
@@ -520,4 +582,29 @@ func cliSyncPacket(id string, payload []byte) []byte {
 	binary.LittleEndian.PutUint32(packet[4:8], uint32(len(payload)))
 	copy(packet[8:], payload)
 	return packet
+}
+
+type fakeCLIClient struct {
+	shellOutput string
+}
+
+func (c fakeCLIClient) Close() error { return nil }
+
+func (c fakeCLIClient) ShellStream(ctx context.Context, cmd string, stdout io.Writer) error {
+	_, err := io.WriteString(stdout, c.shellOutput)
+	return err
+}
+
+func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath string) error { return nil }
+
+func (c fakeCLIClient) PullFile(ctx context.Context, remotePath, localPath string) error { return nil }
+
+func (c fakeCLIClient) PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error {
+	return nil
+}
+
+func replaceConnectDevice(fn func(context.Context, connectionTarget) (deviceClient, error)) func() {
+	old := connectDevice
+	connectDevice = fn
+	return func() { connectDevice = old }
 }
