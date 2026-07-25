@@ -121,26 +121,26 @@ Done when:
 
 ## Milestone 21 — CLI documentation
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document adb-go cli`
 
 Tasks:
 
-- [ ] Add README documentation for installing or running the CLI
-- [ ] Add examples for `shell`, `push`, and `pull`
-- [ ] Document the required explicit TCP address
-- [ ] Document that the CLI is not a complete `adb` replacement
-- [ ] Document skipped features such as USB, auth, discovery, and broad command compatibility
+- [x] Add README documentation for installing or running the CLI
+- [x] Add examples for `shell`, `push`, and `pull`
+- [x] Document the required explicit TCP address
+- [x] Document that the CLI is not a complete `adb` replacement
+- [x] Document skipped features such as USB, auth, discovery, and broad command compatibility
 
 Tests:
 
-- [ ] `go test ./...` passes
-- [ ] README examples match the implemented CLI command shapes
+- [x] `go test ./...` passes
+- [x] README examples match the implemented CLI command shapes
 
 Done when:
 
-- [ ] A new user can understand the current CLI capabilities and limitations from README
+- [x] A new user can understand the current CLI capabilities and limitations from README
 
 ## Deferred milestones
 

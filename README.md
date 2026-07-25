@@ -11,12 +11,26 @@ authorized/insecure devices.
 
 ## Install
 
+For library use, add the module to your Go project:
+
 ```sh
 go get github.com/dector/adb-go
 ```
 
 ```go
 import adb "github.com/dector/adb-go"
+```
+
+To install the experimental CLI, use `go install`:
+
+```sh
+go install github.com/dector/adb-go/cmd/adb-go@latest
+```
+
+From a local checkout, you can also run it without installing:
+
+```sh
+go run ./cmd/adb-go help
 ```
 
 The module uses only the Go standard library for the current TCP implementation.
@@ -118,6 +132,46 @@ defer stream.Close()
 _, err = io.Copy(os.Stdout, stream)
 ```
 
+## CLI
+
+`adb-go` includes an experimental CLI named `adb-go`. The CLI is intentionally a
+thin wrapper around the library's supported high-level operations, not a full
+clone of the official `adb` command.
+
+Every v0 CLI operation targets one explicit TCP ADB endpoint. Pass it with
+`--addr HOST[:PORT]`:
+
+```sh
+adb-go shell --addr 127.0.0.1:5555 echo hello
+adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
+adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
+```
+
+If the port is omitted, the library connection path defaults to the standard ADB
+TCP port `5555`, so `--addr 127.0.0.1` means `127.0.0.1:5555`.
+
+As a convenience for repeated commands, you may set `ADB_GO_ADDR` instead of
+passing `--addr` each time. An explicit `--addr` always takes precedence:
+
+```sh
+export ADB_GO_ADDR=127.0.0.1:5555
+adb-go shell echo hello
+adb-go push ./local.txt /data/local/tmp/local.txt
+adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
+```
+
+`adb-go shell` joins all remaining arguments with spaces and sends the result as
+one shell command string, matching the library API and the common `adb shell`
+shape. For example, this opens the ADB service string
+`shell:pm list packages`:
+
+```sh
+adb-go shell --addr 127.0.0.1:5555 pm list packages
+```
+
+`adb-go push` and `adb-go pull` transfer exactly one file. Pull refuses to
+replace an existing local destination unless `--overwrite` is provided.
+
 ## Current limitations and differences from official adb
 
 `adb-go` intentionally supports only a small v0 subset:
@@ -127,10 +181,14 @@ _, err = io.Copy(os.Stdout, stream)
 - No ADB authentication implementation yet. If a peer replies with `AUTH`, the
   high-level client returns `adb.ErrAuthRequired`.
 - No device discovery or device listing in v0.
-- Connects only to an explicit device address supplied by the caller.
-- Incomplete command coverage: shell, shell streaming, single-file push,
-  single-file pull, and generic service opening are the supported workflows.
-- No official CLI yet; the project is currently library-first.
+- Connects only to an explicit device address supplied by the caller or, for the
+  CLI, by the `ADB_GO_ADDR` environment variable.
+- Incomplete command coverage: library users can run shell commands, stream
+  shell output, push one file, pull one file, and open generic services; CLI
+  users currently have `shell`, `push`, and `pull`.
+- The CLI is not a complete `adb` replacement. Broad command compatibility such
+  as `devices`, `install`, `logcat` as a dedicated command, server management,
+  wireless pairing, forwarding, and most official flags are not implemented.
 - Push and pull are explicit single-file APIs. Directory-aware behavior is
   reserved for future `Push`/`Pull` style APIs.
 
@@ -210,7 +268,8 @@ authentication, devices that answer with `AUTH` will fail with
 
 Preferred post-v0 direction:
 
-1. Add an official CLI as a thin wrapper around the supported library operations.
+1. Continue growing the official CLI as a thin wrapper around supported library
+   operations.
 2. Implement ADB authentication.
 3. Add USB transport support while preserving pure-Go preferences where
    feasible.
