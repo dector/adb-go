@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 32 — Expose authentication through the high-level client.
+- Current milestone: Milestone 33 — Add CLI authentication support.
 - Completed milestone range: Milestones 17–29 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, and adb-go-specific target listing.
 - Active focus: ADB authentication. Authenticated devices currently return `ErrAuthRequired` over both TCP and USB; the next slice should add explicit host credentials first, then wire those credentials into the protocol handshake, client API, CLI, and docs in separate reviewable milestones.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -91,26 +91,26 @@ Done when:
 
 ## Milestone 32 — Expose authentication through the high-level client
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add authenticated connect options`
 
 Tasks:
 
-- [ ] Add client connection options that allow callers to provide explicit auth credentials for both TCP and USB connection paths.
-- [ ] Preserve existing `Connect`, `ConnectTCP`, and USB helper defaults so callers that do not opt into auth still see `ErrAuthRequired`.
-- [ ] Re-export the stable auth types or constructors from the root package when they are part of the high-level API.
-- [ ] Add examples showing explicit key loading and authenticated connection without implying command/path safety guarantees.
+- [x] Add client connection options that allow callers to provide explicit auth credentials for both TCP and USB connection paths.
+- [x] Preserve existing `Connect`, `ConnectTCP`, and USB helper defaults so callers that do not opt into auth still see `ErrAuthRequired`.
+- [x] Re-export the stable auth types or constructors from the root package when they are part of the high-level API.
+- [x] Add examples showing explicit key loading and authenticated connection without implying command/path safety guarantees.
 
 Tests:
 
-- [ ] Client tests cover TCP and fake USB/auth transport success with credentials and `ErrAuthRequired` without credentials.
-- [ ] Example tests compile.
-- [ ] `go test ./...` passes
+- [x] Client tests cover TCP and fake USB/auth transport success with credentials and `ErrAuthRequired` without credentials.
+- [x] Example tests compile.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Application code can authenticate to TCP or USB devices by loading credentials explicitly and passing them through the high-level API.
+- [x] Application code can authenticate to TCP or USB devices by loading credentials explicitly and passing them through the high-level API.
 
 ## Milestone 33 — Add CLI authentication support
 

@@ -24,10 +24,24 @@ func Connect(ctx context.Context, addr string) (*Client, error) {
 	return ConnectTCP(ctx, addr)
 }
 
+// ConnectWithOptions connects to addr over TCP using opts. If addr omits a
+// port, the default ADB TCP port 5555 is used.
+func ConnectWithOptions(ctx context.Context, addr string, opts ConnectOptions) (*Client, error) {
+	return ConnectTCPWithOptions(ctx, addr, opts)
+}
+
 // ConnectTCP connects to addr over TCP and performs the initial ADB CNXN
-// handshake before returning. Authentication is not implemented in v0; an AUTH
-// response is reported as ErrAuthRequired.
+// handshake before returning. An AUTH response is reported as ErrAuthRequired;
+// use ConnectTCPWithOptions to supply explicit authentication credentials.
 func ConnectTCP(ctx context.Context, addr string) (*Client, error) {
+	return ConnectTCPWithOptions(ctx, addr, ConnectOptions{})
+}
+
+// ConnectTCPWithOptions connects to addr over TCP and performs the initial ADB
+// CNXN handshake before returning. When opts contains explicit auth
+// credentials, authenticated devices can complete the AUTH challenge/response
+// flow; otherwise an AUTH response is reported as ErrAuthRequired.
+func ConnectTCPWithOptions(ctx context.Context, addr string, opts ConnectOptions) (*Client, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -39,7 +53,7 @@ func ConnectTCP(ctx context.Context, addr string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return connectWithTransport(ctx, dialer)
+	return connectWithTransportOptions(ctx, dialer, opts)
 }
 
 // Close closes the underlying ADB connection.

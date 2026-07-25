@@ -2,12 +2,17 @@ package client
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"testing"
 
+	"github.com/dector/adb-go/auth"
 	"github.com/dector/adb-go/internal/usb"
 	"github.com/dector/adb-go/protocol"
 )
@@ -53,6 +58,65 @@ func TestConnectUSBPerformsHandshakeThroughSelectedTransport(t *testing.T) {
 	}
 }
 
+func TestConnectUSBUsesAuthCredentials(t *testing.T) {
+	clientSide, serverSide := net.Pipe()
+	defer serverSide.Close()
+
+	restore := replaceUSBHooks(
+		func(ctx context.Context) ([]usb.Candidate, error) {
+			return []usb.Candidate{{DevicePath: "/dev/bus/usb/001/002", BulkInEndpoint: 0x81, BulkOutEndpoint: 0x02}}, nil
+		},
+		func(ctx context.Context, candidate usb.Candidate) (io.ReadWriteCloser, error) { return clientSide, nil },
+	)
+	defer restore()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	cred, err := auth.NewCredential(key)
+	if err != nil {
+		t.Fatalf("NewCredential: %v", err)
+	}
+	token := []byte("usb token")
+
+	done := make(chan error, 1)
+	go func() {
+		if _, err := protocol.ReadMessage(serverSide); err != nil {
+			done <- err
+			return
+		}
+		if err := protocol.WriteMessage(serverSide, protocol.Message{Command: protocol.CommandAUTH, Arg0: protocol.AuthToken, Payload: token}); err != nil {
+			done <- err
+			return
+		}
+		response, err := protocol.ReadMessage(serverSide)
+		if err != nil {
+			done <- err
+			return
+		}
+		digest := sha1.Sum(token)
+		if response.Command != protocol.CommandAUTH || response.Arg0 != protocol.AuthSignature {
+			done <- fmt.Errorf("response = %#v, want AUTH SIGNATURE", response)
+			return
+		}
+		if err := rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA1, digest[:], response.Payload); err != nil {
+			done <- err
+			return
+		}
+		done <- protocol.WriteMessage(serverSide, protocol.Message{Command: protocol.CommandCNXN, Arg0: protocol.Version, Arg1: protocol.MaxPayload, Payload: []byte("device::usb-auth\x00")})
+	}()
+
+	client, err := ConnectUSB(context.Background(), USBOptions{AuthCredentials: []protocol.AuthCredential{cred}})
+	if err != nil {
+		t.Fatalf("ConnectUSB() error = %v", err)
+	}
+	defer client.Close()
+	if err := <-done; err != nil {
+		t.Fatalf("USB auth handshake server error = %v", err)
+	}
+}
+
 func TestConnectUSBMapsAuthRequired(t *testing.T) {
 	clientSide, serverSide := net.Pipe()
 	defer serverSide.Close()
@@ -71,7 +135,7 @@ func TestConnectUSBMapsAuthRequired(t *testing.T) {
 			done <- err
 			return
 		}
-		done <- protocol.WriteMessage(serverSide, protocol.Message{Command: protocol.CommandAUTH, Arg0: 1, Payload: []byte("token")})
+		done <- protocol.WriteMessage(serverSide, protocol.Message{Command: protocol.CommandAUTH, Arg0: protocol.AuthToken, Payload: []byte("token")})
 	}()
 
 	client, err := ConnectUSB(context.Background(), USBOptions{})

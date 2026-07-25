@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/dector/adb-go/internal/usb"
+	"github.com/dector/adb-go/protocol"
 )
 
 // USBDevice describes one locally visible USB interface that looks like an ADB
@@ -58,6 +59,10 @@ type USBOptions struct {
 	// Serial is reserved for future USB string descriptor support. Serial-based
 	// selection is not implemented yet.
 	Serial string
+
+	// AuthCredentials contains explicit ADB host credentials used when the USB
+	// device requires authentication.
+	AuthCredentials []protocol.AuthCredential
 }
 
 type usbTransportDialer struct {
@@ -72,6 +77,8 @@ var (
 // ConnectUSB connects to an ADB device over USB and performs the initial ADB
 // CNXN handshake before returning. The initial USB backend is Linux-only. On
 // unsupported platforms ConnectUSB returns an error matching ErrUnsupported.
+// If opts.AuthCredentials is empty, authenticated devices return
+// ErrAuthRequired.
 func ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -79,7 +86,7 @@ func ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return connectWithTransport(ctx, usbTransportDialer{opts: opts})
+	return connectWithTransportOptions(ctx, usbTransportDialer{opts: opts}, ConnectOptions{AuthCredentials: opts.AuthCredentials})
 }
 
 func (d usbTransportDialer) DialTransport(ctx context.Context) (io.ReadWriteCloser, error) {
@@ -108,8 +115,8 @@ func (d usbTransportDialer) ConnectDescription() string {
 //
 // A returned device is a connection candidate, not proof of a usable ADB
 // session. Opening it can still fail due to operating-system permissions, and
-// the ADB handshake can still fail with ErrAuthRequired until authentication is
-// implemented.
+// the ADB handshake can still fail with ErrAuthRequired unless explicit
+// credentials are supplied to ConnectUSB.
 func ListUSBDevices(ctx context.Context) ([]USBDevice, error) {
 	if ctx == nil {
 		ctx = context.Background()

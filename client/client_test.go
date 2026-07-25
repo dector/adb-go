@@ -3,6 +3,10 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -12,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dector/adb-go/auth"
 	"github.com/dector/adb-go/internal/fakeadb"
 	"github.com/dector/adb-go/protocol"
 )
@@ -97,6 +102,33 @@ func TestConnectWithTransportPerformsSharedHandshake(t *testing.T) {
 	}
 }
 
+func TestConnectTCPWithOptionsAuthenticatesAgainstFakeServer(t *testing.T) {
+	server := fakeadb.Start(t)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	cred, err := auth.NewCredential(key)
+	if err != nil {
+		t.Fatalf("NewCredential: %v", err)
+	}
+	token := []byte("client token")
+	digest := sha1.Sum(token)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA1, digest[:])
+	if err != nil {
+		t.Fatalf("SignPKCS1v15: %v", err)
+	}
+	server.RequireAuth(token, signature, nil)
+
+	client, err := ConnectTCPWithOptions(context.Background(), server.Addr(), ConnectOptions{AuthCredentials: []protocol.AuthCredential{cred}})
+	if err != nil {
+		t.Fatalf("ConnectTCPWithOptions() error = %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 func TestConnectWithTransportMapsAuthResponse(t *testing.T) {
 	clientSide, serverSide := net.Pipe()
 	defer serverSide.Close()
@@ -109,7 +141,7 @@ func TestConnectWithTransportMapsAuthResponse(t *testing.T) {
 		}
 		done <- protocol.WriteMessage(serverSide, protocol.Message{
 			Command: protocol.CommandAUTH,
-			Arg0:    1,
+			Arg0:    protocol.AuthToken,
 			Payload: []byte("token"),
 		})
 	}()
@@ -639,7 +671,7 @@ func startAuthServer(t *testing.T) (addr string, closeServer func()) {
 		_, _ = protocol.ReadMessage(conn)
 		_ = protocol.WriteMessage(conn, protocol.Message{
 			Command: protocol.CommandAUTH,
-			Arg0:    1,
+			Arg0:    protocol.AuthToken,
 			Payload: []byte("token"),
 		})
 	}()

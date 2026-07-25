@@ -4,7 +4,9 @@ package adb
 import (
 	"context"
 
+	"github.com/dector/adb-go/auth"
 	"github.com/dector/adb-go/client"
+	"github.com/dector/adb-go/protocol"
 )
 
 // Client is a high-level ADB client connected to one device transport.
@@ -12,6 +14,16 @@ type Client = client.Client
 
 // PullOptions controls PullFileWithOptions behavior.
 type PullOptions = client.PullOptions
+
+// ConnectOptions controls optional high-level connection behavior.
+type ConnectOptions = client.ConnectOptions
+
+// AuthCredential supplies one ADB host credential to an authenticated
+// connection handshake.
+type AuthCredential = protocol.AuthCredential
+
+// Credential is an explicit ADB host authentication credential.
+type Credential = auth.Credential
 
 // USBDevice describes one locally visible ADB-capable USB interface.
 type USBDevice = client.USBDevice
@@ -38,10 +50,25 @@ func Connect(ctx context.Context, addr string) (*Client, error) {
 	return client.Connect(ctx, addr)
 }
 
+// ConnectWithOptions connects to addr over TCP using opts.
+func ConnectWithOptions(ctx context.Context, addr string, opts ConnectOptions) (*Client, error) {
+	return client.ConnectWithOptions(ctx, addr, opts)
+}
+
 // ConnectTCP connects to addr over TCP and performs the initial ADB CNXN
 // handshake before returning.
 func ConnectTCP(ctx context.Context, addr string) (*Client, error) {
 	return client.ConnectTCP(ctx, addr)
+}
+
+// ConnectTCPWithOptions connects to addr over TCP using opts.
+func ConnectTCPWithOptions(ctx context.Context, addr string, opts ConnectOptions) (*Client, error) {
+	return client.ConnectTCPWithOptions(ctx, addr, opts)
+}
+
+// LoadPrivateKey loads an explicit ADB RSA private key from path.
+func LoadPrivateKey(path string) (*Credential, error) {
+	return auth.LoadPrivateKey(path)
 }
 
 // ConnectUSB connects to an ADB device over USB and performs the initial ADB

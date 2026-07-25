@@ -20,6 +20,22 @@ func ExampleConnect() {
 	defer client.Close()
 }
 
+func ExampleConnectTCPWithOptions_authentication() {
+	ctx := context.Background()
+
+	credential, err := adb.LoadPrivateKey("/home/me/.android/adbkey")
+	if err != nil {
+		return
+	}
+	client, err := adb.ConnectTCPWithOptions(ctx, "127.0.0.1:5555", adb.ConnectOptions{
+		AuthCredentials: []adb.AuthCredential{credential},
+	})
+	if err != nil {
+		return
+	}
+	defer client.Close()
+}
+
 func ExampleClient_Shell() {
 	ctx := context.Background()
 	client, err := adb.Connect(ctx, "127.0.0.1:5555")
