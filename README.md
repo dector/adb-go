@@ -171,6 +171,26 @@ or path allowlists/denylists, does not log by default, and requires
 `context.Context` for blocking public operations so callers can set deadlines or
 cancel work.
 
+## Testing
+
+Run the normal unit and example test suite with:
+
+```sh
+go test ./...
+```
+
+Optional integration tests are skipped by default. To run them, start an emulator
+or TCP-enabled device that is already authorized or otherwise accepts unauthenticated
+ADB TCP connections, then set `ADB_GO_INTEGRATION_ADDR`:
+
+```sh
+ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...
+```
+
+The integration test connects with `adb.Connect` and runs a small shell command.
+Because v0 does not implement ADB authentication, devices that answer with
+`AUTH` will fail with `adb.ErrAuthRequired` until authentication support is added.
+
 ## Roadmap
 
 Preferred post-v0 direction:

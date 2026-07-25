@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 11 — Add public docs and examples
+- Current milestone: Milestone 12 — Add optional integration tests
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -18,7 +18,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 9 — Add sync protocol single-file pull
   - Milestone 10 — Add sync protocol single-file push
   - Milestone 11 — Add public docs and examples
-- Next milestone after docs support is accepted: Milestone 12 — Add optional integration tests
+  - Milestone 12 — Add optional integration tests
+- Next milestone after integration test support is accepted: Milestone 13 — Local hardening before CI
 
 ## Milestone 1 — Project specification
 
@@ -297,18 +298,20 @@ Done when:
 
 ## Milestone 12 — Add optional integration tests
 
+Status: Implemented
+
 Commit: `test: add optional adb integration tests`
 
 Tasks:
 
-- Add integration tests skipped unless `ADB_GO_INTEGRATION_ADDR` is set
-- Test connect and shell against real emulator/device when available
-- Add docs for running integration tests
+- [x] Add integration tests skipped unless `ADB_GO_INTEGRATION_ADDR` is set
+- [x] Test connect and shell against real emulator/device when available
+- [x] Add docs for running integration tests
 
 Done when:
 
-- `go test ./...` skips integration tests by default
-- `ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...` runs integration tests
+- [x] `go test ./...` skips integration tests by default
+- [x] `ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...` runs integration tests
 
 ## Milestone 13 — Local hardening before CI
 
