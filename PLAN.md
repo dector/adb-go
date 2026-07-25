@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 23 — Transport abstraction
-- Milestones 17–22 completed the initial CLI shell/push/pull work, CLI documentation, and Linux USB transport design.
+- Current milestone: Milestone 24 — Linux USB device discovery primitives
+- Milestones 17–23 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, and transport abstraction.
 - Active focus: pure-Go Linux USB support without cgo, libusb, Android SDK, platform-tools, or the official `adb` binary.
 - Preferred implementation direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This is still pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -59,30 +59,30 @@ Done when:
 
 ## Milestone 24 — Linux USB device discovery primitives
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(usb): discover linux adb interfaces`
 
 Tasks:
 
-- [ ] Add an internal Linux-only USB package behind `//go:build linux`
-- [ ] Enumerate candidate device nodes under `/dev/bus/usb`
-- [ ] Read and parse USB device/configuration/interface/endpoint descriptors in pure Go
-- [ ] Match ADB interfaces by class `0xff`, subclass `0x42`, protocol `0x01`
-- [ ] Select bulk IN and bulk OUT endpoints for the matched ADB interface
-- [ ] Return structured candidates that include bus/device path, interface number, and endpoint addresses
-- [ ] Add non-Linux stubs that return `ErrUnsupported` or an internal unsupported error
+- [x] Add an internal Linux-only USB package behind `//go:build linux`
+- [x] Enumerate candidate device nodes under `/dev/bus/usb`
+- [x] Read and parse USB device/configuration/interface/endpoint descriptors in pure Go
+- [x] Match ADB interfaces by class `0xff`, subclass `0x42`, protocol `0x01`
+- [x] Select bulk IN and bulk OUT endpoints for the matched ADB interface
+- [x] Return structured candidates that include bus/device path, interface number, and endpoint addresses
+- [x] Add non-Linux stubs that return `ErrUnsupported` or an internal unsupported error
 
 Tests:
 
-- [ ] Descriptor parser unit tests cover representative ADB descriptor bytes
-- [ ] Discovery logic can be tested against fixture descriptor data without real USB hardware
-- [ ] Non-Linux stubs compile where applicable
-- [ ] `go test ./...` passes
+- [x] Descriptor parser unit tests cover representative ADB descriptor bytes
+- [x] Discovery logic can be tested against fixture descriptor data without real USB hardware
+- [x] Non-Linux stubs compile where applicable
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] adb-go can identify ADB-capable USB interfaces from Linux descriptor data without opening a live ADB session
+- [x] adb-go can identify ADB-capable USB interfaces from Linux descriptor data without opening a live ADB session
 
 ## Milestone 25 — Linux usbfs bulk transport
 
