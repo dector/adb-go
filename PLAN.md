@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 28 — USB documentation
-- Milestones 17–27 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, and CLI USB connection option.
-- Active focus: pure-Go Linux USB support without cgo, libusb, Android SDK, platform-tools, or the official `adb` binary.
+- Current milestone: Milestone 29 — adb-go targets listing
+- Milestones 17–28 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, and USB documentation.
+- Active focus: provide an adb-go-specific alternative to `adb devices` that lists connection selectors supported by this library without depending on the official adb server.
 - Preferred implementation direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This is still pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone 22 — USB feasibility and Linux transport design
@@ -185,6 +185,31 @@ Tests:
 Done when:
 
 - [x] Users can understand how to try Linux USB support, why it may fail due to permissions or auth, and what remains unsupported
+
+## Milestone 29 — adb-go targets listing
+
+Status: Implemented
+
+Commit: `feat(cmd): list adb-go connection targets`
+
+Tasks:
+
+- [x] Add a public USB candidate listing API for locally visible ADB USB interfaces
+- [x] Add a CLI command that acts as an adb-go-specific alternative to `adb devices`
+- [x] Show copyable connection selectors such as `--addr` from `ADB_GO_ADDR` and `--usb-path` for Linux USB candidates
+- [x] Avoid pretending to be a full official adb server device-state listing
+- [x] Keep unsupported USB platforms graceful and actionable
+- [x] Document how the command differs from `adb devices`
+
+Tests:
+
+- [x] Unit tests cover USB candidate API mapping and unsupported behavior
+- [x] CLI tests cover target listing, unsupported USB, and USB discovery errors
+- [x] `go test ./...` passes
+
+Done when:
+
+- [x] Users have a supported way to discover adb-go connection selectors without requiring the official `adb devices` command or adb server
 
 ## Deferred milestones
 

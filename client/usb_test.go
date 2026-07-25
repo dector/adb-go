@@ -169,6 +169,40 @@ func TestSelectUSBCandidateNoMatches(t *testing.T) {
 	}
 }
 
+func TestListUSBDevicesMapsDiscoveredCandidates(t *testing.T) {
+	restore := replaceUSBHooks(
+		func(ctx context.Context) ([]usb.Candidate, error) {
+			return []usb.Candidate{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2, VendorID: 0x18d1, ProductID: 0x4ee7, InterfaceNumber: 3, BulkInEndpoint: 0x81, BulkOutEndpoint: 0x02}}, nil
+		},
+		func(ctx context.Context, candidate usb.Candidate) (io.ReadWriteCloser, error) { return nil, nil },
+	)
+	defer restore()
+
+	devices, err := ListUSBDevices(context.Background())
+	if err != nil {
+		t.Fatalf("ListUSBDevices() error = %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("len(ListUSBDevices()) = %d, want 1", len(devices))
+	}
+	got := devices[0]
+	if got.DevicePath != "/dev/bus/usb/001/002" || got.BusNumber != 1 || got.DeviceNumber != 2 || got.VendorID != 0x18d1 || got.ProductID != 0x4ee7 || got.InterfaceNumber != 3 || got.BulkInEndpoint != 0x81 || got.BulkOutEndpoint != 0x02 {
+		t.Fatalf("ListUSBDevices()[0] = %+v, want mapped USB candidate", got)
+	}
+}
+
+func TestListUSBDevicesMapsUnsupported(t *testing.T) {
+	restore := replaceUSBHooks(
+		func(ctx context.Context) ([]usb.Candidate, error) { return nil, usb.ErrUnsupported },
+		func(ctx context.Context, candidate usb.Candidate) (io.ReadWriteCloser, error) { return nil, nil },
+	)
+	defer restore()
+
+	if _, err := ListUSBDevices(context.Background()); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("ListUSBDevices() error = %v, want ErrUnsupported", err)
+	}
+}
+
 func replaceUSBHooks(discover func(context.Context) ([]usb.Candidate, error), open func(context.Context, usb.Candidate) (io.ReadWriteCloser, error)) func() {
 	oldDiscover := discoverUSBCandidates
 	oldOpen := openUSBTransport

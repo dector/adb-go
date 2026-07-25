@@ -13,6 +13,9 @@ type Client = client.Client
 // PullOptions controls PullFileWithOptions behavior.
 type PullOptions = client.PullOptions
 
+// USBDevice describes one locally visible ADB-capable USB interface.
+type USBDevice = client.USBDevice
+
 // USBOptions selects an ADB-capable USB interface for ConnectUSB.
 type USBOptions = client.USBOptions
 
@@ -45,4 +48,10 @@ func ConnectTCP(ctx context.Context, addr string) (*Client, error) {
 // CNXN handshake before returning. The initial USB backend is Linux-only.
 func ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error) {
 	return client.ConnectUSB(ctx, opts)
+}
+
+// ListUSBDevices returns locally visible USB interfaces that match ADB's USB
+// interface class/subclass/protocol. The initial USB backend is Linux-only.
+func ListUSBDevices(ctx context.Context) ([]USBDevice, error) {
+	return client.ListUSBDevices(ctx)
 }

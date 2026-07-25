@@ -9,6 +9,31 @@ import (
 	"github.com/dector/adb-go/internal/usb"
 )
 
+// USBDevice describes one locally visible USB interface that looks like an ADB
+// transport. It is discovery metadata only; the device may still require
+// permissions or ADB authentication before a full connection can be used.
+type USBDevice struct {
+	// DevicePath is a Linux usbfs path such as /dev/bus/usb/001/002.
+	DevicePath string
+
+	// BusNumber and DeviceNumber identify the Linux usbfs bus/device pair.
+	BusNumber    int
+	DeviceNumber int
+
+	// VendorID and ProductID are the USB device IDs from the device descriptor.
+	VendorID  uint16
+	ProductID uint16
+
+	// InterfaceNumber is the ADB interface number selected from the USB
+	// configuration descriptor.
+	InterfaceNumber uint8
+
+	// BulkInEndpoint and BulkOutEndpoint are the endpoint addresses used to carry
+	// ADB packets over USB bulk transfers.
+	BulkInEndpoint  uint8
+	BulkOutEndpoint uint8
+}
+
 // USBOptions selects an ADB-capable USB interface for ConnectUSB.
 //
 // The initial USB implementation is Linux-only and discovers devices from
@@ -74,6 +99,51 @@ func (d usbTransportDialer) DialTransport(ctx context.Context) (io.ReadWriteClos
 
 func (d usbTransportDialer) ConnectDescription() string {
 	return "usb"
+}
+
+// ListUSBDevices returns locally visible USB interfaces that match ADB's USB
+// interface class/subclass/protocol. The initial implementation is Linux-only
+// and discovers devices through /dev/bus/usb. On unsupported platforms it
+// returns an error matching ErrUnsupported.
+//
+// A returned device is a connection candidate, not proof of a usable ADB
+// session. Opening it can still fail due to operating-system permissions, and
+// the ADB handshake can still fail with ErrAuthRequired until authentication is
+// implemented.
+func ListUSBDevices(ctx context.Context) ([]USBDevice, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	candidates, err := discoverUSBCandidates(ctx)
+	if err != nil {
+		if errors.Is(err, usb.ErrUnsupported) {
+			return nil, ErrUnsupported
+		}
+		return nil, err
+	}
+
+	devices := make([]USBDevice, 0, len(candidates))
+	for _, candidate := range candidates {
+		devices = append(devices, usbDeviceFromCandidate(candidate))
+	}
+	return devices, nil
+}
+
+func usbDeviceFromCandidate(candidate usb.Candidate) USBDevice {
+	return USBDevice{
+		DevicePath:      candidate.DevicePath,
+		BusNumber:       candidate.BusNumber,
+		DeviceNumber:    candidate.DeviceNumber,
+		VendorID:        candidate.VendorID,
+		ProductID:       candidate.ProductID,
+		InterfaceNumber: candidate.InterfaceNumber,
+		BulkInEndpoint:  candidate.BulkInEndpoint,
+		BulkOutEndpoint: candidate.BulkOutEndpoint,
+	}
 }
 
 func selectUSBCandidate(ctx context.Context, opts USBOptions) (usb.Candidate, error) {

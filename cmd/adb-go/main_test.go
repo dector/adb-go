@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"io"
 	"os"
@@ -61,6 +62,72 @@ func TestRunUnknownCommand(t *testing.T) {
 	}
 	if got := stderr.String(); !strings.Contains(got, `unknown command "devices"`) || !strings.Contains(got, "Usage:") {
 		t.Fatalf("stderr = %q, want unknown command error and usage", got)
+	}
+}
+
+func TestRunTargetsListsEnvAndUSBTargets(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
+	var stdout, stderr bytes.Buffer
+	restore := replaceListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+		return []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2, VendorID: 0x18d1, ProductID: 0x4ee7, InterfaceNumber: 3, BulkInEndpoint: 0x81, BulkOutEndpoint: 0x02}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"targets"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(targets) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"TRANSPORT", "tcp\t--addr 127.0.0.1:5555", "usb\t--usb-path /dev/bus/usb/001/002", "vid:pid=18d1:4ee7", "endpoints=in:0x81,out:0x02"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunTargetsHandlesUnsupportedUSBWithoutTargets(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	var stdout, stderr bytes.Buffer
+	restore := replaceListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+		return nil, adb.ErrUnsupported
+	})
+	defer restore()
+
+	code := run([]string{"targets"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(targets unsupported USB) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "No adb-go connection targets found") || !strings.Contains(got, "USB target discovery is Linux-only") {
+		t.Fatalf("stdout = %q, want no-targets and unsupported USB guidance", got)
+	}
+}
+
+func TestRunTargetsReportsUSBErrors(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	var stdout, stderr bytes.Buffer
+	restore := replaceListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+		return nil, errors.New("permission denied")
+	})
+	defer restore()
+
+	code := run([]string{"targets"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(targets USB error) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "list USB devices: permission denied") {
+		t.Fatalf("stderr = %q, want USB error", got)
 	}
 }
 
@@ -607,4 +674,10 @@ func replaceConnectDevice(fn func(context.Context, connectionTarget) (deviceClie
 	old := connectDevice
 	connectDevice = fn
 	return func() { connectDevice = old }
+}
+
+func replaceListUSBDevices(fn func(context.Context) ([]adb.USBDevice, error)) func() {
+	old := listUSBDevices
+	listUSBDevices = fn
+	return func() { listUSBDevices = old }
 }

@@ -183,6 +183,7 @@ Every v0 CLI operation targets one explicit ADB endpoint. For TCP, pass
 `--addr HOST[:PORT]`:
 
 ```sh
+adb-go targets
 adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
@@ -200,6 +201,12 @@ adb-go shell echo hello
 adb-go push ./local.txt /data/local/tmp/local.txt
 adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
 ```
+
+`adb-go targets` is an adb-go-specific alternative to `adb devices`. It does
+not query the official adb server and does not try to reproduce the official
+state list. Instead, it prints connection selectors that adb-go itself can use:
+`ADB_GO_ADDR` as an explicit TCP target, plus locally discovered Linux USB ADB
+interfaces when available.
 
 On Linux, pass USB selection flags instead of `--addr`:
 
@@ -230,6 +237,19 @@ adb-go shell --usb-path /dev/bus/usb/001/002 pm list packages
 `adb-go push` and `adb-go pull` transfer exactly one file. Pull refuses to
 replace an existing local destination unless `--overwrite` is provided.
 
+`adb-go targets` output is designed to be copied back into the other commands:
+
+```text
+TRANSPORT  SELECTOR                         DETAILS
+tcp        --addr 127.0.0.1:5555            from ADB_GO_ADDR
+usb        --usb-path /dev/bus/usb/001/002  bus=001 device=002 vid:pid=18d1:4ee7 interface=3 endpoints=in:0x81,out:0x02
+```
+
+The USB row means adb-go found a USB interface whose descriptors match ADB's
+vendor-specific class/subclass/protocol. It is still only a candidate: opening
+it may require `/dev/bus/usb` permissions, and the ADB handshake may still fail
+with `adb.ErrAuthRequired` until authentication support is added.
+
 ## Current limitations and differences from official adb
 
 `adb-go` intentionally supports only a small v0 subset:
@@ -238,9 +258,10 @@ replace an existing local destination unless `--overwrite` is provided.
   `/dev/bus/usb`; macOS and Windows USB are not implemented yet.
 - No ADB authentication implementation yet. If a peer replies with `AUTH`, the
   high-level client returns `adb.ErrAuthRequired`.
-- No broad device discovery, device listing, server management, or official
-  `adb devices` compatibility in v0. USB discovery is only used internally to
-  select an ADB-capable Linux usbfs interface.
+- No broad device discovery, server management, or official `adb devices`
+  compatibility in v0. The `adb-go targets` command is an adb-go-specific
+  listing of usable selectors, not a clone of the official adb server's device
+  state list.
 - TCP connects only to an explicit device address supplied by the caller or, for
   the CLI, by the `ADB_GO_ADDR` environment variable. USB requires either a
   single visible ADB USB device or explicit USB selection options/flags.
@@ -259,9 +280,9 @@ The codebase is split into a small set of packages:
 
 - Root package `github.com/dector/adb-go` re-exports the stable high-level API
   from `client` for normal users.
-- Package `client` handles TCP dialing, Linux USB dialing, the initial ADB
-  `CNXN` handshake, service opening, shell helpers, and the single-file `sync:`
-  push/pull helpers.
+- Package `client` handles TCP dialing, Linux USB dialing and USB candidate
+  listing, the initial ADB `CNXN` handshake, service opening, shell helpers, and
+  the single-file `sync:` push/pull helpers.
 - Package `protocol` contains lower-level ADB packet primitives, connection
   handshake support, and stream demultiplexing. It is useful for tests,
   debugging, and advanced protocol work, but it may be less stable than the
