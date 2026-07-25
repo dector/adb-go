@@ -20,8 +20,6 @@ Commands:
   help        Show this help message
   shell       Run a shell command on a connected device
   push        Push one local file to a connected device
-
-Planned commands:
   pull        Pull one remote file from a connected device
 
 adb-go is not a full replacement for the official adb binary yet. The CLI is a
@@ -46,6 +44,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runShell(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
+	case "pull":
+		return runPull(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "adb-go: unknown command %q\n\n", args[0])
 		fmt.Fprint(stderr, usage)
@@ -137,6 +137,57 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 
 	if err := client.PushFile(context.Background(), localPath, remotePath); err != nil {
 		fmt.Fprintf(stderr, "adb-go push: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+const pullUsage = `Usage:
+  adb-go pull --addr HOST[:PORT] [--overwrite] REMOTE_PATH LOCAL_PATH
+
+Pulls exactly one remote file from the explicitly addressed TCP ADB device. By
+default, the command refuses to replace an existing local destination; pass
+--overwrite to replace it deliberately. For example:
+
+  adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
+`
+
+func runPull(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("pull", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	addr := fs.String("addr", "", "explicit TCP device address, for example 127.0.0.1:5555")
+	overwrite := fs.Bool("overwrite", false, "replace an existing local destination")
+	fs.Usage = func() { fmt.Fprint(stderr, pullUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if strings.TrimSpace(*addr) == "" {
+		fmt.Fprint(stderr, "adb-go pull: missing required --addr\n\n")
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() != 2 {
+		fmt.Fprint(stderr, "adb-go pull: requires exactly REMOTE_PATH and LOCAL_PATH\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	remotePath, localPath := fs.Arg(0), fs.Arg(1)
+	client, err := adb.Connect(context.Background(), *addr)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go pull: connect to %s: %v\n", *addr, err)
+		return 1
+	}
+	defer client.Close()
+
+	if *overwrite {
+		err = client.PullFileWithOptions(context.Background(), remotePath, localPath, adb.PullOptions{Overwrite: true})
+	} else {
+		err = client.PullFile(context.Background(), remotePath, localPath)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go pull: %v\n", err)
 		return 1
 	}
 	return 0

@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 17 — CLI shell command
+- Current milestone: Milestone 19 — CLI pull command
 - Completed milestones have been removed from this file to keep the active plan focused.
-- Next milestone after CLI shell command is accepted: CLI push command
+- Next milestone after CLI pull command is accepted: CLI connect ergonomics
 
 ## Milestone 17 — CLI shell command
 
@@ -66,32 +66,32 @@ Done when:
 
 ## Milestone 19 — CLI pull command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cmd): add pull command`
 
 Tasks:
 
-- [ ] Add a `pull` subcommand to `cmd/adb-go`
-- [ ] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
-- [ ] Accept exactly two positional arguments: remote path and local path
-- [ ] Add an explicit `--overwrite` flag for replacing an existing local destination
-- [ ] Connect using the existing high-level `adb.Connect` API
-- [ ] Transfer the file using `Client.PullFile` or `Client.PullFileWithOptions`
-- [ ] Write clear errors to stderr and return a non-zero exit code on failure
+- [x] Add a `pull` subcommand to `cmd/adb-go`
+- [x] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
+- [x] Accept exactly two positional arguments: remote path and local path
+- [x] Add an explicit `--overwrite` flag for replacing an existing local destination
+- [x] Connect using the existing high-level `adb.Connect` API
+- [x] Transfer the file using `Client.PullFile` or `Client.PullFileWithOptions`
+- [x] Write clear errors to stderr and return a non-zero exit code on failure
 
 Tests:
 
-- [ ] CLI dispatch recognizes `pull`
-- [ ] Missing `--addr` returns a clear usage error
-- [ ] Wrong argument count returns a clear usage error
-- [ ] `--overwrite` selects `PullFileWithOptions` with `PullOptions{Overwrite: true}`
-- [ ] Pull calls the high-level file transfer path against a fake server or test hook
+- [x] CLI dispatch recognizes `pull`
+- [x] Missing `--addr` returns a clear usage error
+- [x] Wrong argument count returns a clear usage error
+- [x] `--overwrite` selects `PullFileWithOptions` with `PullOptions{Overwrite: true}`
+- [x] Pull calls the high-level file transfer path against a fake server or test hook
 
 Done when:
 
-- [ ] `go test ./...` passes
-- [ ] A user can run a command shaped like `adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt`
+- [x] `go test ./...` passes
+- [x] A user can run a command shaped like `adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt`
 
 ## Milestone 20 — CLI connect ergonomics
 
