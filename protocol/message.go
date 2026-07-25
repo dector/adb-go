@@ -94,12 +94,22 @@ func WriteMessage(w io.Writer, msg Message) error {
 	binary.LittleEndian.PutUint32(header[16:20], Checksum(msg.Payload))
 	binary.LittleEndian.PutUint32(header[20:24], msg.Command.Magic())
 
-	if _, err := w.Write(header[:]); err != nil {
+	if err := writeFull(w, header[:]); err != nil {
 		return err
 	}
-	if len(msg.Payload) == 0 {
-		return nil
+	return writeFull(w, msg.Payload)
+}
+
+func writeFull(w io.Writer, p []byte) error {
+	for len(p) > 0 {
+		n, err := w.Write(p)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+		p = p[n:]
 	}
-	_, err := w.Write(msg.Payload)
-	return err
+	return nil
 }

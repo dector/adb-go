@@ -489,6 +489,48 @@ func parseSyncPacket(t testing.TB, payload []byte) (id string, size uint32, data
 	return id, size, data
 }
 
+func TestWriteSyncRequestCompletesShortWrites(t *testing.T) {
+	var dst bytes.Buffer
+	payload := []byte("/sdcard/chunked.txt")
+
+	if err := writeSyncRequest(shortWriter{w: &dst, max: 3}, syncIDRECV, payload); err != nil {
+		t.Fatalf("writeSyncRequest() error = %v", err)
+	}
+
+	id, size, data := parseSyncPacket(t, dst.Bytes())
+	if id != syncIDRECV {
+		t.Fatalf("sync id = %q, want %q", id, syncIDRECV)
+	}
+	if size != uint32(len(payload)) || !bytes.Equal(data, payload) {
+		t.Fatalf("sync payload size=%d data=%q, want size=%d data=%q", size, data, len(payload), payload)
+	}
+}
+
+func TestWriteSyncHeaderCompletesShortWrites(t *testing.T) {
+	var dst bytes.Buffer
+
+	if err := writeSyncHeader(shortWriter{w: &dst, max: 2}, syncIDDONE, 123); err != nil {
+		t.Fatalf("writeSyncHeader() error = %v", err)
+	}
+
+	id, size, data := parseSyncPacket(t, dst.Bytes())
+	if id != syncIDDONE || size != 123 || len(data) != 0 {
+		t.Fatalf("sync header id=%q size=%d data=%q, want DONE/123/no data", id, size, data)
+	}
+}
+
+type shortWriter struct {
+	w   io.Writer
+	max int
+}
+
+func (w shortWriter) Write(p []byte) (int, error) {
+	if len(p) > w.max {
+		p = p[:w.max]
+	}
+	return w.w.Write(p)
+}
+
 func syncPacket(id string, payload []byte) []byte {
 	packet := make([]byte, 8+len(payload))
 	copy(packet[:4], id)

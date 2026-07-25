@@ -243,15 +243,27 @@ func writeSyncRequest(w io.Writer, id string, payload []byte) error {
 	packet := make([]byte, 0, len(header)+len(payload))
 	packet = append(packet, header[:]...)
 	packet = append(packet, payload...)
-	_, err := w.Write(packet)
-	return err
+	return writeFull(w, packet)
 }
 
 func writeSyncHeader(w io.Writer, id string, size uint32) error {
 	var header [8]byte
 	writeSyncHeaderTo(header[:], id, size)
-	_, err := w.Write(header[:])
-	return err
+	return writeFull(w, header[:])
+}
+
+func writeFull(w io.Writer, p []byte) error {
+	for len(p) > 0 {
+		n, err := w.Write(p)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+		p = p[n:]
+	}
+	return nil
 }
 
 func writeSyncHeaderTo(header []byte, id string, size uint32) {

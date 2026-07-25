@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 12 — Add optional integration tests
+- Current milestone: Milestone 13 — Local hardening before CI
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -19,7 +19,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 10 — Add sync protocol single-file push
   - Milestone 11 — Add public docs and examples
   - Milestone 12 — Add optional integration tests
-- Next milestone after integration test support is accepted: Milestone 13 — Local hardening before CI
+  - Milestone 13 — Local hardening before CI
+- Next milestone after local hardening is accepted: CI
 
 ## Milestone 1 — Project specification
 
@@ -315,20 +316,22 @@ Done when:
 
 ## Milestone 13 — Local hardening before CI
 
+Status: Implemented
+
 Commit: `test: harden protocol and client behavior`
 
 Tasks:
 
-- Add edge case tests discovered during implementation
-- Improve error wrapping and sentinel errors
-- Ensure no unexpected logging
-- Ensure no external dependencies
-- Run formatting and tests locally
+- [x] Add edge case tests discovered during implementation
+- [x] Improve error wrapping and sentinel errors
+- [x] Ensure no unexpected logging
+- [x] Ensure no external dependencies
+- [x] Run formatting and tests locally
 
 Done when:
 
-- `go test ./...` passes cleanly
-- Public errors support `errors.Is` where intended
+- [x] `go test ./...` passes cleanly
+- [x] Public errors support `errors.Is` where intended
 
 ## Deferred milestones
 
