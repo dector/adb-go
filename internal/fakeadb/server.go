@@ -1,6 +1,7 @@
 package fakeadb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,6 +23,24 @@ const deviceIdentityString = "device::fake"
 // fake stream helpers are added.
 type ServiceHandler func(ctx context.Context, conn io.ReadWriter, open protocol.Message)
 
+type authRequirement struct {
+	enabled           bool
+	token             []byte
+	acceptedSignature []byte
+	acceptedPublicKey []byte
+}
+
+func (a authRequirement) accepts(msg protocol.Message) bool {
+	switch msg.Arg0 {
+	case protocol.AuthSignature:
+		return len(a.acceptedSignature) > 0 && bytes.Equal(msg.Payload, a.acceptedSignature)
+	case protocol.AuthRSAPublicKey:
+		return len(a.acceptedPublicKey) > 0 && bytes.Equal(msg.Payload, a.acceptedPublicKey)
+	default:
+		return false
+	}
+}
+
 // Server is an in-process fake ADB TCP server for tests.
 type Server struct {
 	ln net.Listener
@@ -32,6 +51,7 @@ type Server struct {
 	mu       sync.Mutex
 	handlers map[string]ServiceHandler
 	conns    map[net.Conn]struct{}
+	auth     authRequirement
 
 	wg sync.WaitGroup
 }
@@ -82,6 +102,21 @@ func (s *Server) Handle(service string, h ServiceHandler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.handlers[service] = h
+}
+
+// RequireAuth configures the fake server to require ADB AUTH before completing
+// CNXN. A client response is accepted when it matches either acceptedSignature
+// as AUTH SIGNATURE or acceptedPublicKey as AUTH RSAPUBLICKEY. Nil accepted
+// values are ignored.
+func (s *Server) RequireAuth(token, acceptedSignature, acceptedPublicKey []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.auth = authRequirement{
+		enabled:           true,
+		token:             append([]byte(nil), token...),
+		acceptedSignature: append([]byte(nil), acceptedSignature...),
+		acceptedPublicKey: append([]byte(nil), acceptedPublicKey...),
+	}
 }
 
 // Close stops the server, closes active connections, and waits for goroutines
@@ -158,12 +193,38 @@ func (s *Server) handshake(conn net.Conn) error {
 	if request.Command != protocol.CommandCNXN {
 		return fmt.Errorf("fake adb expected CNXN, got %#x", uint32(request.Command))
 	}
+
+	auth := s.authRequirement()
+	if auth.enabled {
+		if err := protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandAUTH, Arg0: protocol.AuthToken, Payload: auth.token}); err != nil {
+			return err
+		}
+		response, err := protocol.ReadMessage(conn)
+		if err != nil {
+			return err
+		}
+		if !auth.accepts(response) {
+			return protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandAUTH, Arg0: protocol.AuthToken, Payload: auth.token})
+		}
+	}
+
 	return protocol.WriteMessage(conn, protocol.Message{
 		Command: protocol.CommandCNXN,
 		Arg0:    protocol.Version,
 		Arg1:    protocol.MaxPayload,
 		Payload: []byte(deviceIdentityString + "\x00"),
 	})
+}
+
+func (s *Server) authRequirement() authRequirement {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return authRequirement{
+		enabled:           s.auth.enabled,
+		token:             append([]byte(nil), s.auth.token...),
+		acceptedSignature: append([]byte(nil), s.auth.acceptedSignature...),
+		acceptedPublicKey: append([]byte(nil), s.auth.acceptedPublicKey...),
+	}
 }
 
 func (s *Server) handler(service string) ServiceHandler {

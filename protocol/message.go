@@ -8,6 +8,15 @@ import (
 
 const messageHeaderLen = 24
 
+const (
+	// AuthToken identifies an AUTH token challenge sent by the ADB peer.
+	AuthToken uint32 = 1
+	// AuthSignature identifies an AUTH signature response sent by the host.
+	AuthSignature uint32 = 2
+	// AuthRSAPublicKey identifies an AUTH RSA public-key offer sent by the host.
+	AuthRSAPublicKey uint32 = 3
+)
+
 // Command is an ADB protocol command identifier.
 type Command uint32
 

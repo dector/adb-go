@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 31 — Add authenticated protocol handshake.
+- Current milestone: Milestone 32 — Expose authentication through the high-level client.
 - Completed milestone range: Milestones 17–29 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, and adb-go-specific target listing.
 - Active focus: ADB authentication. Authenticated devices currently return `ErrAuthRequired` over both TCP and USB; the next slice should add explicit host credentials first, then wire those credentials into the protocol handshake, client API, CLI, and docs in separate reviewable milestones.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -68,26 +68,26 @@ Done when:
 
 ## Milestone 31 — Add authenticated protocol handshake
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(protocol): add adb authentication handshake`
 
 Tasks:
 
-- [ ] Add protocol-level handshake options for supplying one or more auth signers/public keys while preserving the existing unauthenticated `Handshake(ctx)` behavior.
-- [ ] Handle `AUTH TOKEN` by sending an `AUTH SIGNATURE` response and continue the handshake until `CNXN`, another auth challenge, or rejection.
-- [ ] Handle public-key offer fallback with `AUTH RSAPUBLICKEY` when configured and document when callers should expect the device authorization prompt.
-- [ ] Preserve `ErrAuthRequired` for missing credentials, unsupported auth packets, exhausted credentials, or peers that never complete authentication.
-- [ ] Extend `internal/fakeadb` so tests can require AUTH before CNXN.
+- [x] Add protocol-level handshake options for supplying one or more auth signers/public keys while preserving the existing unauthenticated `Handshake(ctx)` behavior.
+- [x] Handle `AUTH TOKEN` by sending an `AUTH SIGNATURE` response and continue the handshake until `CNXN`, another auth challenge, or rejection.
+- [x] Handle public-key offer fallback with `AUTH RSAPUBLICKEY` when configured and document when callers should expect the device authorization prompt.
+- [x] Preserve `ErrAuthRequired` for missing credentials, unsupported auth packets, exhausted credentials, or peers that never complete authentication.
+- [x] Extend `internal/fakeadb` so tests can require AUTH before CNXN.
 
 Tests:
 
-- [ ] Protocol tests cover successful token signing, public-key fallback, no-credential `ErrAuthRequired`, rejected credentials, and malformed AUTH packets.
-- [ ] `go test ./...` passes
+- [x] Protocol tests cover successful token signing, public-key fallback, no-credential `ErrAuthRequired`, rejected credentials, and malformed AUTH packets.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] A protocol connection can complete the CNXN handshake against an auth-requiring fake ADB peer when supplied valid explicit credentials.
+- [x] A protocol connection can complete the CNXN handshake against an auth-requiring fake ADB peer when supplied valid explicit credentials.
 
 ## Milestone 32 — Expose authentication through the high-level client
 
