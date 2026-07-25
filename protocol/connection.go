@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 )
 
 const (
@@ -24,6 +25,14 @@ const (
 type Connection struct {
 	rw     io.ReadWriter
 	closer io.Closer
+
+	writeMu sync.Mutex
+
+	mu            sync.Mutex
+	streams       map[uint32]*Stream
+	nextLocalID   uint32
+	readerStarted bool
+	readerErr     error
 }
 
 // NewConnection returns a low-level ADB protocol connection using rw.
@@ -37,6 +46,7 @@ func NewConnection(rw io.ReadWriter) *Connection {
 
 // Close closes the underlying connection when it implements io.Closer.
 func (c *Connection) Close() error {
+	c.closeAllStreams(ErrDeviceClosed)
 	if c.closer == nil {
 		return nil
 	}

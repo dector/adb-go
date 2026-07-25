@@ -6,6 +6,9 @@ var (
 	// ErrAuthRequired reports that the ADB peer requires authentication that is
 	// not implemented by adb-go yet.
 	ErrAuthRequired = errors.New("adb authentication required")
+
+	// ErrDeviceClosed reports that the ADB peer closed the connection or stream.
+	ErrDeviceClosed = errors.New("adb device closed")
 )
 
 // AuthRequiredError reports an AUTH packet received during connection

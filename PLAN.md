@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 5 — Add fake ADB server foundation
+- Current milestone: Milestone 6 — Add stream demultiplexing
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -12,7 +12,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 3 — Add protocol message encoding
   - Milestone 4 — Add low-level connection handshake
   - Milestone 5 — Add fake ADB server foundation
-- Next milestone after fake ADB server foundation is accepted: Milestone 6 — Add stream demultiplexing
+  - Milestone 6 — Add stream demultiplexing
+- Next milestone after stream demultiplexing is accepted: Milestone 7 — Add high-level client connect/open service
 
 ## Milestone 1 — Project specification
 
@@ -133,30 +134,32 @@ Done when:
 
 ## Milestone 6 — Add stream demultiplexing
 
+Status: Implemented
+
 Commit: `feat(protocol): add adb stream demultiplexing`
 
 Tasks:
 
-- Implement stream type with local/remote IDs
-- Start one reader goroutine per protocol connection
-- Route packets to streams by ID
-- Serialize writes with a mutex
-- Implement `Open(service string)` at low level
-- Make streams implement `io.Reader`, `io.Writer`, `io.Closer` where practical
-- Handle `OKAY`, `WRTE`, and `CLSE`
-- Define close/error behavior for remote close and connection close
+- [x] Implement stream type with local/remote IDs
+- [x] Start one reader goroutine per protocol connection
+- [x] Route packets to streams by ID
+- [x] Serialize writes with a mutex
+- [x] Implement `Open(service string)` at low level
+- [x] Make streams implement `io.Reader`, `io.Writer`, and `io.Closer` where practical
+- [x] Handle `OKAY`, `WRTE`, and `CLSE`
+- [x] Define close/error behavior for remote close and connection close
 
 Tests:
 
-- Open service sends `OPEN`
-- `OKAY` establishes stream
-- `WRTE` data is readable from correct stream
-- Multiple streams receive correct data
-- `CLSE` closes stream
+- [x] Open service sends `OPEN`
+- [x] `OKAY` establishes stream
+- [x] `WRTE` data is readable from correct stream
+- [x] Multiple streams receive correct data
+- [x] `CLSE` closes stream
 
 Done when:
 
-- Low-level protocol can open services and exchange stream data against fake server
+- [x] Low-level protocol can open services and exchange stream data against fake server
 
 ## Milestone 7 — Add high-level client connect/open service
 
