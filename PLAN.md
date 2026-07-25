@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 9 — Add sync protocol single-file pull
+- Current milestone: Milestone 10 — Add sync protocol single-file push
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -16,7 +16,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 7 — Add high-level client connect/open service
   - Milestone 8 — Add shell support
   - Milestone 9 — Add sync protocol single-file pull
-- Next milestone after pull support is accepted: Milestone 10 — Add sync protocol single-file push
+  - Milestone 10 — Add sync protocol single-file push
+- Next milestone after push support is accepted: Milestone 11 — Add public docs and examples
 
 ## Milestone 1 — Project specification
 
@@ -243,25 +244,27 @@ Done when:
 
 ## Milestone 10 — Add sync protocol single-file push
 
+Status: Implemented
+
 Commit: `feat(client): add single-file push support`
 
 Tasks:
 
-- Implement enough ADB `sync:` protocol for single-file push
-- Add `PushFile(ctx, localPath, remotePath)`
-- Use default remote mode `0644`
-- Add TODO/design seam for future mode/mtime options
+- [x] Implement enough ADB `sync:` protocol for single-file push
+- [x] Add `PushFile(ctx, localPath, remotePath)`
+- [x] Use default remote mode `0644`
+- [x] Add TODO/design seam for future mode/mtime options
 
 Tests:
 
-- Push sends file contents to fake server
-- Missing local file returns useful error
-- Default mode is `0644`
-- Remote errors are surfaced clearly
+- [x] Push sends file contents to fake server
+- [x] Missing local file returns useful error
+- [x] Default mode is `0644`
+- [x] Remote errors are surfaced clearly
 
 Done when:
 
-- Single-file push works against fake server
+- [x] Single-file push works against fake server
 
 ## Milestone 11 — Add public docs and examples
 

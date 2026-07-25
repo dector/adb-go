@@ -288,6 +288,73 @@ func TestPullFileRemoteError(t *testing.T) {
 	}
 }
 
+func TestPushFileSendsContentsToFakeServer(t *testing.T) {
+	server := fakeadb.Start(t)
+	result := make(chan syncPushResult, 1)
+	server.Handle("sync:", syncPushHandler(t, "/data/local/tmp/out.txt", nil, result))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "out.txt")
+	if err := os.WriteFile(localPath, []byte("hello pushed file"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := client.PushFile(context.Background(), localPath, "/data/local/tmp/out.txt"); err != nil {
+		t.Fatalf("PushFile() error = %v", err)
+	}
+	got := <-result
+	if got.contents != "hello pushed file" {
+		t.Fatalf("pushed contents = %q, want hello pushed file", got.contents)
+	}
+	if got.mode != "420" {
+		t.Fatalf("remote mode = %q, want decimal 420 (0644)", got.mode)
+	}
+	if got.mtime == 0 {
+		t.Fatal("DONE mtime = 0, want local file modification time")
+	}
+}
+
+func TestPushFileMissingLocalFile(t *testing.T) {
+	server := fakeadb.Start(t)
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	err = client.PushFile(context.Background(), filepath.Join(t.TempDir(), "missing.txt"), "/remote")
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("PushFile() error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func TestPushFileRemoteError(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("sync:", syncPushHandler(t, "/readonly/out.txt", []byte("remote read-only file system"), nil))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "out.txt")
+	if err := os.WriteFile(localPath, []byte("data"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err = client.PushFile(context.Background(), localPath, "/readonly/out.txt")
+	if err == nil {
+		t.Fatal("PushFile() error = nil, want remote error")
+	}
+}
+
 func writeServiceOutput(t testing.TB, output string) fakeadb.ServiceHandler {
 	t.Helper()
 	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
@@ -338,17 +405,88 @@ func syncPullHandler(t testing.TB, wantPath string, fail []byte, chunks [][]byte
 	}
 }
 
+type syncPushResult struct {
+	contents string
+	mode     string
+	mtime    uint32
+}
+
+func syncPushHandler(t testing.TB, wantPath string, fail []byte, result chan<- syncPushResult) fakeadb.ServiceHandler {
+	t.Helper()
+	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		remoteID := uint32(42)
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+
+		var got syncPushResult
+		for {
+			request, err := protocol.ReadMessage(conn)
+			if err != nil {
+				t.Errorf("sync push handler ReadMessage() error = %v", err)
+				return
+			}
+			if request.Command != protocol.CommandWRTE {
+				t.Errorf("sync push handler command = %#x, want WRTE", uint32(request.Command))
+				return
+			}
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+
+			id, size, payload := parseSyncPacket(t, request.Payload)
+			switch id {
+			case "SEND":
+				pathMode := string(payload)
+				comma := bytes.LastIndexByte(payload, ',')
+				if comma < 0 {
+					t.Fatalf("SEND payload = %q, want path,mode", pathMode)
+				}
+				path := string(payload[:comma])
+				got.mode = string(payload[comma+1:])
+				if path != wantPath {
+					t.Errorf("SEND path = %q, want %q", path, wantPath)
+					return
+				}
+			case "DATA":
+				got.contents += string(payload)
+			case "DONE":
+				got.mtime = size
+				response := syncPacket("OKAY", nil)
+				if fail != nil {
+					response = syncPacket("FAIL", fail)
+				}
+				_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: response})
+				_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
+				if result != nil {
+					result <- got
+				}
+				return
+			default:
+				t.Errorf("sync push request id = %q, want SEND/DATA/DONE", id)
+				return
+			}
+		}
+	}
+}
+
 func parseSyncRequest(t testing.TB, payload []byte) (id, path string) {
 	t.Helper()
+	id, n, data := parseSyncPacket(t, payload)
+	if len(data) != int(n) {
+		t.Fatalf("sync request path length = %d, want %d", len(data), n)
+	}
+	return id, string(data)
+}
+
+func parseSyncPacket(t testing.TB, payload []byte) (id string, size uint32, data []byte) {
+	t.Helper()
 	if len(payload) < 8 {
-		t.Fatalf("sync request payload length = %d, want at least 8", len(payload))
+		t.Fatalf("sync packet payload length = %d, want at least 8", len(payload))
 	}
 	id = string(payload[:4])
-	n := binary.LittleEndian.Uint32(payload[4:8])
-	if len(payload[8:]) != int(n) {
-		t.Fatalf("sync request path length = %d, want %d", len(payload[8:]), n)
+	size = binary.LittleEndian.Uint32(payload[4:8])
+	data = payload[8:]
+	if id != "DONE" && len(data) != int(size) {
+		t.Fatalf("sync packet data length = %d, want %d", len(data), size)
 	}
-	return id, string(payload[8:])
+	return id, size, data
 }
 
 func syncPacket(id string, payload []byte) []byte {

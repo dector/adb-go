@@ -7,13 +7,21 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 )
 
 const (
 	syncIDRECV = "RECV"
+	syncIDSEND = "SEND"
 	syncIDDATA = "DATA"
 	syncIDDONE = "DONE"
+	syncIDOKAY = "OKAY"
 	syncIDFAIL = "FAIL"
+
+	// syncDataMax keeps each sync DATA packet comfortably within adb-go's v0
+	// advertised ADB payload size. Future negotiated-max-payload plumbing can
+	// raise this without changing the public PushFile API.
+	syncDataMax = 4096
 )
 
 // PullOptions controls PullFileWithOptions behavior.
@@ -135,15 +143,120 @@ func (c *Client) PullFileWithOptions(ctx context.Context, remotePath, localPath 
 	}
 }
 
+// PushFile pushes one local file to remotePath using ADB's sync: service. v0
+// intentionally implements only explicit single-file pushes; directory-aware
+// push behavior and custom mode/mtime options are reserved for future APIs.
+func (c *Client) PushFile(ctx context.Context, localPath, remotePath string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if localPath == "" {
+		return fmt.Errorf("adb push local path is empty")
+	}
+	if remotePath == "" {
+		return fmt.Errorf("adb push remote path is empty")
+	}
+
+	in, err := os.Open(localPath)
+	if err != nil {
+		return fmt.Errorf("adb push open source %q: %w", localPath, err)
+	}
+	defer in.Close()
+
+	info, err := in.Stat()
+	if err != nil {
+		return fmt.Errorf("adb push stat source %q: %w", localPath, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("adb push source %q is a directory: %w", localPath, ErrUnsupported)
+	}
+
+	stream, err := c.OpenService(ctx, "sync:")
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
+	stopCancelCloser := closeOnCancel(ctx, stream)
+	defer stopCancelCloser()
+
+	// TODO(sync): Add explicit push options for remote mode and mtime. v0 uses
+	// the adb-compatible default file mode requested in SPEC.md and the local
+	// file's modification time.
+	const defaultRemoteMode = 0o644
+	sendPayload := []byte(remotePath + "," + strconv.FormatUint(defaultRemoteMode, 10))
+	if err := writeSyncRequest(stream, syncIDSEND, sendPayload); err != nil {
+		return fmt.Errorf("adb push %q to %q: send SEND: %w", localPath, remotePath, err)
+	}
+
+	buf := make([]byte, syncDataMax)
+	for {
+		n, readErr := in.Read(buf)
+		if n > 0 {
+			if err := writeSyncRequest(stream, syncIDDATA, buf[:n]); err != nil {
+				return fmt.Errorf("adb push %q to %q: send DATA: %w", localPath, remotePath, err)
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return fmt.Errorf("adb push read source %q: %w", localPath, readErr)
+		}
+	}
+
+	mtime := info.ModTime().Unix()
+	if mtime < 0 {
+		mtime = 0
+	}
+	if err := writeSyncHeader(stream, syncIDDONE, uint32(mtime)); err != nil {
+		return fmt.Errorf("adb push %q to %q: send DONE: %w", localPath, remotePath, err)
+	}
+
+	id, size, err := readSyncHeader(stream)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("adb push %q to %q canceled: %w", localPath, remotePath, ctxErr)
+		}
+		return fmt.Errorf("adb push %q to %q: read response: %w", localPath, remotePath, err)
+	}
+	switch id {
+	case syncIDOKAY:
+		return nil
+	case syncIDFAIL:
+		msg := make([]byte, size)
+		if _, err := io.ReadFull(stream, msg); err != nil {
+			return fmt.Errorf("adb push %q to %q: read FAIL: %w", localPath, remotePath, err)
+		}
+		return fmt.Errorf("adb push %q to %q: remote error: %s", localPath, remotePath, string(msg))
+	default:
+		return fmt.Errorf("adb push %q to %q: unexpected sync response %q", localPath, remotePath, id)
+	}
+}
+
 func writeSyncRequest(w io.Writer, id string, payload []byte) error {
 	var header [8]byte
-	copy(header[0:4], id)
-	binary.LittleEndian.PutUint32(header[4:8], uint32(len(payload)))
+	writeSyncHeaderTo(header[:], id, uint32(len(payload)))
 	packet := make([]byte, 0, len(header)+len(payload))
 	packet = append(packet, header[:]...)
 	packet = append(packet, payload...)
 	_, err := w.Write(packet)
 	return err
+}
+
+func writeSyncHeader(w io.Writer, id string, size uint32) error {
+	var header [8]byte
+	writeSyncHeaderTo(header[:], id, size)
+	_, err := w.Write(header[:])
+	return err
+}
+
+func writeSyncHeaderTo(header []byte, id string, size uint32) {
+	copy(header[0:4], id)
+	binary.LittleEndian.PutUint32(header[4:8], size)
 }
 
 func readSyncHeader(r io.Reader) (id string, size uint32, err error) {
