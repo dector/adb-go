@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 10 — Add sync protocol single-file push
+- Current milestone: Milestone 11 — Add public docs and examples
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -17,7 +17,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 8 — Add shell support
   - Milestone 9 — Add sync protocol single-file pull
   - Milestone 10 — Add sync protocol single-file push
-- Next milestone after push support is accepted: Milestone 11 — Add public docs and examples
+  - Milestone 11 — Add public docs and examples
+- Next milestone after docs support is accepted: Milestone 12 — Add optional integration tests
 
 ## Milestone 1 — Project specification
 
@@ -268,29 +269,31 @@ Done when:
 
 ## Milestone 11 — Add public docs and examples
 
+Status: Implemented
+
 Commit: `docs: add usage documentation and examples`
 
 Tasks:
 
-- Write README
-- Include limitation/difference list vs official `adb`
-- Include architecture section
-- Include quick examples:
-  - connect
-  - shell
-  - shell streaming
-  - push file
-  - pull file
-- Add compile-tested Go examples where possible
-- Document `protocol` package as lower-level and less stable during v0
+- [x] Write README
+- [x] Include limitation/difference list vs official `adb`
+- [x] Include architecture section
+- [x] Include quick examples:
+  - [x] connect
+  - [x] shell
+  - [x] shell streaming
+  - [x] push file
+  - [x] pull file
+- [x] Add compile-tested Go examples where possible
+- [x] Document `protocol` package as lower-level and less stable during v0
 
 Tests:
 
-- `go test ./...` passes including examples
+- [x] `go test ./...` passes including examples
 
 Done when:
 
-- A new user can understand current capabilities and limitations from README
+- [x] A new user can understand current capabilities and limitations from README
 
 ## Milestone 12 — Add optional integration tests
 
