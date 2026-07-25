@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 7 — Add high-level client connect/open service
+- Current milestone: Milestone 8 — Add shell support
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -14,7 +14,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 5 — Add fake ADB server foundation
   - Milestone 6 — Add stream demultiplexing
   - Milestone 7 — Add high-level client connect/open service
-- Next milestone after high-level client connect/open service is accepted: Milestone 8 — Add shell support
+  - Milestone 8 — Add shell support
+- Next milestone after shell support is accepted: Milestone 9 — Add sync protocol single-file pull
 
 ## Milestone 1 — Project specification
 
@@ -191,26 +192,28 @@ Done when:
 
 ## Milestone 8 — Add shell support
 
+Status: Implemented
+
 Commit: `feat(client): add shell support`
 
 Tasks:
 
-- Implement `Client.Shell(ctx, cmd string) ([]byte, error)`
-- Implement `Client.ShellStream(ctx, cmd string, stdout io.Writer) error`
-- Use service string `shell:<cmd>`
-- Keep command input as a single string
-- Support context cancellation by closing stream/connection as needed
+- [x] Implement `Client.Shell(ctx, cmd string) ([]byte, error)`
+- [x] Implement `Client.ShellStream(ctx, cmd string, stdout io.Writer) error`
+- [x] Use service string `shell:<cmd>`
+- [x] Keep command input as a single string
+- [x] Support context cancellation by closing stream/connection as needed
 
 Tests:
 
-- Shell captures output against fake server
-- Shell streaming writes to provided writer
-- Shell uses exact single command string
-- Context cancellation unblocks operation
+- [x] Shell captures output against fake server
+- [x] Shell streaming writes to provided writer
+- [x] Shell uses exact single command string
+- [x] Context cancellation unblocks operation
 
 Done when:
 
-- Basic shell command execution works through the high-level client
+- [x] Basic shell command execution works through the high-level client
 
 ## Milestone 9 — Add sync protocol single-file pull
 

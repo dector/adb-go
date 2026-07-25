@@ -75,6 +75,16 @@ func (s *Stream) Read(p []byte) (int, error) {
 		if s.closed {
 			err := s.err
 			s.mu.Unlock()
+			select {
+			case chunk, ok := <-s.dataCh:
+				if ok {
+					s.mu.Lock()
+					s.buf = append(s.buf, chunk...)
+					s.mu.Unlock()
+					continue
+				}
+			default:
+			}
 			if err != nil {
 				return 0, err
 			}

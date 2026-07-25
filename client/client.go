@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -77,6 +78,61 @@ func (c *Client) OpenService(ctx context.Context, service string) (io.ReadWriteC
 		return nil, err
 	}
 	return stream, nil
+}
+
+// Shell executes cmd through the ADB "shell:<cmd>" service and returns the
+// complete stdout/stderr byte stream produced by the device shell.
+func (c *Client) Shell(ctx context.Context, cmd string) ([]byte, error) {
+	var out bytes.Buffer
+	if err := c.ShellStream(ctx, cmd, &out); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// ShellStream executes cmd through the ADB "shell:<cmd>" service and streams
+// the shell output into stdout as it arrives.
+func (c *Client) ShellStream(ctx context.Context, cmd string, stdout io.Writer) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if stdout == nil {
+		return fmt.Errorf("adb shell stdout writer is nil")
+	}
+
+	stream, err := c.OpenService(ctx, "shell:"+cmd)
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
+	stopCancelCloser := closeOnCancel(ctx, stream)
+	defer stopCancelCloser()
+
+	_, err = io.Copy(stdout, stream)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("adb shell %q canceled: %w", cmd, ctxErr)
+	}
+	if err != nil {
+		return fmt.Errorf("adb shell %q: %w", cmd, err)
+	}
+	return nil
+}
+
+func closeOnCancel(ctx context.Context, closer io.Closer) func() {
+	if ctx.Done() == nil || closer == nil {
+		return func() {}
+	}
+
+	stop := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = closer.Close()
+		case <-stop:
+		}
+	}()
+	return func() { close(stop) }
 }
 
 func normalizeTCPAddr(addr string) (string, error) {

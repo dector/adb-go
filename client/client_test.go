@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -72,19 +73,7 @@ func TestConnectAuthResponse(t *testing.T) {
 
 func TestOpenServiceAgainstFakeServer(t *testing.T) {
 	server := fakeadb.Start(t)
-	server.Handle("test:service", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		_ = protocol.WriteMessage(conn, protocol.Message{
-			Command: protocol.CommandOKAY,
-			Arg0:    42,
-			Arg1:    open.Arg0,
-		})
-		_ = protocol.WriteMessage(conn, protocol.Message{
-			Command: protocol.CommandWRTE,
-			Arg0:    42,
-			Arg1:    open.Arg0,
-			Payload: []byte("hello"),
-		})
-	})
+	server.Handle("test:service", writeServiceOutput(t, "hello"))
 
 	client, err := Connect(context.Background(), server.Addr())
 	if err != nil {
@@ -104,6 +93,107 @@ func TestOpenServiceAgainstFakeServer(t *testing.T) {
 	}
 	if string(buf) != "hello" {
 		t.Fatalf("read payload = %q, want hello", string(buf))
+	}
+}
+
+func TestShellCapturesOutputAgainstFakeServer(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:printf hello", writeServiceOutput(t, "hello\n"))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	out, err := client.Shell(context.Background(), "printf hello")
+	if err != nil {
+		t.Fatalf("Shell() error = %v", err)
+	}
+	if string(out) != "hello\n" {
+		t.Fatalf("Shell() output = %q, want hello newline", string(out))
+	}
+}
+
+func TestShellStreamWritesToProvidedWriter(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:echo streamed", writeServiceOutput(t, "streamed\n"))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	var out bytes.Buffer
+	if err := client.ShellStream(context.Background(), "echo streamed", &out); err != nil {
+		t.Fatalf("ShellStream() error = %v", err)
+	}
+	if out.String() != "streamed\n" {
+		t.Fatalf("ShellStream() output = %q, want streamed newline", out.String())
+	}
+}
+
+func TestShellUsesExactSingleCommandString(t *testing.T) {
+	server := fakeadb.Start(t)
+	opened := make(chan string, 1)
+	wantService := "shell:pm list packages | grep example"
+	server.Handle(wantService, func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		opened <- string(open.Payload[:len(open.Payload)-1])
+		writeServiceOutput(t, "package:example\n")(ctx, conn, open)
+	})
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	if _, err := client.Shell(context.Background(), "pm list packages | grep example"); err != nil {
+		t.Fatalf("Shell() error = %v", err)
+	}
+	if got := <-opened; got != wantService {
+		t.Fatalf("opened service = %q, want %q", got, wantService)
+	}
+}
+
+func TestShellStreamContextCancellationUnblocks(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:sleep forever", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 42, Arg1: open.Arg0})
+		<-ctx.Done()
+	})
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- client.ShellStream(ctx, "sleep forever", io.Discard)
+	}()
+
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ShellStream() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ShellStream() did not unblock after context cancellation")
+	}
+}
+
+func writeServiceOutput(t testing.TB, output string) fakeadb.ServiceHandler {
+	t.Helper()
+	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		remoteID := uint32(42)
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: []byte(output)})
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
 	}
 }
 
