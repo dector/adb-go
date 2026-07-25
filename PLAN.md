@@ -4,12 +4,13 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 2 — Initialize Go module and package skeleton
+- Current milestone: Milestone 3 — Add protocol message encoding
 - Completed:
   - Milestone 1 — Project specification
-- In progress:
-  - Milestone 2 — Initialize Go module and package skeleton (implemented; commit pending)
-- Next milestone after module/package skeleton is committed: Milestone 3 — Add protocol message encoding
+  - Milestone 2 — Initialize Go module and package skeleton
+- Implemented / review pending:
+  - Milestone 3 — Add protocol message encoding
+- Next milestone after protocol message encoding is accepted: Milestone 4 — Add low-level connection handshake
 
 ## Milestone 1 — Project specification
 
@@ -30,7 +31,7 @@ Done when:
 
 ## Milestone 2 — Initialize Go module and package skeleton
 
-Status: In progress
+Status: Complete
 
 Commit: `chore: initialize go module and package skeleton`
 
@@ -53,31 +54,33 @@ Done when:
 
 ## Milestone 3 — Add protocol message encoding
 
+Status: Implemented
+
 Commit: `feat(protocol): add adb message encoding`
 
 Tasks:
 
-- Define ADB command type/constants, e.g. `CommandCNXN`, `CommandOPEN`, `CommandOKAY`, `CommandWRTE`, `CommandCLSE`, `CommandAUTH`
-- Define `Message` with raw fields:
+- [x] Define ADB command type/constants, e.g. `CommandCNXN`, `CommandOPEN`, `CommandOKAY`, `CommandWRTE`, `CommandCLSE`, `CommandAUTH`
+- [x] Define `Message` with raw fields:
   - `Command`
   - `Arg0`
   - `Arg1`
   - `Payload`
-- Implement checksum calculation
-- Implement command magic validation
-- Implement `ReadMessage` and `WriteMessage`
-- Add strict checksum validation
+- [x] Implement checksum calculation
+- [x] Implement command magic validation
+- [x] Implement `ReadMessage` and `WriteMessage`
+- [x] Add strict checksum validation
 
 Tests:
 
-- Encode/decode round trip
-- Invalid checksum fails
-- Invalid command magic fails
-- Empty payload works
+- [x] Encode/decode round trip
+- [x] Invalid checksum fails
+- [x] Invalid command magic fails
+- [x] Empty payload works
 
 Done when:
 
-- Protocol message tests pass
+- [x] Protocol message tests pass
 
 ## Milestone 4 — Add low-level connection handshake
 
