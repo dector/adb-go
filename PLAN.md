@@ -4,14 +4,15 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 4 — Add low-level connection handshake
+- Current milestone: Milestone 5 — Add fake ADB server foundation
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
 - Implemented / review pending:
   - Milestone 3 — Add protocol message encoding
   - Milestone 4 — Add low-level connection handshake
-- Next milestone after low-level connection handshake is accepted: Milestone 5 — Add fake ADB server foundation
+  - Milestone 5 — Add fake ADB server foundation
+- Next milestone after fake ADB server foundation is accepted: Milestone 6 — Add stream demultiplexing
 
 ## Milestone 1 — Project specification
 
@@ -110,23 +111,25 @@ Done when:
 
 ## Milestone 5 — Add fake ADB server foundation
 
+Status: Implemented
+
 Commit: `test: add fake adb server foundation`
 
 Tasks:
 
-- Implement `internal/fakeadb` TCP server helper for tests
-- Support minimal `CNXN` handshake
-- Allow registering service handlers by service string
-- Provide test helpers for start/stop/address
+- [x] Implement `internal/fakeadb` TCP server helper for tests
+- [x] Support minimal `CNXN` handshake
+- [x] Allow registering service handlers by service string
+- [x] Provide test helpers for start/stop/address
 
 Tests:
 
-- Fake server accepts connection and handshakes
-- Fake server shuts down cleanly
+- [x] Fake server accepts connection and handshakes
+- [x] Fake server shuts down cleanly
 
 Done when:
 
-- Future client/protocol tests can use fake server without real devices
+- [x] Future client/protocol tests can use fake server without real devices
 
 ## Milestone 6 — Add stream demultiplexing
 
