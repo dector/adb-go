@@ -165,26 +165,26 @@ Done when:
 
 ## Milestone 28 — USB documentation
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document linux usb support`
 
 Tasks:
 
-- [ ] Update README with Linux USB status and examples
-- [ ] Document permission setup and troubleshooting for `/dev/bus/usb`
-- [ ] Document USB limitations: Linux-only first, no auth until auth milestone, no broad device management compatibility
-- [ ] Document optional USB integration test environment variables
-- [ ] Update architecture notes to describe TCP and USB transports sharing the same ADB protocol layer
+- [x] Update README with Linux USB status and examples
+- [x] Document permission setup and troubleshooting for `/dev/bus/usb`
+- [x] Document USB limitations: Linux-only first, no auth until auth milestone, no broad device management compatibility
+- [x] Document optional USB integration test environment variables
+- [x] Update architecture notes to describe TCP and USB transports sharing the same ADB protocol layer
 
 Tests:
 
-- [ ] `go test ./...` passes
-- [ ] README examples match implemented API and CLI flags
+- [x] `go test ./...` passes
+- [x] README examples match implemented API and CLI flags
 
 Done when:
 
-- [ ] Users can understand how to try Linux USB support, why it may fail due to permissions or auth, and what remains unsupported
+- [x] Users can understand how to try Linux USB support, why it may fail due to permissions or auth, and what remains unsupported
 
 ## Deferred milestones
 

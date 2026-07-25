@@ -2,12 +2,12 @@
 
 `adb-go` is a pure-Go implementation of the Android Debug Bridge (ADB) protocol.
 It is primarily a Go library for embedding ADB behavior in applications. The
-v0 implementation focuses on explicit TCP connections to emulators or already
-authorized/insecure devices.
+v0 implementation supports explicit TCP connections and initial pure-Go Linux
+USB connections to emulators or already authorized/insecure devices.
 
 > **Status:** v0 is not a full replacement for the official `adb` binary yet.
-> It currently implements a small TCP-only subset: connect, generic service
-> opening, shell execution/streaming, and single-file push/pull.
+> It currently implements a small subset: connect, generic service opening,
+> shell execution/streaming, and single-file push/pull over TCP or Linux USB.
 
 ## Install
 
@@ -33,9 +33,9 @@ From a local checkout, you can also run it without installing:
 go run ./cmd/adb-go help
 ```
 
-The module uses only the Go standard library for the current TCP implementation.
-It does not require the Android SDK, platform-tools, the official `adb` binary,
-cgo, libusb, or other native dependencies.
+The module uses only the Go standard library for the current TCP and Linux USB
+implementation. It does not require the Android SDK, platform-tools, the
+official `adb` binary, cgo, libusb, or other native dependencies.
 
 ## Quick examples
 
@@ -56,6 +56,47 @@ If the port is omitted, `adb-go` defaults to the standard ADB TCP port `5555`:
 ```go
 client, err := adb.Connect(ctx, "127.0.0.1")
 ```
+
+### Connect over Linux USB
+
+Linux builds can connect through the kernel usbfs device files under
+`/dev/bus/usb`. If exactly one ADB-capable USB interface is visible, pass empty
+options:
+
+```go
+client, err := adb.ConnectUSB(ctx, adb.USBOptions{})
+if err != nil {
+    return err
+}
+defer client.Close()
+```
+
+When multiple Android devices are connected, select one explicitly. The most
+direct selector is the usbfs path:
+
+```go
+client, err := adb.ConnectUSB(ctx, adb.USBOptions{
+    DevicePath: "/dev/bus/usb/001/002",
+})
+```
+
+You can also select by bus/device number or by vendor/product ID:
+
+```go
+client, err := adb.ConnectUSB(ctx, adb.USBOptions{
+    BusNumber:    1,
+    DeviceNumber: 2,
+})
+
+client, err = adb.ConnectUSB(ctx, adb.USBOptions{
+    VendorID:  0x18d1,
+    ProductID: 0x4ee7,
+})
+```
+
+USB support is Linux-only initially. On other platforms, `ConnectUSB` returns an
+error matching `adb.ErrUnsupported`. Serial-number selection is reserved for a
+future USB string-descriptor implementation.
 
 ### Run a shell command
 
@@ -138,7 +179,7 @@ _, err = io.Copy(os.Stdout, stream)
 thin wrapper around the library's supported high-level operations, not a full
 clone of the official `adb` command.
 
-Every v0 CLI operation targets one explicit TCP ADB endpoint. Pass it with
+Every v0 CLI operation targets one explicit ADB endpoint. For TCP, pass
 `--addr HOST[:PORT]`:
 
 ```sh
@@ -150,7 +191,7 @@ adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 If the port is omitted, the library connection path defaults to the standard ADB
 TCP port `5555`, so `--addr 127.0.0.1` means `127.0.0.1:5555`.
 
-As a convenience for repeated commands, you may set `ADB_GO_ADDR` instead of
+As a convenience for repeated TCP commands, you may set `ADB_GO_ADDR` instead of
 passing `--addr` each time. An explicit `--addr` always takes precedence:
 
 ```sh
@@ -160,6 +201,22 @@ adb-go push ./local.txt /data/local/tmp/local.txt
 adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
 ```
 
+On Linux, pass USB selection flags instead of `--addr`:
+
+```sh
+adb-go shell --usb getprop ro.product.model
+adb-go shell --usb-path /dev/bus/usb/001/002 getprop ro.product.model
+adb-go push --usb-bus 1 --usb-device 2 ./local.txt /data/local/tmp/local.txt
+adb-go pull --usb-vid 18d1 --usb-pid 4ee7 /data/local/tmp/remote.txt ./remote.txt
+```
+
+`--usb` requests USB discovery without narrowing selection. It succeeds only
+when exactly one ADB USB device is visible. Use `--usb-path`,
+`--usb-bus`/`--usb-device`, or `--usb-vid`/`--usb-pid` to choose a device when
+more than one match exists. USB flags cannot be combined with `--addr`.
+`--serial` is accepted as a reserved selector but currently returns an
+unsupported error because USB serial string descriptors are not implemented yet.
+
 `adb-go shell` joins all remaining arguments with spaces and sends the result as
 one shell command string, matching the library API and the common `adb shell`
 shape. For example, this opens the ADB service string
@@ -167,6 +224,7 @@ shape. For example, this opens the ADB service string
 
 ```sh
 adb-go shell --addr 127.0.0.1:5555 pm list packages
+adb-go shell --usb-path /dev/bus/usb/001/002 pm list packages
 ```
 
 `adb-go push` and `adb-go pull` transfer exactly one file. Pull refuses to
@@ -176,13 +234,16 @@ replace an existing local destination unless `--overwrite` is provided.
 
 `adb-go` intentionally supports only a small v0 subset:
 
-- TCP connections only.
-- No USB transport support yet.
+- Transport support is limited to explicit TCP endpoints and Linux USB via
+  `/dev/bus/usb`; macOS and Windows USB are not implemented yet.
 - No ADB authentication implementation yet. If a peer replies with `AUTH`, the
   high-level client returns `adb.ErrAuthRequired`.
-- No device discovery or device listing in v0.
-- Connects only to an explicit device address supplied by the caller or, for the
-  CLI, by the `ADB_GO_ADDR` environment variable.
+- No broad device discovery, device listing, server management, or official
+  `adb devices` compatibility in v0. USB discovery is only used internally to
+  select an ADB-capable Linux usbfs interface.
+- TCP connects only to an explicit device address supplied by the caller or, for
+  the CLI, by the `ADB_GO_ADDR` environment variable. USB requires either a
+  single visible ADB USB device or explicit USB selection options/flags.
 - Incomplete command coverage: library users can run shell commands, stream
   shell output, push one file, pull one file, and open generic services; CLI
   users currently have `shell`, `push`, and `pull`.
@@ -198,17 +259,26 @@ The codebase is split into a small set of packages:
 
 - Root package `github.com/dector/adb-go` re-exports the stable high-level API
   from `client` for normal users.
-- Package `client` handles TCP dialing, the initial ADB `CNXN` handshake,
-  service opening, shell helpers, and the single-file `sync:` push/pull helpers.
+- Package `client` handles TCP dialing, Linux USB dialing, the initial ADB
+  `CNXN` handshake, service opening, shell helpers, and the single-file `sync:`
+  push/pull helpers.
 - Package `protocol` contains lower-level ADB packet primitives, connection
   handshake support, and stream demultiplexing. It is useful for tests,
   debugging, and advanced protocol work, but it may be less stable than the
   root/client API during v0 development.
+- Package `internal/usb` contains the Linux usbfs discovery and bulk endpoint
+  transport implementation behind Linux build tags, plus unsupported-platform
+  stubs for other operating systems.
 - Package `internal/fakeadb` is an in-process fake ADB server used by tests.
 
-At a high level, an ADB TCP session works like this:
+TCP and USB share the same ADB protocol layer. The selected transport only
+provides a raw `io.ReadWriteCloser`; after that, `protocol.NewConnection` sends
+and receives normal ADB packets over the byte stream.
 
-1. The client opens a TCP connection to the device or emulator.
+At a high level, an ADB session works like this:
+
+1. The client opens a byte transport: either a TCP socket to the device/emulator
+   or a claimed Linux USB interface with bulk IN and bulk OUT endpoints.
 2. The client and device exchange `CNXN` packets to establish protocol-level
    connectivity.
 3. The client sends an `OPEN` packet containing a service string such as
@@ -220,6 +290,33 @@ At a high level, an ADB TCP session works like this:
 For file transfer, `adb-go` opens the `sync:` service and then sends smaller
 sync protocol records such as `RECV`, `SEND`, `DATA`, `DONE`, `OKAY`, and
 `FAIL` inside the ADB stream.
+
+## Linux USB permissions and troubleshooting
+
+The Linux USB backend opens device files such as `/dev/bus/usb/001/002` and
+claims the ADB interface with usbfs ioctls. If your user cannot read and write
+that device node, connection fails before the ADB handshake begins.
+
+Common permission setup options are:
+
+- Run as root temporarily for a quick hardware test.
+- Install a udev rule that grants a development group access to your Android
+  device vendor ID.
+- Add your user to that group, then re-login, replug the device, or reload udev
+  rules so the new permissions apply.
+
+A typical udev rule shape is:
+
+```text
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+```
+
+Google devices often use vendor ID `18d1`; other manufacturers use different
+IDs. If discovery finds no candidates, check that USB debugging is enabled, the
+USB mode exposes an ADB interface, the device is visible under `/dev/bus/usb`,
+and your udev rule matches the actual vendor ID. If the handshake fails with
+`adb.ErrAuthRequired`, the transport worked but the device requires ADB RSA
+authentication, which is still a future milestone.
 
 ## Security and trust
 
@@ -260,9 +357,19 @@ ADB_GO_CONTAINER_INTEGRATION=1 go test ./...
 ```
 
 The default container image name is `adb-go-linux-adbd`; override it with
-`ADB_GO_CONTAINER_IMAGE` when needed. Because v0 does not implement ADB
-authentication, devices that answer with `AUTH` will fail with
-`adb.ErrAuthRequired` until authentication support is added.
+`ADB_GO_CONTAINER_IMAGE` when needed.
+
+Linux USB integration testing is also opt-in and requires Linux plus a connected
+ADB-capable USB device that your user can open through `/dev/bus/usb`:
+
+```sh
+ADB_GO_USB_INTEGRATION=1 go test ./...
+```
+
+The USB integration test discovers ADB USB interfaces, opens the first
+candidate's bulk endpoints, and performs the ADB `CNXN` handshake. Because v0
+does not implement ADB authentication, devices that answer with `AUTH` are
+reported as authentication-required rather than treated as transport failures.
 
 ## Roadmap
 
@@ -271,5 +378,4 @@ Preferred post-v0 direction:
 1. Continue growing the official CLI as a thin wrapper around supported library
    operations.
 2. Implement ADB authentication.
-3. Add USB transport support while preserving pure-Go preferences where
-   feasible.
+3. Expand USB support beyond the initial Linux usbfs backend where feasible.
