@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -36,27 +35,11 @@ func ConnectTCP(ctx context.Context, addr string) (*Client, error) {
 		return nil, err
 	}
 
-	networkAddr, err := normalizeTCPAddr(addr)
+	dialer, err := newTCPTransportDialer(addr)
 	if err != nil {
 		return nil, err
 	}
-
-	dialer := &net.Dialer{}
-	rawConn, err := dialer.DialContext(ctx, "tcp", networkAddr)
-	if err != nil {
-		return nil, fmt.Errorf("adb connect tcp %q: %w", networkAddr, err)
-	}
-
-	protoConn := protocol.NewConnection(rawConn)
-	if _, err := protoConn.Handshake(ctx); err != nil {
-		_ = protoConn.Close()
-		if errors.Is(err, protocol.ErrAuthRequired) {
-			return nil, fmt.Errorf("adb connect tcp %q: %w", networkAddr, ErrAuthRequired)
-		}
-		return nil, fmt.Errorf("adb connect tcp %q: %w", networkAddr, err)
-	}
-
-	return &Client{conn: protoConn}, nil
+	return connectWithTransport(ctx, dialer)
 }
 
 // Close closes the underlying ADB connection.

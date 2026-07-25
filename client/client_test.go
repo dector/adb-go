@@ -60,6 +60,76 @@ func TestConnectSucceedsAgainstFakeServer(t *testing.T) {
 	}
 }
 
+func TestConnectWithTransportPerformsSharedHandshake(t *testing.T) {
+	clientSide, serverSide := net.Pipe()
+	defer serverSide.Close()
+
+	done := make(chan error, 1)
+	go func() {
+		req, err := protocol.ReadMessage(serverSide)
+		if err != nil {
+			done <- err
+			return
+		}
+		if req.Command != protocol.CommandCNXN {
+			done <- errors.New("first client packet was not CNXN")
+			return
+		}
+		done <- protocol.WriteMessage(serverSide, protocol.Message{
+			Command: protocol.CommandCNXN,
+			Arg0:    protocol.Version,
+			Arg1:    protocol.MaxPayload,
+			Payload: []byte("device::fake\x00"),
+		})
+	}()
+
+	client, err := connectWithTransport(context.Background(), staticTransportDialer{
+		desc: "test pipe",
+		conn: clientSide,
+	})
+	if err != nil {
+		t.Fatalf("connectWithTransport() error = %v", err)
+	}
+	defer client.Close()
+
+	if err := <-done; err != nil {
+		t.Fatalf("shared handshake server error = %v", err)
+	}
+}
+
+func TestConnectWithTransportMapsAuthResponse(t *testing.T) {
+	clientSide, serverSide := net.Pipe()
+	defer serverSide.Close()
+
+	done := make(chan error, 1)
+	go func() {
+		if _, err := protocol.ReadMessage(serverSide); err != nil {
+			done <- err
+			return
+		}
+		done <- protocol.WriteMessage(serverSide, protocol.Message{
+			Command: protocol.CommandAUTH,
+			Arg0:    1,
+			Payload: []byte("token"),
+		})
+	}()
+
+	client, err := connectWithTransport(context.Background(), staticTransportDialer{
+		desc: "test pipe",
+		conn: clientSide,
+	})
+	if err == nil {
+		_ = client.Close()
+		t.Fatal("connectWithTransport() error = nil, want auth required")
+	}
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Fatalf("connectWithTransport() error = %v, want errors.Is ErrAuthRequired", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("auth handshake server error = %v", err)
+	}
+}
+
 func TestConnectAuthResponse(t *testing.T) {
 	addr, closeServer := startAuthServer(t)
 	defer closeServer()
@@ -517,6 +587,19 @@ func TestWriteSyncHeaderCompletesShortWrites(t *testing.T) {
 	if id != syncIDDONE || size != 123 || len(data) != 0 {
 		t.Fatalf("sync header id=%q size=%d data=%q, want DONE/123/no data", id, size, data)
 	}
+}
+
+type staticTransportDialer struct {
+	desc string
+	conn io.ReadWriteCloser
+}
+
+func (d staticTransportDialer) DialTransport(ctx context.Context) (io.ReadWriteCloser, error) {
+	return d.conn, nil
+}
+
+func (d staticTransportDialer) ConnectDescription() string {
+	return d.desc
 }
 
 type shortWriter struct {

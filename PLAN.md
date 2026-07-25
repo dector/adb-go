@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 22 — USB feasibility and Linux transport design
-- Milestones 17–21 completed the initial CLI shell/push/pull work and CLI documentation.
+- Current milestone: Milestone 23 — Transport abstraction
+- Milestones 17–22 completed the initial CLI shell/push/pull work, CLI documentation, and Linux USB transport design.
 - Active focus: pure-Go Linux USB support without cgo, libusb, Android SDK, platform-tools, or the official `adb` binary.
 - Preferred implementation direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This is still pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -35,27 +35,27 @@ Done when:
 
 ## Milestone 23 — Transport abstraction
 
-Status: Not started
+Status: Implemented
 
 Commit: `refactor(client): abstract adb transport dialing`
 
 Tasks:
 
-- [ ] Introduce a small internal transport/dial abstraction for connection setup
-- [ ] Move TCP dialing behind the shared transport path without changing public TCP APIs
-- [ ] Preserve `adb.Connect` and `adb.ConnectTCP` behavior exactly
-- [ ] Ensure future USB dialing can return an `io.ReadWriteCloser` that is passed into `protocol.NewConnection`
-- [ ] Keep authentication behavior unchanged: `AUTH` maps to high-level `ErrAuthRequired`
+- [x] Introduce a small internal transport/dial abstraction for connection setup
+- [x] Move TCP dialing behind the shared transport path without changing public TCP APIs
+- [x] Preserve `adb.Connect` and `adb.ConnectTCP` behavior exactly
+- [x] Ensure future USB dialing can return an `io.ReadWriteCloser` that is passed into `protocol.NewConnection`
+- [x] Keep authentication behavior unchanged: `AUTH` maps to high-level `ErrAuthRequired`
 
 Tests:
 
-- [ ] Existing TCP client tests still pass
-- [ ] Add tests proving `ConnectTCP` uses the shared handshake path
-- [ ] `go test ./...` passes
+- [x] Existing TCP client tests still pass
+- [x] Add tests proving `ConnectTCP` uses the shared handshake path
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] TCP is implemented through a transport seam and no USB code is required yet
+- [x] TCP is implemented through a transport seam and no USB code is required yet
 
 ## Milestone 24 — Linux USB device discovery primitives
 
