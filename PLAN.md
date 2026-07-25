@@ -39,30 +39,30 @@ Done when:
 
 ## Milestone 18 — CLI push command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cmd): add push command`
 
 Tasks:
 
-- [ ] Add a `push` subcommand to `cmd/adb-go`
-- [ ] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
-- [ ] Accept exactly two positional arguments: local path and remote path
-- [ ] Connect using the existing high-level `adb.Connect` API
-- [ ] Transfer the file using `Client.PushFile`
-- [ ] Write clear errors to stderr and return a non-zero exit code on failure
+- [x] Add a `push` subcommand to `cmd/adb-go`
+- [x] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
+- [x] Accept exactly two positional arguments: local path and remote path
+- [x] Connect using the existing high-level `adb.Connect` API
+- [x] Transfer the file using `Client.PushFile`
+- [x] Write clear errors to stderr and return a non-zero exit code on failure
 
 Tests:
 
-- [ ] CLI dispatch recognizes `push`
-- [ ] Missing `--addr` returns a clear usage error
-- [ ] Wrong argument count returns a clear usage error
-- [ ] Push calls the high-level file transfer path against a fake server or test hook
+- [x] CLI dispatch recognizes `push`
+- [x] Missing `--addr` returns a clear usage error
+- [x] Wrong argument count returns a clear usage error
+- [x] Push calls the high-level file transfer path against a fake server or test hook
 
 Done when:
 
-- [ ] `go test ./...` passes
-- [ ] A user can run a command shaped like `adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt`
+- [x] `go test ./...` passes
+- [x] A user can run a command shaped like `adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt`
 
 ## Milestone 19 — CLI pull command
 

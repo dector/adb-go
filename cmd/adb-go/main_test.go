@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -148,6 +151,80 @@ func TestRunShellConnectFailure(t *testing.T) {
 	}
 }
 
+func TestRunPushMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"push", "./local.txt", "/data/local/tmp/local.txt"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(push missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go push --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunPushWrongArgCount(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "missing remote path", args: []string{"push", "--addr", "127.0.0.1:5555", "./local.txt"}},
+		{name: "extra argument", args: []string{"push", "--addr", "127.0.0.1:5555", "./local.txt", "/remote.txt", "extra"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			code := run(tt.args, &stdout, &stderr)
+
+			if code != 2 {
+				t.Fatalf("run(push wrong arg count) exit code = %d, want 2", code)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
+			}
+			if got := stderr.String(); !strings.Contains(got, "requires exactly LOCAL_PATH and REMOTE_PATH") || !strings.Contains(got, "adb-go push --addr") {
+				t.Fatalf("stderr = %q, want arg count usage error", got)
+			}
+		})
+	}
+}
+
+func TestRunPushTransfersFile(t *testing.T) {
+	server := fakeadb.Start(t)
+	result := make(chan cliSyncPushResult, 1)
+	server.Handle("sync:", cliSyncPushHandler(t, "/data/local/tmp/local.txt", result))
+	localPath := filepath.Join(t.TempDir(), "local.txt")
+	if err := os.WriteFile(localPath, []byte("hello pushed from cli"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"push", "--addr", server.Addr(), localPath, "/data/local/tmp/local.txt"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(push) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	got := <-result
+	if got.contents != "hello pushed from cli" {
+		t.Fatalf("pushed contents = %q, want hello pushed from cli", got.contents)
+	}
+	if got.path != "/data/local/tmp/local.txt" {
+		t.Fatalf("pushed path = %q, want /data/local/tmp/local.txt", got.path)
+	}
+}
+
 func writeCLIShellOutput(t testing.TB, output string) fakeadb.ServiceHandler {
 	t.Helper()
 	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
@@ -156,4 +233,82 @@ func writeCLIShellOutput(t testing.TB, output string) fakeadb.ServiceHandler {
 		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: []byte(output)})
 		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
 	}
+}
+
+type cliSyncPushResult struct {
+	path     string
+	contents string
+}
+
+func cliSyncPushHandler(t testing.TB, wantPath string, result chan<- cliSyncPushResult) fakeadb.ServiceHandler {
+	t.Helper()
+	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		remoteID := uint32(42)
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+
+		var got cliSyncPushResult
+		for {
+			request, err := protocol.ReadMessage(conn)
+			if err != nil {
+				t.Errorf("cli sync push handler ReadMessage() error = %v", err)
+				return
+			}
+			if request.Command != protocol.CommandWRTE {
+				t.Errorf("cli sync push handler command = %#x, want WRTE", uint32(request.Command))
+				return
+			}
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+
+			id, size, payload := parseCLISyncPacket(t, request.Payload)
+			switch id {
+			case "SEND":
+				comma := bytes.LastIndexByte(payload, ',')
+				if comma < 0 {
+					t.Errorf("SEND payload = %q, want path,mode", string(payload))
+					return
+				}
+				got.path = string(payload[:comma])
+				if got.path != wantPath {
+					t.Errorf("SEND path = %q, want %q", got.path, wantPath)
+					return
+				}
+			case "DATA":
+				got.contents += string(payload)
+			case "DONE":
+				if size == 0 {
+					t.Errorf("DONE mtime = 0, want local file modification time")
+					return
+				}
+				_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: cliSyncPacket("OKAY", nil)})
+				_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
+				result <- got
+				return
+			default:
+				t.Errorf("cli sync push request id = %q, want SEND/DATA/DONE", id)
+				return
+			}
+		}
+	}
+}
+
+func parseCLISyncPacket(t testing.TB, payload []byte) (id string, size uint32, data []byte) {
+	t.Helper()
+	if len(payload) < 8 {
+		t.Fatalf("sync packet payload length = %d, want at least 8", len(payload))
+	}
+	id = string(payload[:4])
+	size = binary.LittleEndian.Uint32(payload[4:8])
+	data = payload[8:]
+	if id != "DONE" && len(data) != int(size) {
+		t.Fatalf("sync packet data length = %d, want %d", len(data), size)
+	}
+	return id, size, data
+}
+
+func cliSyncPacket(id string, payload []byte) []byte {
+	packet := make([]byte, 8+len(payload))
+	copy(packet[:4], id)
+	binary.LittleEndian.PutUint32(packet[4:8], uint32(len(payload)))
+	copy(packet[8:], payload)
+	return packet
 }
