@@ -3,7 +3,8 @@
 `adb-go` is a pure-Go implementation of the Android Debug Bridge (ADB) protocol.
 It is primarily a Go library for embedding ADB behavior in applications. The
 v0 implementation supports explicit TCP connections and initial pure-Go Linux
-USB connections to emulators or already authorized/insecure devices.
+USB connections to emulators and authorized devices. Existing ADB RSA private
+keys can be supplied explicitly for devices that require authentication.
 
 > **Status:** v0 is not a full replacement for the official `adb` binary yet.
 > It currently implements a small subset: connect, generic service opening,
@@ -97,6 +98,35 @@ client, err = adb.ConnectUSB(ctx, adb.USBOptions{
 USB support is Linux-only initially. On other platforms, `ConnectUSB` returns an
 error matching `adb.ErrUnsupported`. Serial-number selection is reserved for a
 future USB string-descriptor implementation.
+
+### Authenticate with an existing ADB key
+
+If a device replies with `AUTH`, load an existing ADB RSA private key and pass it
+to the connection call explicitly:
+
+```go
+credential, err := adb.LoadPrivateKey("/home/me/.android/adbkey")
+if err != nil {
+    return err
+}
+client, err := adb.ConnectTCPWithOptions(ctx, "127.0.0.1:5555", adb.ConnectOptions{
+    AuthCredentials: []adb.AuthCredential{credential},
+})
+```
+
+Linux USB uses the same credential through `USBOptions`:
+
+```go
+client, err := adb.ConnectUSB(ctx, adb.USBOptions{
+    DevicePath:      "/dev/bus/usb/001/002",
+    AuthCredentials: []adb.AuthCredential{credential},
+})
+```
+
+Key loading is intentionally explicit. adb-go does not generate keys, persist
+keys, search `~/.android`, or integrate with OS keychains in v0. See
+[`docs/authentication.md`](docs/authentication.md) for the protocol flow and
+supported key formats.
 
 ### Run a shell command
 
@@ -224,6 +254,16 @@ more than one match exists. USB flags cannot be combined with `--addr`.
 `--serial` is accepted as a reserved selector but currently returns an
 unsupported error because USB serial string descriptors are not implemented yet.
 
+For authenticated TCP or USB devices, provide an existing ADB private key with
+`--auth-key`:
+
+```sh
+adb-go shell --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 getprop ro.product.model
+adb-go shell --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 getprop ro.product.model
+```
+
+The CLI does not create or modify key files.
+
 `adb-go shell` joins all remaining arguments with spaces and sends the result as
 one shell command string, matching the library API and the common `adb shell`
 shape. For example, this opens the ADB service string
@@ -248,7 +288,7 @@ usb        --usb-path /dev/bus/usb/001/002  bus=001 device=002 vid:pid=18d1:4ee7
 The USB row means adb-go found a USB interface whose descriptors match ADB's
 vendor-specific class/subclass/protocol. It is still only a candidate: opening
 it may require `/dev/bus/usb` permissions, and the ADB handshake may still fail
-with `adb.ErrAuthRequired` until authentication support is added.
+with `adb.ErrAuthRequired` unless you provide a trusted key with `--auth-key`.
 
 ## Current limitations and differences from official adb
 
@@ -256,8 +296,10 @@ with `adb.ErrAuthRequired` until authentication support is added.
 
 - Transport support is limited to explicit TCP endpoints and Linux USB via
   `/dev/bus/usb`; macOS and Windows USB are not implemented yet.
-- No ADB authentication implementation yet. If a peer replies with `AUTH`, the
-  high-level client returns `adb.ErrAuthRequired`.
+- ADB authentication requires explicit existing RSA key files. adb-go does not
+  generate keys, discover default key locations, manage key authorization, or
+  integrate with OS keychains yet. Without supplied credentials, `AUTH` still
+  returns `adb.ErrAuthRequired`.
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The `adb-go targets` command is an adb-go-specific
   listing of usable selectors, not a clone of the official adb server's device
@@ -280,9 +322,11 @@ The codebase is split into a small set of packages:
 
 - Root package `github.com/dector/adb-go` re-exports the stable high-level API
   from `client` for normal users.
+- Package `auth` loads explicit ADB RSA private keys and prepares public-key
+  payloads for the ADB authentication exchange.
 - Package `client` handles TCP dialing, Linux USB dialing and USB candidate
-  listing, the initial ADB `CNXN` handshake, service opening, shell helpers, and
-  the single-file `sync:` push/pull helpers.
+  listing, the initial ADB `CNXN`/`AUTH` handshake, service opening, shell
+  helpers, and the single-file `sync:` push/pull helpers.
 - Package `protocol` contains lower-level ADB packet primitives, connection
   handshake support, and stream demultiplexing. It is useful for tests,
   debugging, and advanced protocol work, but it may be less stable than the
@@ -301,7 +345,9 @@ At a high level, an ADB session works like this:
 1. The client opens a byte transport: either a TCP socket to the device/emulator
    or a claimed Linux USB interface with bulk IN and bulk OUT endpoints.
 2. The client and device exchange `CNXN` packets to establish protocol-level
-   connectivity.
+   connectivity. If the device sends `AUTH TOKEN`, adb-go signs the token with a
+   supplied RSA key, may offer the corresponding public key, and waits for the
+   final device `CNXN`.
 3. The client sends an `OPEN` packet containing a service string such as
    `shell:echo ok` or `sync:`.
 4. The peer acknowledges the logical stream with `OKAY`.
@@ -337,13 +383,14 @@ IDs. If discovery finds no candidates, check that USB debugging is enabled, the
 USB mode exposes an ADB interface, the device is visible under `/dev/bus/usb`,
 and your udev rule matches the actual vendor ID. If the handshake fails with
 `adb.ErrAuthRequired`, the transport worked but the device requires ADB RSA
-authentication, which is still a future milestone.
+authentication and no trusted explicit key completed the challenge.
 
 ## Security and trust
 
 `adb-go` behaves like `adb`: callers control commands and paths. Shell commands
-and file paths may affect the connected device. The library does not add command
-or path allowlists/denylists, does not log by default, and requires
+and file paths may affect the connected device. ADB private keys are sensitive:
+a trusted key can authorize host access to a device. The library does not add
+command or path allowlists/denylists, does not log by default, and requires
 `context.Context` for blocking public operations so callers can set deadlines or
 cancel work.
 
@@ -388,9 +435,9 @@ ADB_GO_USB_INTEGRATION=1 go test ./...
 ```
 
 The USB integration test discovers ADB USB interfaces, opens the first
-candidate's bulk endpoints, and performs the ADB `CNXN` handshake. Because v0
-does not implement ADB authentication, devices that answer with `AUTH` are
-reported as authentication-required rather than treated as transport failures.
+candidate's bulk endpoints, and performs the ADB handshake. Devices that answer
+with `AUTH` are reported as authentication-required unless explicit credentials
+are added to the test in a future integration slice.
 
 ## Roadmap
 
@@ -398,5 +445,6 @@ Preferred post-v0 direction:
 
 1. Continue growing the official CLI as a thin wrapper around supported library
    operations.
-2. Implement ADB authentication.
+2. Continue improving ADB authentication ergonomics, including optional key
+   generation/discovery if the project later chooses to manage keys.
 3. Expand USB support beyond the initial Linux usbfs backend where feasible.

@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 34 — Document authentication setup and limitations.
-- Completed milestone range: Milestones 17–29 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, and adb-go-specific target listing.
-- Active focus: ADB authentication. Authenticated devices currently return `ErrAuthRequired` over both TCP and USB; the next slice should add explicit host credentials first, then wire those credentials into the protocol handshake, client API, CLI, and docs in separate reviewable milestones.
+- Current milestone: None. The planned ADB authentication slice is complete.
+- Completed milestone range: Milestones 17–34 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, and explicit ADB authentication support.
+- Active focus: choose and promote the next deferred milestone before implementation begins.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -136,25 +136,25 @@ Done when:
 
 ## Milestone 34 — Document authentication setup and limitations
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document adb authentication setup`
 
 Tasks:
 
-- [ ] Update README examples and limitations to describe explicit authentication support for TCP and Linux USB.
-- [ ] Add docs explaining how ADB authentication works at a high level: token challenge, RSA signature, public-key authorization prompt, and final CNXN.
-- [ ] Document supported key formats, explicit key-path usage in library and CLI, and unsupported behaviors such as key generation or keychain integration.
-- [ ] Explain security considerations: key files are sensitive, commands and paths are caller-controlled, and adb-go does not log by default.
+- [x] Update README examples and limitations to describe explicit authentication support for TCP and Linux USB.
+- [x] Add docs explaining how ADB authentication works at a high level: token challenge, RSA signature, public-key authorization prompt, and final CNXN.
+- [x] Document supported key formats, explicit key-path usage in library and CLI, and unsupported behaviors such as key generation or keychain integration.
+- [x] Explain security considerations: key files are sensitive, commands and paths are caller-controlled, and adb-go does not log by default.
 
 Tests:
 
-- [ ] Documentation examples compile where applicable.
-- [ ] `go test ./...` passes
+- [x] Documentation examples compile where applicable.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can understand when authentication is needed, how to supply an existing key, and what adb-go intentionally does not manage.
+- [x] Users can understand when authentication is needed, how to supply an existing key, and what adb-go intentionally does not manage.
 
 ## Deferred milestones
 
