@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 24 — Linux USB device discovery primitives
-- Milestones 17–23 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, and transport abstraction.
+- Current milestone: Milestone 26 — High-level USB connect API
+- Milestones 17–25 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, and Linux usbfs bulk transport.
 - Active focus: pure-Go Linux USB support without cgo, libusb, Android SDK, platform-tools, or the official `adb` binary.
 - Preferred implementation direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This is still pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -86,30 +86,30 @@ Done when:
 
 ## Milestone 25 — Linux usbfs bulk transport
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(usb): add linux bulk transport`
 
 Tasks:
 
-- [ ] Open selected `/dev/bus/usb/*/*` device files
-- [ ] Claim the selected ADB interface through usbfs ioctl calls
-- [ ] Implement bulk IN reads and bulk OUT writes as an `io.ReadWriteCloser`
-- [ ] Release the interface and close the file on `Close`
-- [ ] Respect context cancellation by closing the device file to unblock pending USB operations
-- [ ] Return clear permission and unsupported-platform errors
-- [ ] Keep implementation pure Go and Linux-only behind build tags
+- [x] Open selected `/dev/bus/usb/*/*` device files
+- [x] Claim the selected ADB interface through usbfs ioctl calls
+- [x] Implement bulk IN reads and bulk OUT writes as an `io.ReadWriteCloser`
+- [x] Release the interface and close the file on `Close`
+- [x] Respect context cancellation by closing the device file to unblock pending USB operations
+- [x] Return clear permission and unsupported-platform errors
+- [x] Keep implementation pure Go and Linux-only behind build tags
 
 Tests:
 
-- [ ] Unit tests cover error mapping and close semantics where possible without hardware
-- [ ] Add optional Linux USB integration test gated by an environment variable, for example `ADB_GO_USB_INTEGRATION=1`
-- [ ] Existing TCP tests continue to pass
-- [ ] `go test ./...` passes without USB hardware
+- [x] Unit tests cover error mapping and close semantics where possible without hardware
+- [x] Add optional Linux USB integration test gated by an environment variable, for example `ADB_GO_USB_INTEGRATION=1`
+- [x] Existing TCP tests continue to pass
+- [x] `go test ./...` passes without USB hardware
 
 Done when:
 
-- [ ] The Linux USB transport can move raw bytes over ADB bulk endpoints and can be tested optionally against real hardware
+- [x] The Linux USB transport can move raw bytes over ADB bulk endpoints and can be tested optionally against real hardware
 
 ## Milestone 26 — High-level USB connect API
 
