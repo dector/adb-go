@@ -3,7 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/binary"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"io"
@@ -217,6 +221,49 @@ func TestConnectionOptionsUSBSelection(t *testing.T) {
 	}
 }
 
+func TestConnectionOptionsAuthKeyLoadsCredentialForTCPAndUSB(t *testing.T) {
+	keyPath := writeADBKeyFile(t)
+
+	fs := flag.NewFlagSet("tcp", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--addr", "127.0.0.1:5555", "--auth-key", keyPath}); err != nil {
+		t.Fatalf("Parse(TCP) error = %v", err)
+	}
+	tcpTarget, err := conn.target(fs)
+	if err != nil {
+		t.Fatalf("target(TCP) error = %v", err)
+	}
+	if len(tcpTarget.auth) != 1 {
+		t.Fatalf("TCP auth credentials = %d, want 1", len(tcpTarget.auth))
+	}
+
+	fs = flag.NewFlagSet("usb", flag.ContinueOnError)
+	conn = addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--usb-path", "/dev/bus/usb/001/002", "--auth-key", keyPath}); err != nil {
+		t.Fatalf("Parse(USB) error = %v", err)
+	}
+	usbTarget, err := conn.target(fs)
+	if err != nil {
+		t.Fatalf("target(USB) error = %v", err)
+	}
+	if len(usbTarget.auth) != 1 || len(usbTarget.usbOptions.AuthCredentials) != 1 {
+		t.Fatalf("USB auth credentials target=%d options=%d, want 1/1", len(usbTarget.auth), len(usbTarget.usbOptions.AuthCredentials))
+	}
+}
+
+func TestConnectionOptionsAuthKeyReportsLoadError(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--addr", "127.0.0.1:5555", "--auth-key", filepath.Join(t.TempDir(), "missing")}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	_, err := conn.target(fs)
+	if err == nil || !strings.Contains(err.Error(), "load --auth-key") {
+		t.Fatalf("target() error = %v, want auth key load error", err)
+	}
+}
+
 func TestConnectionOptionsRejectsTCPAndUSBCombination(t *testing.T) {
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
 	conn := addConnectionFlags(fs)
@@ -248,6 +295,26 @@ func TestRunShellUsesUSBConnection(t *testing.T) {
 	}
 	if stdout.String() != "usb shell\n" {
 		t.Fatalf("stdout = %q, want USB shell output", stdout.String())
+	}
+}
+
+func TestRunShellAuthRequiredSuggestsAuthKey(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return nil, adb.ErrAuthRequired
+	})
+	defer restore()
+
+	code := run([]string{"shell", "--addr", "127.0.0.1:5555", "echo", "hello"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(shell auth required) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "device requires authentication") || !strings.Contains(got, "--auth-key PATH") {
+		t.Fatalf("stderr = %q, want auth-key guidance", got)
 	}
 }
 
@@ -649,6 +716,20 @@ func cliSyncPacket(id string, payload []byte) []byte {
 	binary.LittleEndian.PutUint32(packet[4:8], uint32(len(payload)))
 	copy(packet[8:], payload)
 	return packet
+}
+
+func writeADBKeyFile(t testing.TB) string {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+	data := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	path := filepath.Join(t.TempDir(), "adbkey")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatalf("WriteFile(adbkey): %v", err)
+	}
+	return path
 }
 
 type fakeCLIClient struct {

@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 33 — Add CLI authentication support.
+- Current milestone: Milestone 34 — Document authentication setup and limitations.
 - Completed milestone range: Milestones 17–29 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, and adb-go-specific target listing.
 - Active focus: ADB authentication. Authenticated devices currently return `ErrAuthRequired` over both TCP and USB; the next slice should add explicit host credentials first, then wire those credentials into the protocol handshake, client API, CLI, and docs in separate reviewable milestones.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -114,25 +114,25 @@ Done when:
 
 ## Milestone 33 — Add CLI authentication support
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add adb auth key option`
 
 Tasks:
 
-- [ ] Add a CLI flag for an explicit ADB private key path and thread it through every command that opens a device connection.
-- [ ] Keep default CLI behavior unchanged when no key flag is supplied.
-- [ ] Return a clear user-facing error when a device requires auth and no key was supplied, or when the supplied key cannot authenticate.
-- [ ] Avoid writing or generating key material from the CLI in this milestone.
+- [x] Add a CLI flag for an explicit ADB private key path and thread it through every command that opens a device connection.
+- [x] Keep default CLI behavior unchanged when no key flag is supplied.
+- [x] Return a clear user-facing error when a device requires auth and no key was supplied, or when the supplied key cannot authenticate.
+- [x] Avoid writing or generating key material from the CLI in this milestone.
 
 Tests:
 
-- [ ] CLI tests cover key flag parsing, propagation to connection setup, and no-key `ErrAuthRequired` messaging.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover key flag parsing, propagation to connection setup, and no-key `ErrAuthRequired` messaging.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can run existing supported commands against auth-requiring devices by explicitly providing an existing ADB private key.
+- [x] CLI users can run existing supported commands against auth-requiring devices by explicitly providing an existing ADB private key.
 
 ## Milestone 34 — Document authentication setup and limitations
 

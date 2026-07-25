@@ -50,6 +50,7 @@ type connectionOptions struct {
 	usbDevice *int
 	usbVID    *string
 	usbPID    *string
+	authKey   *string
 }
 
 type connectionTarget struct {
@@ -57,13 +58,14 @@ type connectionTarget struct {
 	tcpAddr     string
 	usb         bool
 	usbOptions  adb.USBOptions
+	auth        []adb.AuthCredential
 }
 
 var connectDevice = func(ctx context.Context, target connectionTarget) (deviceClient, error) {
 	if target.usb {
 		return adb.ConnectUSB(ctx, target.usbOptions)
 	}
-	return adb.Connect(ctx, target.tcpAddr)
+	return adb.ConnectWithOptions(ctx, target.tcpAddr, adb.ConnectOptions{AuthCredentials: target.auth})
 }
 
 var listUSBDevices = adb.ListUSBDevices
@@ -78,10 +80,16 @@ func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
 		usbDevice: fs.Int("usb-device", 0, "Linux usbfs device number for USB selection"),
 		usbVID:    fs.String("usb-vid", "", "USB vendor ID, for example 18d1 or 0x18d1"),
 		usbPID:    fs.String("usb-pid", "", "USB product ID, for example 4ee7 or 0x4ee7"),
+		authKey:   fs.String("auth-key", "", "explicit ADB RSA private key path for authenticated devices"),
 	}
 }
 
 func (o connectionOptions) target(fs *flag.FlagSet) (connectionTarget, error) {
+	authCredentials, err := o.authCredentials()
+	if err != nil {
+		return connectionTarget{}, err
+	}
+
 	addrProvided := flagWasProvided(fs, "addr")
 	usbRequested := *o.usb || flagWasProvided(fs, "usb-path") || flagWasProvided(fs, "serial") || flagWasProvided(fs, "usb-bus") || flagWasProvided(fs, "usb-device") || flagWasProvided(fs, "usb-vid") || flagWasProvided(fs, "usb-pid")
 	if addrProvided && usbRequested {
@@ -95,14 +103,14 @@ func (o connectionOptions) target(fs *flag.FlagSet) (connectionTarget, error) {
 			BusNumber:    *o.usbBus,
 			DeviceNumber: *o.usbDevice,
 		}
-		var err error
+		opts.AuthCredentials = authCredentials
 		if opts.VendorID, err = parseUSBID("--usb-vid", *o.usbVID); err != nil {
 			return connectionTarget{}, err
 		}
 		if opts.ProductID, err = parseUSBID("--usb-pid", *o.usbPID); err != nil {
 			return connectionTarget{}, err
 		}
-		return connectionTarget{description: "USB device", usb: true, usbOptions: opts}, nil
+		return connectionTarget{description: "USB device", usb: true, usbOptions: opts, auth: authCredentials}, nil
 	}
 
 	if addrProvided {
@@ -110,14 +118,26 @@ func (o connectionOptions) target(fs *flag.FlagSet) (connectionTarget, error) {
 		if addr == "" {
 			return connectionTarget{}, fmt.Errorf("missing required --addr value")
 		}
-		return connectionTarget{description: addr, tcpAddr: addr}, nil
+		return connectionTarget{description: addr, tcpAddr: addr, auth: authCredentials}, nil
 	}
 
 	addr := strings.TrimSpace(os.Getenv("ADB_GO_ADDR"))
 	if addr != "" {
-		return connectionTarget{description: addr, tcpAddr: addr}, nil
+		return connectionTarget{description: addr, tcpAddr: addr, auth: authCredentials}, nil
 	}
 	return connectionTarget{}, fmt.Errorf("missing required --addr, ADB_GO_ADDR, or USB selection")
+}
+
+func (o connectionOptions) authCredentials() ([]adb.AuthCredential, error) {
+	path := strings.TrimSpace(*o.authKey)
+	if path == "" {
+		return nil, nil
+	}
+	credential, err := adb.LoadPrivateKey(path)
+	if err != nil {
+		return nil, fmt.Errorf("load --auth-key: %w", err)
+	}
+	return []adb.AuthCredential{credential}, nil
 }
 
 func parseUSBID(name, value string) (uint16, error) {
@@ -243,6 +263,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+func printConnectError(stderr io.Writer, command, description string, err error) {
+	if errors.Is(err, adb.ErrAuthRequired) {
+		fmt.Fprintf(stderr, "adb-go %s: connect to %s: device requires authentication; pass --auth-key PATH for an existing ADB private key: %v\n", command, description, err)
+		return
+	}
+	fmt.Fprintf(stderr, "adb-go %s: connect to %s: %v\n", command, description, err)
+}
+
 const shellUsage = `Usage:
   adb-go shell (--addr HOST[:PORT] | --usb [USB selection]) COMMAND [ARG...]
 
@@ -253,7 +281,7 @@ initially; select USB with --usb, --usb-path, --usb-bus/--usb-device,
 with spaces and sent as one shell command string, for example:
 
   adb-go shell --addr 127.0.0.1:5555 echo hello
-  adb-go shell --usb-path /dev/bus/usb/001/002 getprop ro.product.model
+  adb-go shell --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 `
 
 func runShell(args []string, stdout, stderr io.Writer) int {
@@ -280,7 +308,7 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 	cmd := strings.Join(fs.Args(), " ")
 	client, err := connectDevice(context.Background(), target)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go shell: connect to %s: %v\n", target.description, err)
+		printConnectError(stderr, "shell", target.description, err)
 		return 1
 	}
 	defer client.Close()
@@ -300,7 +328,7 @@ Pushes exactly one local file to the selected ADB device. TCP addresses come fro
 initially. For example:
 
   adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
-  adb-go push --usb-path /dev/bus/usb/001/002 ./local.txt /data/local/tmp/local.txt
+  adb-go push --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 ./local.txt /data/local/tmp/local.txt
 `
 
 func runPush(args []string, stdout, stderr io.Writer) int {
@@ -327,7 +355,7 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 	localPath, remotePath := fs.Arg(0), fs.Arg(1)
 	client, err := connectDevice(context.Background(), target)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go push: connect to %s: %v\n", target.description, err)
+		printConnectError(stderr, "push", target.description, err)
 		return 1
 	}
 	defer client.Close()
@@ -348,7 +376,7 @@ Linux-only initially. By default, the command refuses to replace an existing
 local destination; pass --overwrite to replace it deliberately. For example:
 
   adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
-  adb-go pull --usb-path /dev/bus/usb/001/002 /data/local/tmp/remote.txt ./remote.txt
+  adb-go pull --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 /data/local/tmp/remote.txt ./remote.txt
 `
 
 func runPull(args []string, stdout, stderr io.Writer) int {
@@ -376,7 +404,7 @@ func runPull(args []string, stdout, stderr io.Writer) int {
 	remotePath, localPath := fs.Arg(0), fs.Arg(1)
 	client, err := connectDevice(context.Background(), target)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go pull: connect to %s: %v\n", target.description, err)
+		printConnectError(stderr, "pull", target.description, err)
 		return 1
 	}
 	defer client.Close()
