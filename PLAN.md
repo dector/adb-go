@@ -11,27 +11,27 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Milestone 22 — USB feasibility and Linux transport design
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: design linux usb transport`
 
 Tasks:
 
-- [ ] Document the Linux-only USB approach before coding
-- [ ] Identify the required Linux usbfs ioctls and descriptor parsing needed for ADB
-- [ ] Decide whether to use only the standard library syscall surface or add a pure-Go helper dependency such as `golang.org/x/sys/unix`
-- [ ] Define the internal transport seam so TCP and USB can both provide an `io.ReadWriteCloser` to `protocol.NewConnection`
-- [ ] Document Linux permission requirements, such as udev rules or running with sufficient access to `/dev/bus/usb/*/*`
-- [ ] Keep non-Linux builds compiling with USB APIs returning a clear unsupported error
+- [x] Document the Linux-only USB approach before coding
+- [x] Identify the required Linux usbfs ioctls and descriptor parsing needed for ADB
+- [x] Decide whether to use only the standard library syscall surface or add a pure-Go helper dependency such as `golang.org/x/sys/unix`
+- [x] Define the internal transport seam so TCP and USB can both provide an `io.ReadWriteCloser` to `protocol.NewConnection`
+- [x] Document Linux permission requirements, such as udev rules or running with sufficient access to `/dev/bus/usb/*/*`
+- [x] Keep non-Linux builds compiling with USB APIs returning a clear unsupported error
 
 Tests:
 
-- [ ] `go test ./...` passes
-- [ ] Design notes include enough detail to review before implementation
+- [x] `go test ./...` passes
+- [x] Design notes include enough detail to review before implementation
 
 Done when:
 
-- [ ] The project has an agreed Linux USB design that preserves pure-Go builds and keeps TCP behavior unchanged
+- [x] The project has an agreed Linux USB design that preserves pure-Go builds and keeps TCP behavior unchanged
 
 ## Milestone 23 — Transport abstraction
 
