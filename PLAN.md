@@ -10,32 +10,32 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Milestone 17 — CLI shell command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cmd): add shell command`
 
 Tasks:
 
-- [ ] Add a `shell` subcommand to `cmd/adb-go`
-- [ ] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
-- [ ] Treat remaining arguments as one shell command string
-- [ ] Connect using the existing high-level `adb.Connect` API
-- [ ] Stream command output to stdout using `Client.ShellStream`
-- [ ] Write clear errors to stderr and return a non-zero exit code on failure
-- [ ] Keep behavior TCP-only and explicit-address-only for v0
+- [x] Add a `shell` subcommand to `cmd/adb-go`
+- [x] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
+- [x] Treat remaining arguments as one shell command string
+- [x] Connect using the existing high-level `adb.Connect` API
+- [x] Stream command output to stdout using `Client.ShellStream`
+- [x] Write clear errors to stderr and return a non-zero exit code on failure
+- [x] Keep behavior TCP-only and explicit-address-only for v0
 
 Tests:
 
-- [ ] CLI dispatch recognizes `shell`
-- [ ] Missing `--addr` returns a clear usage error
-- [ ] Missing shell command returns a clear usage error
-- [ ] Shell command arguments are joined into the intended single command string
-- [ ] Shell output is streamed to stdout against a fake server or test hook
+- [x] CLI dispatch recognizes `shell`
+- [x] Missing `--addr` returns a clear usage error
+- [x] Missing shell command returns a clear usage error
+- [x] Shell command arguments are joined into the intended single command string
+- [x] Shell output is streamed to stdout against a fake server or test hook
 
 Done when:
 
-- [ ] `go test ./...` passes
-- [ ] A user can run a command shaped like `adb-go shell --addr 127.0.0.1:5555 echo hello`
+- [x] `go test ./...` passes
+- [x] A user can run a command shaped like `adb-go shell --addr 127.0.0.1:5555 echo hello`
 
 ## Milestone 18 — CLI push command
 
