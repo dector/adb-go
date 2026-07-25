@@ -179,17 +179,32 @@ Run the normal unit and example test suite with:
 go test ./...
 ```
 
-Optional integration tests are skipped by default. To run them, start an emulator
-or TCP-enabled device that is already authorized or otherwise accepts unauthenticated
-ADB TCP connections, then set `ADB_GO_INTEGRATION_ADDR`:
+Optional integration tests are skipped by default. To run them against an
+emulator or TCP-enabled device that is already authorized or otherwise accepts
+unauthenticated ADB TCP connections, set `ADB_GO_INTEGRATION_ADDR`:
 
 ```sh
 ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...
 ```
 
-The integration test connects with `adb.Connect` and runs a small shell command.
-Because v0 does not implement ADB authentication, devices that answer with
-`AUTH` will fail with `adb.ErrAuthRequired` until authentication support is added.
+There is also an optional instrumented integration test that starts the
+project's containerized Linux `adbd` and exercises the implemented high-level
+workflows against a real daemon: connect, shell, shell streaming, raw service
+opening, single-file push, and single-file pull. The test prefers Podman and
+falls back to Docker; set `ADB_GO_CONTAINER_RUNTIME` to choose explicitly.
+
+```sh
+# Build the local adbd image once, then run the containerized test.
+ADB_GO_CONTAINER_INTEGRATION=1 ADB_GO_CONTAINER_BUILD=1 go test -timeout 30m ./...
+
+# Reuse an already-built image on later runs.
+ADB_GO_CONTAINER_INTEGRATION=1 go test ./...
+```
+
+The default container image name is `adb-go-linux-adbd`; override it with
+`ADB_GO_CONTAINER_IMAGE` when needed. Because v0 does not implement ADB
+authentication, devices that answer with `AUTH` will fail with
+`adb.ErrAuthRequired` until authentication support is added.
 
 ## Roadmap
 

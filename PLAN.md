@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 13 — Local hardening before CI
+- Current milestone: Milestone 14 — Containerized adbd instrumented integration tests
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -20,7 +20,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 11 — Add public docs and examples
   - Milestone 12 — Add optional integration tests
   - Milestone 13 — Local hardening before CI
-- Next milestone after local hardening is accepted: CI
+  - Milestone 14 — Containerized adbd instrumented integration tests
+- Next milestone after containerized adbd instrumented integration tests are accepted: CI
 
 ## Milestone 1 — Project specification
 
@@ -332,6 +333,32 @@ Done when:
 
 - [x] `go test ./...` passes cleanly
 - [x] Public errors support `errors.Is` where intended
+
+## Milestone 14 — Containerized adbd instrumented integration tests
+
+Status: Implemented
+
+Commit: `test: add containerized adbd integration tests`
+
+Tasks:
+
+- [x] Add optional tests gated by `ADB_GO_CONTAINER_INTEGRATION`
+- [x] Use a `Containerfile` for the local Linux `adbd` image
+- [x] Prefer Podman, with Docker fallback, for local container execution
+- [x] Start the local Linux `adbd` container image on a random localhost port
+- [x] Exercise implemented high-level functionality against a real daemon:
+  - [x] connect
+  - [x] shell
+  - [x] shell streaming
+  - [x] generic service opening
+  - [x] single-file push
+  - [x] single-file pull
+- [x] Document how to build/reuse the container image for instrumented tests
+
+Done when:
+
+- [x] `go test ./...` skips container integration tests by default
+- [x] `ADB_GO_CONTAINER_INTEGRATION=1 ADB_GO_CONTAINER_BUILD=1 go test -timeout 30m ./...` runs them against containerized `adbd`
 
 ## Deferred milestones
 
