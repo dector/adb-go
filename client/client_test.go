@@ -3,9 +3,12 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -187,6 +190,104 @@ func TestShellStreamContextCancellationUnblocks(t *testing.T) {
 	}
 }
 
+func TestPullFileWritesContentsFromFakeServer(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("sync:", syncPullHandler(t, "/sdcard/hello.txt", nil, [][]byte{[]byte("hello "), []byte("world\n")}))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "hello.txt")
+	if err := client.PullFile(context.Background(), "/sdcard/hello.txt", localPath); err != nil {
+		t.Fatalf("PullFile() error = %v", err)
+	}
+	got, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(got) != "hello world\n" {
+		t.Fatalf("pulled contents = %q, want hello world newline", string(got))
+	}
+}
+
+func TestPullFileExistingDestinationWithoutOverwrite(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("sync:", syncPullHandler(t, "/remote", nil, [][]byte{[]byte("new")}))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "out.txt")
+	if err := os.WriteFile(localPath, []byte("old"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err = client.PullFile(context.Background(), "/remote", localPath)
+	if !errors.Is(err, ErrDestinationExists) {
+		t.Fatalf("PullFile() error = %v, want ErrDestinationExists", err)
+	}
+	got, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(got) != "old" {
+		t.Fatalf("existing file contents = %q, want old", string(got))
+	}
+}
+
+func TestPullFileExistingDestinationWithOverwrite(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("sync:", syncPullHandler(t, "/remote", nil, [][]byte{[]byte("new")}))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "out.txt")
+	if err := os.WriteFile(localPath, []byte("old"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := client.PullFileWithOptions(context.Background(), "/remote", localPath, PullOptions{Overwrite: true}); err != nil {
+		t.Fatalf("PullFileWithOptions() error = %v", err)
+	}
+	got, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(got) != "new" {
+		t.Fatalf("overwritten file contents = %q, want new", string(got))
+	}
+}
+
+func TestPullFileRemoteError(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("sync:", syncPullHandler(t, "/missing", []byte("remote object does not exist"), nil))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "missing.txt")
+	err = client.PullFile(context.Background(), "/missing", localPath)
+	if err == nil {
+		t.Fatal("PullFile() error = nil, want remote error")
+	}
+	if _, statErr := os.Stat(localPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("destination exists after remote FAIL: stat error = %v", statErr)
+	}
+}
+
 func writeServiceOutput(t testing.TB, output string) fakeadb.ServiceHandler {
 	t.Helper()
 	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
@@ -195,6 +296,67 @@ func writeServiceOutput(t testing.TB, output string) fakeadb.ServiceHandler {
 		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: []byte(output)})
 		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
 	}
+}
+
+func syncPullHandler(t testing.TB, wantPath string, fail []byte, chunks [][]byte) fakeadb.ServiceHandler {
+	t.Helper()
+	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		remoteID := uint32(42)
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+
+		request, err := protocol.ReadMessage(conn)
+		if err != nil {
+			t.Errorf("sync handler ReadMessage() error = %v", err)
+			return
+		}
+		if request.Command != protocol.CommandWRTE {
+			t.Errorf("sync handler command = %#x, want WRTE", uint32(request.Command))
+			return
+		}
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+
+		id, path := parseSyncRequest(t, request.Payload)
+		if id != "RECV" {
+			t.Errorf("sync request id = %q, want RECV", id)
+			return
+		}
+		if path != wantPath {
+			t.Errorf("sync request path = %q, want %q", path, wantPath)
+			return
+		}
+
+		if fail != nil {
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: syncPacket("FAIL", fail)})
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
+			return
+		}
+		for _, chunk := range chunks {
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: syncPacket("DATA", chunk)})
+		}
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: open.Arg0, Payload: syncPacket("DONE", nil)})
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
+	}
+}
+
+func parseSyncRequest(t testing.TB, payload []byte) (id, path string) {
+	t.Helper()
+	if len(payload) < 8 {
+		t.Fatalf("sync request payload length = %d, want at least 8", len(payload))
+	}
+	id = string(payload[:4])
+	n := binary.LittleEndian.Uint32(payload[4:8])
+	if len(payload[8:]) != int(n) {
+		t.Fatalf("sync request path length = %d, want %d", len(payload[8:]), n)
+	}
+	return id, string(payload[8:])
+}
+
+func syncPacket(id string, payload []byte) []byte {
+	packet := make([]byte, 8+len(payload))
+	copy(packet[:4], id)
+	binary.LittleEndian.PutUint32(packet[4:8], uint32(len(payload)))
+	copy(packet[8:], payload)
+	return packet
 }
 
 func startAuthServer(t *testing.T) (addr string, closeServer func()) {

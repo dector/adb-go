@@ -10,6 +10,9 @@ import (
 // Client is a high-level ADB client connected to one device transport.
 type Client = client.Client
 
+// PullOptions controls PullFileWithOptions behavior.
+type PullOptions = client.PullOptions
+
 var (
 	// ErrAuthRequired reports that the ADB peer requires authentication that is
 	// not implemented by adb-go yet.
@@ -17,6 +20,10 @@ var (
 
 	// ErrUnsupported reports that the requested operation is not supported yet.
 	ErrUnsupported = client.ErrUnsupported
+
+	// ErrDestinationExists reports that a pull destination already exists and
+	// overwrite was not explicitly requested.
+	ErrDestinationExists = client.ErrDestinationExists
 )
 
 // Connect connects to addr over TCP. If addr omits a port, the default ADB TCP

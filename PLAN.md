@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 8 — Add shell support
+- Current milestone: Milestone 9 — Add sync protocol single-file pull
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -15,7 +15,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 6 — Add stream demultiplexing
   - Milestone 7 — Add high-level client connect/open service
   - Milestone 8 — Add shell support
-- Next milestone after shell support is accepted: Milestone 9 — Add sync protocol single-file pull
+  - Milestone 9 — Add sync protocol single-file pull
+- Next milestone after pull support is accepted: Milestone 10 — Add sync protocol single-file push
 
 ## Milestone 1 — Project specification
 
@@ -217,26 +218,28 @@ Done when:
 
 ## Milestone 9 — Add sync protocol single-file pull
 
+Status: Implemented
+
 Commit: `feat(client): add single-file pull support`
 
 Tasks:
 
-- Implement enough ADB `sync:` protocol for single-file pull
-- Add `PullFile(ctx, remotePath, localPath)`
-- Add `PullFileWithOptions(ctx, remotePath, localPath, PullOptions)`
-- `PullFile` returns an error if local destination exists
-- `PullOptions{Overwrite:true}` allows overwrite
+- [x] Implement enough ADB `sync:` protocol for single-file pull
+- [x] Add `PullFile(ctx, remotePath, localPath)`
+- [x] Add `PullFileWithOptions(ctx, remotePath, localPath, PullOptions)`
+- [x] `PullFile` returns an error if local destination exists
+- [x] `PullOptions{Overwrite:true}` allows overwrite
 
 Tests:
 
-- Pull writes file contents from fake server
-- Existing destination without overwrite returns error
-- Existing destination with overwrite succeeds
-- Remote errors are surfaced clearly
+- [x] Pull writes file contents from fake server
+- [x] Existing destination without overwrite returns error
+- [x] Existing destination with overwrite succeeds
+- [x] Remote errors are surfaced clearly
 
 Done when:
 
-- Single-file pull works against fake server
+- [x] Single-file pull works against fake server
 
 ## Milestone 10 — Add sync protocol single-file push
 
