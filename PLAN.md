@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 15 — CI
+- Current milestone: Milestone 16 — CLI skeleton
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
@@ -22,7 +22,8 @@ This plan is organized as small milestones. Each milestone should be implemented
   - Milestone 13 — Local hardening before CI
   - Milestone 14 — Containerized adbd instrumented integration tests
   - Milestone 15 — CI
-- Next milestone after CI is accepted: Official CLI
+  - Milestone 16 — CLI skeleton
+- Next milestone after CLI skeleton is accepted: CLI shell command
 
 ## Milestone 1 — Project specification
 
@@ -379,19 +380,34 @@ Done when:
 - [x] Pull requests and pushes run the normal test suite on Linux, macOS, and Windows
 - [x] `go test ./...` passes locally
 
+## Milestone 16 — CLI skeleton
+
+Status: Implemented
+
+Commit: `feat(cmd): add adb-go cli skeleton`
+
+Tasks:
+
+- [x] Add `cmd/adb-go` command package
+- [x] Add top-level command dispatch
+- [x] Add help/usage output
+- [x] Keep the initial CLI as a thin skeleton without implementing shell/push/pull yet
+- [x] Use only the Go standard library
+
+Tests:
+
+- [x] No-argument invocation shows usage
+- [x] `help` shows usage
+- [x] Unknown commands return a clear error and non-zero exit code
+
+Done when:
+
+- [x] `go test ./...` passes
+- [x] Users can run `adb-go help` to see the planned command shape
+
 ## Deferred milestones
 
 These are intentionally out of v0 initial scope.
-
-### Official CLI
-
-Potential commit series:
-
-- `feat(cmd): add adb-go cli skeleton`
-- `feat(cmd): add shell command`
-- `feat(cmd): add push and pull commands`
-
-Initial CLI should be a thin wrapper around supported library operations only.
 
 ### Authentication
 
