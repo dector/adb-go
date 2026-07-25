@@ -4,13 +4,14 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 3 — Add protocol message encoding
+- Current milestone: Milestone 4 — Add low-level connection handshake
 - Completed:
   - Milestone 1 — Project specification
   - Milestone 2 — Initialize Go module and package skeleton
 - Implemented / review pending:
   - Milestone 3 — Add protocol message encoding
-- Next milestone after protocol message encoding is accepted: Milestone 4 — Add low-level connection handshake
+  - Milestone 4 — Add low-level connection handshake
+- Next milestone after low-level connection handshake is accepted: Milestone 5 — Add fake ADB server foundation
 
 ## Milestone 1 — Project specification
 
@@ -84,26 +85,28 @@ Done when:
 
 ## Milestone 4 — Add low-level connection handshake
 
+Status: Implemented
+
 Commit: `feat(protocol): add adb connection handshake`
 
 Tasks:
 
-- Add low-level connection type around `net.Conn`/`io.ReadWriter`
-- Implement manual `Handshake` / `CNXN` exchange
-- Detect `AUTH` during handshake
-- Return/export `ErrAuthRequired` or equivalent sentinel
-- Preserve ability for low-level callers to observe raw `AUTH` messages
-- Add TODO comments for future RSA auth
+- [x] Add low-level connection type around `net.Conn`/`io.ReadWriter`
+- [x] Implement manual `Handshake` / `CNXN` exchange
+- [x] Detect `AUTH` during handshake
+- [x] Return/export `ErrAuthRequired` or equivalent sentinel
+- [x] Preserve ability for low-level callers to observe raw `AUTH` messages
+- [x] Add TODO comments for future RSA auth
 
 Tests:
 
-- Handshake succeeds against fake peer
-- `AUTH` response returns `ErrAuthRequired`
-- Bad/unknown handshake response returns useful error
+- [x] Handshake succeeds against fake peer
+- [x] `AUTH` response returns `ErrAuthRequired`
+- [x] Bad/unknown handshake response returns useful error
 
 Done when:
 
-- Low-level handshake can connect to fake ADB peer
+- [x] Low-level handshake can connect to fake ADB peer
 
 ## Milestone 5 — Add fake ADB server foundation
 
