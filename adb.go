@@ -13,6 +13,9 @@ type Client = client.Client
 // PullOptions controls PullFileWithOptions behavior.
 type PullOptions = client.PullOptions
 
+// USBOptions selects an ADB-capable USB interface for ConnectUSB.
+type USBOptions = client.USBOptions
+
 var (
 	// ErrAuthRequired reports that the ADB peer requires authentication that is
 	// not implemented by adb-go yet.
@@ -36,4 +39,10 @@ func Connect(ctx context.Context, addr string) (*Client, error) {
 // handshake before returning.
 func ConnectTCP(ctx context.Context, addr string) (*Client, error) {
 	return client.ConnectTCP(ctx, addr)
+}
+
+// ConnectUSB connects to an ADB device over USB and performs the initial ADB
+// CNXN handshake before returning. The initial USB backend is Linux-only.
+func ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error) {
+	return client.ConnectUSB(ctx, opts)
 }

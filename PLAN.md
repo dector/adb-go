@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 26 — High-level USB connect API
-- Milestones 17–25 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, and Linux usbfs bulk transport.
+- Current milestone: Milestone 27 — CLI USB connect option
+- Milestones 17–26 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, and high-level USB connection API.
 - Active focus: pure-Go Linux USB support without cgo, libusb, Android SDK, platform-tools, or the official `adb` binary.
 - Preferred implementation direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This is still pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -113,29 +113,29 @@ Done when:
 
 ## Milestone 26 — High-level USB connect API
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): connect over usb on linux`
 
 Tasks:
 
-- [ ] Add a high-level `ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error)` API
-- [ ] Add root package re-exports for USB options and `ConnectUSB`
-- [ ] Define `USBOptions` for explicit device selection, such as serial, vendor/product ID, or bus/device path
-- [ ] Require explicit selection when multiple ADB USB devices are present
-- [ ] Perform the normal ADB `CNXN` handshake over the USB transport
-- [ ] Preserve `ErrAuthRequired` behavior for authenticated devices
-- [ ] Return `ErrUnsupported` on non-Linux platforms for the initial implementation
+- [x] Add a high-level `ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error)` API
+- [x] Add root package re-exports for USB options and `ConnectUSB`
+- [x] Define `USBOptions` for explicit device selection, such as serial, vendor/product ID, or bus/device path
+- [x] Require explicit selection when multiple ADB USB devices are present
+- [x] Perform the normal ADB `CNXN` handshake over the USB transport
+- [x] Preserve `ErrAuthRequired` behavior for authenticated devices
+- [x] Return `ErrUnsupported` on non-Linux platforms for the initial implementation
 
 Tests:
 
-- [ ] Unit tests cover option validation and multi-device ambiguity
-- [ ] Optional real-device integration test is gated and skipped by default
-- [ ] `go test ./...` passes
+- [x] Unit tests cover option validation and multi-device ambiguity
+- [x] Optional real-device integration test is gated and skipped by default
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library users can connect to one explicitly selected Linux USB ADB device and then use existing shell/push/pull/service APIs
+- [x] Library users can connect to one explicitly selected Linux USB ADB device and then use existing shell/push/pull/service APIs
 
 ## Milestone 27 — CLI USB connect option
 
