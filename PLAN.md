@@ -4,406 +4,143 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 16 — CLI skeleton
-- Completed:
-  - Milestone 1 — Project specification
-  - Milestone 2 — Initialize Go module and package skeleton
-- Implemented / review pending:
-  - Milestone 3 — Add protocol message encoding
-  - Milestone 4 — Add low-level connection handshake
-  - Milestone 5 — Add fake ADB server foundation
-  - Milestone 6 — Add stream demultiplexing
-  - Milestone 7 — Add high-level client connect/open service
-  - Milestone 8 — Add shell support
-  - Milestone 9 — Add sync protocol single-file pull
-  - Milestone 10 — Add sync protocol single-file push
-  - Milestone 11 — Add public docs and examples
-  - Milestone 12 — Add optional integration tests
-  - Milestone 13 — Local hardening before CI
-  - Milestone 14 — Containerized adbd instrumented integration tests
-  - Milestone 15 — CI
-  - Milestone 16 — CLI skeleton
-- Next milestone after CLI skeleton is accepted: CLI shell command
+- Current milestone: Milestone 17 — CLI shell command
+- Completed milestones have been removed from this file to keep the active plan focused.
+- Next milestone after CLI shell command is accepted: CLI push command
 
-## Milestone 1 — Project specification
+## Milestone 17 — CLI shell command
 
-Status: Complete
+Status: Not started
 
-Commit: `docs: add adb-go specification and implementation plan`
+Commit: `feat(cmd): add shell command`
 
 Tasks:
 
-- [x] Add `SPEC.md`
-- [x] Add `PLAN.md`
-- [x] Keep this milestone documentation-only
-
-Done when:
-
-- [x] The project goals, v0 scope, package layout, API shape, limitations, and roadmap are documented
-- [x] `PLAN.md` is committed
-
-## Milestone 2 — Initialize Go module and package skeleton
-
-Status: Complete
-
-Commit: `chore: initialize go module and package skeleton`
-
-Tasks:
-
-- [x] Create `go.mod` with module path `github.com/dector/adb-go`
-- [x] Use latest stable Go version
-- [x] Create root package `adb`
-- [x] Create packages:
-  - `client`
-  - `protocol`
-  - `internal/fakeadb`
-- [x] Add package docs where useful
-- [x] Add placeholder exported errors if needed
-
-Done when:
-
-- [x] `go test ./...` passes
-- [x] No external dependencies are introduced
-
-## Milestone 3 — Add protocol message encoding
-
-Status: Implemented
-
-Commit: `feat(protocol): add adb message encoding`
-
-Tasks:
-
-- [x] Define ADB command type/constants, e.g. `CommandCNXN`, `CommandOPEN`, `CommandOKAY`, `CommandWRTE`, `CommandCLSE`, `CommandAUTH`
-- [x] Define `Message` with raw fields:
-  - `Command`
-  - `Arg0`
-  - `Arg1`
-  - `Payload`
-- [x] Implement checksum calculation
-- [x] Implement command magic validation
-- [x] Implement `ReadMessage` and `WriteMessage`
-- [x] Add strict checksum validation
+- [ ] Add a `shell` subcommand to `cmd/adb-go`
+- [ ] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
+- [ ] Treat remaining arguments as one shell command string
+- [ ] Connect using the existing high-level `adb.Connect` API
+- [ ] Stream command output to stdout using `Client.ShellStream`
+- [ ] Write clear errors to stderr and return a non-zero exit code on failure
+- [ ] Keep behavior TCP-only and explicit-address-only for v0
 
 Tests:
 
-- [x] Encode/decode round trip
-- [x] Invalid checksum fails
-- [x] Invalid command magic fails
-- [x] Empty payload works
+- [ ] CLI dispatch recognizes `shell`
+- [ ] Missing `--addr` returns a clear usage error
+- [ ] Missing shell command returns a clear usage error
+- [ ] Shell command arguments are joined into the intended single command string
+- [ ] Shell output is streamed to stdout against a fake server or test hook
 
 Done when:
 
-- [x] Protocol message tests pass
+- [ ] `go test ./...` passes
+- [ ] A user can run a command shaped like `adb-go shell --addr 127.0.0.1:5555 echo hello`
 
-## Milestone 4 — Add low-level connection handshake
+## Milestone 18 — CLI push command
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(protocol): add adb connection handshake`
+Commit: `feat(cmd): add push command`
 
 Tasks:
 
-- [x] Add low-level connection type around `net.Conn`/`io.ReadWriter`
-- [x] Implement manual `Handshake` / `CNXN` exchange
-- [x] Detect `AUTH` during handshake
-- [x] Return/export `ErrAuthRequired` or equivalent sentinel
-- [x] Preserve ability for low-level callers to observe raw `AUTH` messages
-- [x] Add TODO comments for future RSA auth
+- [ ] Add a `push` subcommand to `cmd/adb-go`
+- [ ] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
+- [ ] Accept exactly two positional arguments: local path and remote path
+- [ ] Connect using the existing high-level `adb.Connect` API
+- [ ] Transfer the file using `Client.PushFile`
+- [ ] Write clear errors to stderr and return a non-zero exit code on failure
 
 Tests:
 
-- [x] Handshake succeeds against fake peer
-- [x] `AUTH` response returns `ErrAuthRequired`
-- [x] Bad/unknown handshake response returns useful error
+- [ ] CLI dispatch recognizes `push`
+- [ ] Missing `--addr` returns a clear usage error
+- [ ] Wrong argument count returns a clear usage error
+- [ ] Push calls the high-level file transfer path against a fake server or test hook
 
 Done when:
 
-- [x] Low-level handshake can connect to fake ADB peer
+- [ ] `go test ./...` passes
+- [ ] A user can run a command shaped like `adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt`
 
-## Milestone 5 — Add fake ADB server foundation
+## Milestone 19 — CLI pull command
 
-Status: Implemented
+Status: Not started
 
-Commit: `test: add fake adb server foundation`
+Commit: `feat(cmd): add pull command`
 
 Tasks:
 
-- [x] Implement `internal/fakeadb` TCP server helper for tests
-- [x] Support minimal `CNXN` handshake
-- [x] Allow registering service handlers by service string
-- [x] Provide test helpers for start/stop/address
+- [ ] Add a `pull` subcommand to `cmd/adb-go`
+- [ ] Accept an explicit device address flag, e.g. `--addr 127.0.0.1:5555`
+- [ ] Accept exactly two positional arguments: remote path and local path
+- [ ] Add an explicit `--overwrite` flag for replacing an existing local destination
+- [ ] Connect using the existing high-level `adb.Connect` API
+- [ ] Transfer the file using `Client.PullFile` or `Client.PullFileWithOptions`
+- [ ] Write clear errors to stderr and return a non-zero exit code on failure
 
 Tests:
 
-- [x] Fake server accepts connection and handshakes
-- [x] Fake server shuts down cleanly
+- [ ] CLI dispatch recognizes `pull`
+- [ ] Missing `--addr` returns a clear usage error
+- [ ] Wrong argument count returns a clear usage error
+- [ ] `--overwrite` selects `PullFileWithOptions` with `PullOptions{Overwrite: true}`
+- [ ] Pull calls the high-level file transfer path against a fake server or test hook
 
 Done when:
 
-- [x] Future client/protocol tests can use fake server without real devices
+- [ ] `go test ./...` passes
+- [ ] A user can run a command shaped like `adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt`
 
-## Milestone 6 — Add stream demultiplexing
+## Milestone 20 — CLI connect ergonomics
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(protocol): add adb stream demultiplexing`
+Commit: `feat(cmd): add shared cli connection options`
 
 Tasks:
 
-- [x] Implement stream type with local/remote IDs
-- [x] Start one reader goroutine per protocol connection
-- [x] Route packets to streams by ID
-- [x] Serialize writes with a mutex
-- [x] Implement `Open(service string)` at low level
-- [x] Make streams implement `io.Reader`, `io.Writer`, and `io.Closer` where practical
-- [x] Handle `OKAY`, `WRTE`, and `CLSE`
-- [x] Define close/error behavior for remote close and connection close
+- [ ] Refactor shared CLI address parsing used by shell, push, and pull
+- [ ] Keep `--addr` as the explicit primary connection option
+- [ ] Optionally support `ADB_GO_ADDR` as a convenience fallback
+- [ ] Ensure command-specific usage remains clear after refactoring
+- [ ] Keep the CLI independent from device discovery/listing in v0
 
 Tests:
 
-- [x] Open service sends `OPEN`
-- [x] `OKAY` establishes stream
-- [x] `WRTE` data is readable from correct stream
-- [x] Multiple streams receive correct data
-- [x] `CLSE` closes stream
+- [ ] Shared address parsing accepts `--addr`
+- [ ] Shared address parsing rejects missing addresses clearly
+- [ ] If implemented, `ADB_GO_ADDR` is used only when `--addr` is absent
+- [ ] Command usage output remains command-specific and helpful
 
 Done when:
 
-- [x] Low-level protocol can open services and exchange stream data against fake server
+- [ ] `go test ./...` passes
+- [ ] Shell, push, and pull use one shared path for CLI connection configuration
 
-## Milestone 7 — Add high-level client connect/open service
+## Milestone 21 — CLI documentation
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(client): add tcp connect and service opening`
+Commit: `docs: document adb-go cli`
 
 Tasks:
 
-- [x] Implement `client.Connect` / `client.ConnectTCP`
-- [x] Default omitted port to `5555`
-- [x] Use `net.Dialer` with context
-- [x] Perform full ADB handshake before returning
-- [x] Implement `Client.Close`
-- [x] Implement `Client.OpenService(ctx, service string)`
-- [x] Re-export high-level API from root package `adb`
+- [ ] Add README documentation for installing or running the CLI
+- [ ] Add examples for `shell`, `push`, and `pull`
+- [ ] Document the required explicit TCP address
+- [ ] Document that the CLI is not a complete `adb` replacement
+- [ ] Document skipped features such as USB, auth, discovery, and broad command compatibility
 
 Tests:
 
-- [x] Address normalization with and without port
-- [x] Connect succeeds against fake server
-- [x] Auth response maps to high-level `ErrAuthRequired`
-- [x] `OpenService` works against fake service
+- [ ] `go test ./...` passes
+- [ ] README examples match the implemented CLI command shapes
 
 Done when:
 
-- [x] Users can connect to a fake ADB server and open a generic service through high-level API
-
-## Milestone 8 — Add shell support
-
-Status: Implemented
-
-Commit: `feat(client): add shell support`
-
-Tasks:
-
-- [x] Implement `Client.Shell(ctx, cmd string) ([]byte, error)`
-- [x] Implement `Client.ShellStream(ctx, cmd string, stdout io.Writer) error`
-- [x] Use service string `shell:<cmd>`
-- [x] Keep command input as a single string
-- [x] Support context cancellation by closing stream/connection as needed
-
-Tests:
-
-- [x] Shell captures output against fake server
-- [x] Shell streaming writes to provided writer
-- [x] Shell uses exact single command string
-- [x] Context cancellation unblocks operation
-
-Done when:
-
-- [x] Basic shell command execution works through the high-level client
-
-## Milestone 9 — Add sync protocol single-file pull
-
-Status: Implemented
-
-Commit: `feat(client): add single-file pull support`
-
-Tasks:
-
-- [x] Implement enough ADB `sync:` protocol for single-file pull
-- [x] Add `PullFile(ctx, remotePath, localPath)`
-- [x] Add `PullFileWithOptions(ctx, remotePath, localPath, PullOptions)`
-- [x] `PullFile` returns an error if local destination exists
-- [x] `PullOptions{Overwrite:true}` allows overwrite
-
-Tests:
-
-- [x] Pull writes file contents from fake server
-- [x] Existing destination without overwrite returns error
-- [x] Existing destination with overwrite succeeds
-- [x] Remote errors are surfaced clearly
-
-Done when:
-
-- [x] Single-file pull works against fake server
-
-## Milestone 10 — Add sync protocol single-file push
-
-Status: Implemented
-
-Commit: `feat(client): add single-file push support`
-
-Tasks:
-
-- [x] Implement enough ADB `sync:` protocol for single-file push
-- [x] Add `PushFile(ctx, localPath, remotePath)`
-- [x] Use default remote mode `0644`
-- [x] Add TODO/design seam for future mode/mtime options
-
-Tests:
-
-- [x] Push sends file contents to fake server
-- [x] Missing local file returns useful error
-- [x] Default mode is `0644`
-- [x] Remote errors are surfaced clearly
-
-Done when:
-
-- [x] Single-file push works against fake server
-
-## Milestone 11 — Add public docs and examples
-
-Status: Implemented
-
-Commit: `docs: add usage documentation and examples`
-
-Tasks:
-
-- [x] Write README
-- [x] Include limitation/difference list vs official `adb`
-- [x] Include architecture section
-- [x] Include quick examples:
-  - [x] connect
-  - [x] shell
-  - [x] shell streaming
-  - [x] push file
-  - [x] pull file
-- [x] Add compile-tested Go examples where possible
-- [x] Document `protocol` package as lower-level and less stable during v0
-
-Tests:
-
-- [x] `go test ./...` passes including examples
-
-Done when:
-
-- [x] A new user can understand current capabilities and limitations from README
-
-## Milestone 12 — Add optional integration tests
-
-Status: Implemented
-
-Commit: `test: add optional adb integration tests`
-
-Tasks:
-
-- [x] Add integration tests skipped unless `ADB_GO_INTEGRATION_ADDR` is set
-- [x] Test connect and shell against real emulator/device when available
-- [x] Add docs for running integration tests
-
-Done when:
-
-- [x] `go test ./...` skips integration tests by default
-- [x] `ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...` runs integration tests
-
-## Milestone 13 — Local hardening before CI
-
-Status: Implemented
-
-Commit: `test: harden protocol and client behavior`
-
-Tasks:
-
-- [x] Add edge case tests discovered during implementation
-- [x] Improve error wrapping and sentinel errors
-- [x] Ensure no unexpected logging
-- [x] Ensure no external dependencies
-- [x] Run formatting and tests locally
-
-Done when:
-
-- [x] `go test ./...` passes cleanly
-- [x] Public errors support `errors.Is` where intended
-
-## Milestone 14 — Containerized adbd instrumented integration tests
-
-Status: Implemented
-
-Commit: `test: add containerized adbd integration tests`
-
-Tasks:
-
-- [x] Add optional tests gated by `ADB_GO_CONTAINER_INTEGRATION`
-- [x] Use a `Containerfile` for the local Linux `adbd` image
-- [x] Prefer Podman, with Docker fallback, for local container execution
-- [x] Start the local Linux `adbd` container image on a random localhost port
-- [x] Exercise implemented high-level functionality against a real daemon:
-  - [x] connect
-  - [x] shell
-  - [x] shell streaming
-  - [x] generic service opening
-  - [x] single-file push
-  - [x] single-file pull
-- [x] Document how to build/reuse the container image for instrumented tests
-
-Done when:
-
-- [x] `go test ./...` skips container integration tests by default
-- [x] `ADB_GO_CONTAINER_INTEGRATION=1 ADB_GO_CONTAINER_BUILD=1 go test -timeout 30m ./...` runs them against containerized `adbd`
-
-## Milestone 15 — CI
-
-Status: Implemented
-
-Commit: `ci: run go tests on linux macos and windows`
-
-Tasks:
-
-- [x] Add GitHub Actions workflow
-- [x] Run `go test ./...` on Linux, macOS, and Windows
-- [x] Use the Go version declared by `go.mod`
-- [x] Keep optional real-device and containerized integration tests skipped by default
-
-Done when:
-
-- [x] Pull requests and pushes run the normal test suite on Linux, macOS, and Windows
-- [x] `go test ./...` passes locally
-
-## Milestone 16 — CLI skeleton
-
-Status: Implemented
-
-Commit: `feat(cmd): add adb-go cli skeleton`
-
-Tasks:
-
-- [x] Add `cmd/adb-go` command package
-- [x] Add top-level command dispatch
-- [x] Add help/usage output
-- [x] Keep the initial CLI as a thin skeleton without implementing shell/push/pull yet
-- [x] Use only the Go standard library
-
-Tests:
-
-- [x] No-argument invocation shows usage
-- [x] `help` shows usage
-- [x] Unknown commands return a clear error and non-zero exit code
-
-Done when:
-
-- [x] `go test ./...` passes
-- [x] Users can run `adb-go help` to see the planned command shape
+- [ ] A new user can understand the current CLI capabilities and limitations from README
 
 ## Deferred milestones
 
