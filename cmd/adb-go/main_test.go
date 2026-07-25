@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"flag"
 	"io"
 	"os"
 	"path/filepath"
@@ -59,6 +60,78 @@ func TestRunUnknownCommand(t *testing.T) {
 	}
 	if got := stderr.String(); !strings.Contains(got, `unknown command "devices"`) || !strings.Contains(got, "Usage:") {
 		t.Fatalf("stderr = %q, want unknown command error and usage", got)
+	}
+}
+
+func TestConnectionOptionsAddressFromFlag(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "192.0.2.10:5555")
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--addr", "127.0.0.1:5555"}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	addr, ok := conn.address(fs)
+
+	if !ok {
+		t.Fatalf("address() ok = false, want true")
+	}
+	if addr != "127.0.0.1:5555" {
+		t.Fatalf("address() = %q, want flag value", addr)
+	}
+}
+
+func TestConnectionOptionsMissingAddress(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	addr, ok := conn.address(fs)
+
+	if ok {
+		t.Fatalf("address() ok = true, want false")
+	}
+	if addr != "" {
+		t.Fatalf("address() = %q, want empty", addr)
+	}
+}
+
+func TestConnectionOptionsAddressFromEnvWhenFlagAbsent(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "  127.0.0.1:5555  ")
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	addr, ok := conn.address(fs)
+
+	if !ok {
+		t.Fatalf("address() ok = false, want true")
+	}
+	if addr != "127.0.0.1:5555" {
+		t.Fatalf("address() = %q, want trimmed env value", addr)
+	}
+}
+
+func TestConnectionOptionsAddressFlagPreventsEnvFallback(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	conn := addConnectionFlags(fs)
+	if err := fs.Parse([]string{"--addr", "  "}); err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	addr, ok := conn.address(fs)
+
+	if ok {
+		t.Fatalf("address() ok = true, want false")
+	}
+	if addr != "" {
+		t.Fatalf("address() = %q, want empty", addr)
 	}
 }
 

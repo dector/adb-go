@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 19 — CLI pull command
+- Current milestone: Milestone 20 — CLI connect ergonomics
 - Completed milestones have been removed from this file to keep the active plan focused.
-- Next milestone after CLI pull command is accepted: CLI connect ergonomics
+- Next milestone after CLI connect ergonomics is accepted: CLI documentation
 
 ## Milestone 17 — CLI shell command
 
@@ -95,29 +95,29 @@ Done when:
 
 ## Milestone 20 — CLI connect ergonomics
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cmd): add shared cli connection options`
 
 Tasks:
 
-- [ ] Refactor shared CLI address parsing used by shell, push, and pull
-- [ ] Keep `--addr` as the explicit primary connection option
-- [ ] Optionally support `ADB_GO_ADDR` as a convenience fallback
-- [ ] Ensure command-specific usage remains clear after refactoring
-- [ ] Keep the CLI independent from device discovery/listing in v0
+- [x] Refactor shared CLI address parsing used by shell, push, and pull
+- [x] Keep `--addr` as the explicit primary connection option
+- [x] Optionally support `ADB_GO_ADDR` as a convenience fallback
+- [x] Ensure command-specific usage remains clear after refactoring
+- [x] Keep the CLI independent from device discovery/listing in v0
 
 Tests:
 
-- [ ] Shared address parsing accepts `--addr`
-- [ ] Shared address parsing rejects missing addresses clearly
-- [ ] If implemented, `ADB_GO_ADDR` is used only when `--addr` is absent
-- [ ] Command usage output remains command-specific and helpful
+- [x] Shared address parsing accepts `--addr`
+- [x] Shared address parsing rejects missing addresses clearly
+- [x] If implemented, `ADB_GO_ADDR` is used only when `--addr` is absent
+- [x] Command usage output remains command-specific and helpful
 
 Done when:
 
-- [ ] `go test ./...` passes
-- [ ] Shell, push, and pull use one shared path for CLI connection configuration
+- [x] `go test ./...` passes
+- [x] Shell, push, and pull use one shared path for CLI connection configuration
 
 ## Milestone 21 — CLI documentation
 
