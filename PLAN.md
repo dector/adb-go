@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 30 — Add authentication package and explicit credential loading.
+- Current milestone: Milestone 31 — Add authenticated protocol handshake.
 - Completed milestone range: Milestones 17–29 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, and adb-go-specific target listing.
 - Active focus: ADB authentication. Authenticated devices currently return `ErrAuthRequired` over both TCP and USB; the next slice should add explicit host credentials first, then wire those credentials into the protocol handshake, client API, CLI, and docs in separate reviewable milestones.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -46,25 +46,25 @@ Milestone rules:
 
 ## Milestone 30 — Add authentication package and explicit credential loading
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(auth): add adb rsa key loading`
 
 Tasks:
 
-- [ ] Add an `auth` package that represents ADB host credentials without coupling them to TCP, USB, or the high-level client.
-- [ ] Load unencrypted RSA private keys from explicit filesystem paths, supporting the private-key encodings used by common `~/.android/adbkey` files.
-- [ ] Generate the ADB public-key payload expected by `AUTH` public-key exchange, including the trailing NUL required on the wire.
-- [ ] Keep key loading explicit; do not create, persist, rotate, or discover keys in this milestone.
+- [x] Add an `auth` package that represents ADB host credentials without coupling them to TCP, USB, or the high-level client.
+- [x] Load unencrypted RSA private keys from explicit filesystem paths, supporting the private-key encodings used by common `~/.android/adbkey` files.
+- [x] Generate the ADB public-key payload expected by `AUTH` public-key exchange, including the trailing NUL required on the wire.
+- [x] Keep key loading explicit; do not create, persist, rotate, or discover keys in this milestone.
 
 Tests:
 
-- [ ] Unit tests cover valid key loading, unsupported/malformed key files, and deterministic ADB public-key payload generation.
-- [ ] `go test ./...` passes
+- [x] Unit tests cover valid key loading, unsupported/malformed key files, and deterministic ADB public-key payload generation.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Callers can load an existing ADB RSA private key and obtain a signer/public-key payload suitable for a later protocol handshake milestone.
+- [x] Callers can load an existing ADB RSA private key and obtain a signer/public-key payload suitable for a later protocol handshake milestone.
 
 ## Milestone 31 — Add authenticated protocol handshake
 
