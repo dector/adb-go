@@ -399,6 +399,7 @@ adb-go daemon ping
 adb-go daemon status
 adb-go daemon stop
 adb-go daemon service install
+adb-go daemon service reinstall
 adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
@@ -493,9 +494,11 @@ bake a non-default socket path into the unit:
 adb-go daemon --socket /tmp/adb-go-demo/adb-god.sock service install --adb-god /usr/local/bin/adb-god
 ```
 
-The service group also wraps common systemd user lifecycle operations:
+The service group also wraps unit refreshes and common systemd user lifecycle
+operations:
 
 ```sh
+adb-go daemon service reinstall
 adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
@@ -503,6 +506,14 @@ adb-go daemon service status
 adb-go daemon service logs
 adb-go daemon service uninstall
 ```
+
+Use `service reinstall` when the installed unit should be rewritten, for example
+after installing `adb-god` at a different path, choosing a different daemon
+socket path with top-level `--socket`, or replacing a local development build.
+It uses the same `--adb-god PATH`, `--unit-dir DIR`, `--socket PATH`, and
+`--systemctl PATH` overrides as the install/lifecycle commands where relevant,
+then runs `systemctl --user daemon-reload`, `systemctl --user enable
+adb-god.service`, and `systemctl --user restart adb-god.service`.
 
 `service status` runs `systemctl --user is-active adb-god.service` and
 `systemctl --user is-enabled adb-god.service`, then prints concise fields:

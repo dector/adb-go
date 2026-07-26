@@ -266,6 +266,7 @@ when the service should use a non-default control socket. The same service group
 also supports host-service lifecycle commands:
 
 ```sh
+adb-go daemon service reinstall
 adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
@@ -273,6 +274,11 @@ adb-go daemon service status
 adb-go daemon service logs
 adb-go daemon service uninstall
 ```
+
+Use `adb-go daemon service reinstall` after changing the daemon binary path,
+changing the socket path, or refreshing a local build. It rewrites the same unit
+file as `install`, reloads the user systemd manager, enables the service, and
+restarts `adb-god.service` without requiring a manual uninstall/install cycle.
 
 `adb-go daemon service status` asks systemd about the host service and prints
 script-readable fields such as `active: active` and `enabled: enabled`. This is

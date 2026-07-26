@@ -233,6 +233,60 @@ func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
 	}
 }
 
+func TestRunDaemonServiceReinstallRewritesUnitReloadsEnablesAndRestarts(t *testing.T) {
+	oldDaemonPath := filepath.Join(t.TempDir(), "old-adb-god")
+	newDaemonPath := filepath.Join(t.TempDir(), "new-adb-god")
+	if err := os.WriteFile(newDaemonPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write fake adb-god: %v", err)
+	}
+	oldSocketPath := filepath.Join(t.TempDir(), "old.sock")
+	newSocketPath := filepath.Join(t.TempDir(), "new.sock")
+	unitDir := filepath.Join(t.TempDir(), "units")
+	if err := os.MkdirAll(unitDir, 0o755); err != nil {
+		t.Fatalf("create unit dir: %v", err)
+	}
+	unitPath := filepath.Join(unitDir, "adb-god.service")
+	if err := os.WriteFile(unitPath, []byte(adbGodSystemdUnit(oldDaemonPath, oldSocketPath)), 0o644); err != nil {
+		t.Fatalf("write old unit: %v", err)
+	}
+	systemctlLog := filepath.Join(t.TempDir(), "systemctl.log")
+	systemctlPath := writeFakeSystemctl(t, systemctlLog)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", newSocketPath, "service", "reinstall", "--adb-god", newDaemonPath, "--unit-dir", unitDir, "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon service reinstall) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	unit, err := os.ReadFile(unitPath)
+	if err != nil {
+		t.Fatalf("read rewritten unit: %v", err)
+	}
+	gotUnit := string(unit)
+	for _, want := range []string{
+		"ExecStart=\"" + newDaemonPath + "\" -socket \"" + newSocketPath + "\"",
+		"Restart=on-failure",
+		"WantedBy=default.target",
+	} {
+		if !strings.Contains(gotUnit, want) {
+			t.Fatalf("unit = %q, want substring %q", gotUnit, want)
+		}
+	}
+	if strings.Contains(gotUnit, oldDaemonPath) || strings.Contains(gotUnit, oldSocketPath) {
+		t.Fatalf("unit = %q, want old daemon and socket paths replaced", gotUnit)
+	}
+	logBytes, err := os.ReadFile(systemctlLog)
+	if err != nil {
+		t.Fatalf("read systemctl log: %v", err)
+	}
+	wantLog := "--user daemon-reload\n--user enable adb-god.service\n--user restart adb-god.service\n"
+	if string(logBytes) != wantLog {
+		t.Fatalf("systemctl log = %q, want %q", string(logBytes), wantLog)
+	}
+	if !strings.Contains(stdout.String(), "reinstalled "+unitPath) || !strings.Contains(stdout.String(), "enabled and restarted") {
+		t.Fatalf("stdout = %q, want reinstall messages", stdout.String())
+	}
+}
+
 func TestRunDaemonServiceLifecycleCommands(t *testing.T) {
 	for _, tc := range []struct {
 		command string

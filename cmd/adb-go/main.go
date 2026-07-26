@@ -569,6 +569,7 @@ const daemonServiceUsage = `Usage:
 Manages adb-god's host service-manager integration. Currently implemented:
 
   install    Install and start adb-god as a systemd user service on Linux
+  reinstall  Rewrite, reload, enable, and restart the systemd user service
   start      Start adb-god.service with systemd --user
   stop       Stop adb-god.service with systemd --user
   restart    Restart adb-god.service with systemd --user
@@ -589,6 +590,15 @@ reloads the user systemd manager and enables/starts the service with:
 
   systemctl --user daemon-reload
   systemctl --user enable --now adb-god.service
+`
+
+const daemonServiceReinstallUsage = `Usage:
+  adb-go daemon [--socket PATH] service reinstall [--adb-god PATH] [--unit-dir DIR] [--systemctl PATH]
+
+Rewrites the adb-god systemd user unit on Linux, reloads the user systemd
+manager, enables the service, and restarts adb-god.service. Use reinstall after
+changing the adb-god binary path, changing the daemon socket path, or upgrading
+a locally built daemon binary whose service unit should be refreshed.
 `
 
 const daemonServiceLifecycleUsage = `Usage:
@@ -640,6 +650,8 @@ func runDaemonService(args []string, socketPath string, stdout, stderr io.Writer
 	switch command {
 	case "install":
 		return runDaemonServiceInstall(commandArgs, socketPath, stdout, stderr)
+	case "reinstall":
+		return runDaemonServiceReinstall(commandArgs, socketPath, stdout, stderr)
 	case "start", "stop", "restart":
 		return runDaemonServiceLifecycle(command, commandArgs, stdout, stderr)
 	case "status":
@@ -686,14 +698,9 @@ func runDaemonServiceInstall(args []string, socketPath string, stdout, stderr io
 		fmt.Fprintf(stderr, "adb-go daemon service install: %v\n", err)
 		return 1
 	}
-	unitPath := filepath.Join(unitDir, "adb-god.service")
-	unit := adbGodSystemdUnit(adbGodPath, socketPath)
-	if err := os.MkdirAll(unitDir, 0o755); err != nil {
-		fmt.Fprintf(stderr, "adb-go daemon service install: create systemd user unit directory: %v\n", err)
-		return 1
-	}
-	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
-		fmt.Fprintf(stderr, "adb-go daemon service install: write %s: %v\n", unitPath, err)
+	unitPath, err := writeDaemonServiceUnit(unitDir, adbGodPath, socketPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service install: %v\n", err)
 		return 1
 	}
 
@@ -712,6 +719,57 @@ func runDaemonServiceInstall(args []string, socketPath string, stdout, stderr io
 	} else {
 		fmt.Fprintln(stdout, "adb-god.service enabled and started for the current user")
 	}
+	return 0
+}
+
+func runDaemonServiceReinstall(args []string, socketPath string, stdout, stderr io.Writer) int {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintln(stderr, "adb-go daemon service reinstall: systemd user services are supported on Linux only")
+		return 1
+	}
+	fs := flag.NewFlagSet("daemon service reinstall", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	adbGodPathFlag := fs.String("adb-god", "", "absolute path to the adb-god binary")
+	unitDirFlag := fs.String("unit-dir", "", "systemd user unit directory")
+	systemctlFlag := fs.String("systemctl", "systemctl", "systemctl binary path")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonServiceReinstallUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon service reinstall: unexpected arguments %q\n\n", fs.Args())
+		fs.Usage()
+		return 2
+	}
+
+	adbGodPath, err := resolveADBGodPath(strings.TrimSpace(*adbGodPathFlag))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service reinstall: %v\n", err)
+		return 1
+	}
+	unitDir, err := systemdUserUnitDir(strings.TrimSpace(*unitDirFlag))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service reinstall: %v\n", err)
+		return 1
+	}
+	unitPath, err := writeDaemonServiceUnit(unitDir, adbGodPath, socketPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service reinstall: %v\n", err)
+		return 1
+	}
+
+	if code := runSystemctlUser(stderr, *systemctlFlag, "daemon-reload"); code != 0 {
+		return code
+	}
+	if code := runSystemctlUser(stderr, *systemctlFlag, "enable", "adb-god.service"); code != 0 {
+		return code
+	}
+	if code := runSystemctlUser(stderr, *systemctlFlag, "restart", "adb-god.service"); code != 0 {
+		return code
+	}
+
+	fmt.Fprintf(stdout, "reinstalled %s\n", unitPath)
+	fmt.Fprintln(stdout, "adb-god.service enabled and restarted for the current user")
 	return 0
 }
 
@@ -867,6 +925,18 @@ func runDaemonServiceUninstall(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "adb-god.service disabled and stopped; removed %s\n", unitPath)
 	}
 	return 0
+}
+
+func writeDaemonServiceUnit(unitDir, adbGodPath, socketPath string) (string, error) {
+	unitPath := filepath.Join(unitDir, "adb-god.service")
+	unit := adbGodSystemdUnit(adbGodPath, socketPath)
+	if err := os.MkdirAll(unitDir, 0o755); err != nil {
+		return "", fmt.Errorf("create systemd user unit directory: %w", err)
+	}
+	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
+		return "", fmt.Errorf("write %s: %w", unitPath, err)
+	}
+	return unitPath, nil
 }
 
 func resolveADBGodPath(configured string) (string, error) {

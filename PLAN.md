@@ -97,27 +97,27 @@ Done when:
 
 ## M51 — Add daemon service reinstall command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add daemon service reinstall command`
 
 Tasks:
 
-- [ ] Add `adb-go daemon service reinstall` for rewriting the systemd user unit and restarting it.
-- [ ] Reuse the install path resolution, socket selection, unit rendering, and systemctl override behavior.
-- [ ] Run the systemd operations needed to reload units and restart/enable the service after rewriting the unit.
-- [ ] Preserve `install`, `uninstall`, and lifecycle command semantics.
-- [ ] Document when to use reinstall, such as after changing the daemon binary path or socket path.
+- [x] Add `adb-go daemon service reinstall` for rewriting the systemd user unit and restarting it.
+- [x] Reuse the install path resolution, socket selection, unit rendering, and systemctl override behavior.
+- [x] Run the systemd operations needed to reload units and restart/enable the service after rewriting the unit.
+- [x] Preserve `install`, `uninstall`, and lifecycle command semantics.
+- [x] Document when to use reinstall, such as after changing the daemon binary path or socket path.
 
 Tests:
 
-- [ ] CLI tests cover unit rewriting and systemctl invocation order using isolated test paths.
-- [ ] CLI tests cover daemon binary, unit-directory, socket, and systemctl overrides.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover unit rewriting and systemctl invocation order using isolated test paths.
+- [x] CLI tests cover daemon binary, unit-directory, socket, and systemctl overrides.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can update the installed `adb-god.service` unit from the CLI without manually uninstalling and reinstalling.
+- [x] Users can update the installed `adb-god.service` unit from the CLI without manually uninstalling and reinstalling.
 
 ## M52 — Add CLI version reporting
 
