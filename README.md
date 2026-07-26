@@ -7,7 +7,7 @@ applications, with an experimental CLI wrapper for supported workflows.
 > **Status:** v0 is not a full replacement for the official `adb` binary yet.
 > It currently implements explicit TCP connections, initial Linux USB support,
 > explicit-key authentication, service opening, shell execution/streaming,
-> single-file push/pull, and one-APK installation.
+> logcat streaming/dump, single-file push/pull, and one-APK installation.
 
 ## Contents
 
@@ -39,7 +39,7 @@ dependencies are required.
 
 Use the root package for the stable high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
-pushing or pulling one file, and installing one APK.
+streaming Android logs, pushing or pulling one file, and installing one APK.
 
 ```go
 ctx := context.Background()
@@ -55,6 +55,25 @@ if err != nil {
     return err
 }
 fmt.Printf("%s", out)
+```
+
+Stream Android log output with the small logcat helper:
+
+```go
+err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{})
+if err != nil {
+    return err
+}
+```
+
+Use dump-and-exit mode when you want the current log buffer instead of a
+long-running stream:
+
+```go
+err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true})
+if err != nil {
+    return err
+}
 ```
 
 Install one local APK with the adb-go-specific install helper:
@@ -116,6 +135,8 @@ adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
+adb-go logcat --addr 127.0.0.1:5555
+adb-go logcat --dump --addr 127.0.0.1:5555
 ```
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
@@ -147,11 +168,14 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
-  single-file push/pull, and one-APK installation are the main supported
-  workflows.
+  logcat streaming/dump, single-file push/pull, and one-APK installation are
+  the main supported workflows.
 - APK installation is exposed as `install-apk`, an adb-go-specific helper rather
   than official `adb install` compatibility. It currently supports one local APK
   and the replace-existing-app option only.
+- Logcat support intentionally covers only adb-go's `Logcat` helper and CLI
+  `logcat` command with optional dump mode. It is not a full implementation of
+  every official `adb logcat` filter, format, buffer, or output flag.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 

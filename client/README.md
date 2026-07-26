@@ -3,8 +3,8 @@
 Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
-opening, shell helpers, single-file `sync:` push/pull helpers, and a small APK
-install helper.
+opening, shell helpers, logcat streaming, single-file `sync:` push/pull helpers,
+and a small APK install helper.
 
 ## Contents
 
@@ -12,6 +12,7 @@ install helper.
 - [Connect over Linux USB](#connect-over-linux-usb)
 - [Authenticate with an existing ADB key](#authenticate-with-an-existing-adb-key)
 - [Shell commands](#shell-commands)
+- [Logcat](#logcat)
 - [File transfer](#file-transfer)
 - [Install one APK](#install-one-apk)
 - [Open a raw service](#open-a-raw-service)
@@ -132,11 +133,48 @@ usage. adb-go does not add argv-style shell escaping helpers in v0.
 Use `ShellStream` when output may be large or should be displayed as it arrives:
 
 ```go
-err := c.ShellStream(ctx, "logcat -d", os.Stdout)
+err := c.ShellStream(ctx, "pm list packages", os.Stdout)
 if err != nil {
     return err
 }
 ```
+
+## Logcat
+
+`Logcat` is the high-level helper for Android's log output. It opens a
+`shell:` stream and runs the device command `logcat`, copying output into the
+provided `io.Writer` until the device closes the stream, the writer fails, or
+the context is canceled.
+
+```go
+err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{})
+if err != nil {
+    return err
+}
+```
+
+By default this follows the device log stream, like running `adb logcat`. For a
+snapshot of the current log buffers that exits when the dump is complete, set
+`Dump: true`; adb-go maps that option to `logcat -d`:
+
+```go
+err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true})
+if err != nil {
+    return err
+}
+```
+
+The helper intentionally supports only this small option set for now. It does
+not try to model the full official `adb logcat` flag surface such as filter
+specs, format selection, buffer selection, file rotation, clearing buffers, or
+regex filtering. Callers that need device-specific or currently unsupported
+logcat flags can still use `ShellStream` directly with an explicit shell command,
+for example `c.ShellStream(ctx, "logcat -v time -s ActivityManager", w)`.
+
+Log output is remote device data. Treat it with the same care as shell output:
+it may be large, long-lived, and controlled by apps and services on the selected
+device. Use context deadlines or cancellation when your application needs a
+bounded logcat session.
 
 ## File transfer
 

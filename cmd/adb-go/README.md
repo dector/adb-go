@@ -15,6 +15,7 @@ clone of the official `adb` command.
   - [`shell`](#shell)
   - [`push` and `pull`](#push-and-pull)
   - [`install-apk`](#install-apk)
+  - [`logcat`](#logcat)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -41,6 +42,7 @@ adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
+adb-go logcat --addr 127.0.0.1:5555
 ```
 
 If the port is omitted, the library connection path defaults to the standard ADB
@@ -55,6 +57,7 @@ adb-go shell echo hello
 adb-go push ./local.txt /data/local/tmp/local.txt
 adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --replace ./app.apk
+adb-go logcat --dump
 ```
 
 ## USB targets
@@ -67,6 +70,7 @@ adb-go shell --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 adb-go push --usb-bus 1 --usb-device 2 ./local.txt /data/local/tmp/local.txt
 adb-go pull --usb-vid 18d1 --usb-pid 4ee7 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --usb-path /dev/bus/usb/001/002 ./app.apk
+adb-go logcat --usb-path /dev/bus/usb/001/002
 ```
 
 `--usb` requests USB discovery without narrowing selection. It succeeds only
@@ -85,6 +89,7 @@ For authenticated TCP or USB devices, provide an existing ADB private key with
 adb-go shell --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 getprop ro.product.model
 adb-go shell --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 adb-go install-apk --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./app.apk
+adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 --dump
 ```
 
 The CLI does not create or modify key files.
@@ -175,13 +180,47 @@ Security note: the local APK path is caller-controlled, installation changes the
 selected device, and package-manager output is device-provided remote command
 output.
 
+### `logcat`
+
+`adb-go logcat` streams Android log output from the selected device to stdout:
+
+```sh
+adb-go logcat --addr 127.0.0.1:5555
+adb-go logcat --usb-path /dev/bus/usb/001/002
+adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555
+```
+
+By default it follows the live log stream until the device closes it or the
+process is interrupted. Pass `--dump` to request logcat's dump-and-exit mode,
+which maps to the device command `logcat -d`:
+
+```sh
+adb-go logcat --dump --addr 127.0.0.1:5555
+adb-go logcat --dump --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002
+```
+
+The command accepts the same target-selection flags as other device operations:
+TCP with `--addr` or `ADB_GO_ADDR`, Linux USB with `--usb`/`--usb-path`/USB ID
+selectors, and explicit authentication with `--auth-key`.
+
+Current logcat support is deliberately narrow. adb-go does not aim to be
+flag-compatible with every official `adb logcat` option yet; filter specs,
+format flags, buffer selection, log clearing, file output, and other official
+logcat controls are not accepted by `adb-go logcat`. For unsupported behavior,
+use `adb-go shell ...` or the library's `ShellStream` with an explicit logcat
+command.
+
+Logcat output comes from the connected device and can be long-running or large.
+Redirect it, pipe it, or interrupt the command according to your shell's normal
+stdout/process behavior.
+
 ## Limitations
 
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
-`devices`, official `adb install` compatibility, `logcat` as a dedicated
-command, server management, wireless pairing, forwarding, and most official
-flags are not implemented. Use `install-apk` for adb-go's limited one-APK
-installation workflow.
+`devices`, official `adb install` compatibility, full official `adb logcat`
+flag compatibility, server management, wireless pairing, forwarding, and most
+official flags are not implemented. Use `install-apk` for adb-go's limited
+one-APK installation workflow.
 
 ## Testing
 

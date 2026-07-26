@@ -59,7 +59,20 @@ func ExampleClient_ShellStream() {
 	}
 	defer client.Close()
 
-	if err := client.ShellStream(ctx, "logcat -d", os.Stdout); err != nil {
+	if err := client.ShellStream(ctx, "pm list packages", os.Stdout); err != nil {
+		return
+	}
+}
+
+func ExampleClient_Logcat() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	if err := client.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true}); err != nil {
 		return
 	}
 }

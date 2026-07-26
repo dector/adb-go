@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M40.1 — Add client logcat streaming helper.
-- Completed milestone range: Milestones 17–37 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, and APK install documentation.
+- Current milestone: M41.1 — Add client device property helpers.
+- Completed milestone range: Milestones 17–40 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, and logcat library/CLI/documentation support.
 - Active focus: add missing non-USB ADB workflows in small library/CLI/docs slices. Start with shell-backed features that fit the current direct-device architecture, then investigate forwarding separately because official `adb forward` semantics usually involve host-side listener behavior.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -96,25 +96,25 @@ Done when:
 
 ### M40.3 — Document logcat support and limitations
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document logcat support`
 
 Tasks:
 
-- [ ] Update README examples and limitations to mention logcat support.
-- [ ] Update `client/README.md` with the library logcat helper and supported options.
-- [ ] Update `cmd/adb-go/README.md` with CLI usage and examples for TCP/USB/auth.
-- [ ] Document that adb-go does not yet aim for full official `adb logcat` flag compatibility.
+- [x] Update README examples and limitations to mention logcat support.
+- [x] Update `client/README.md` with the library logcat helper and supported options.
+- [x] Update `cmd/adb-go/README.md` with CLI usage and examples for TCP/USB/auth.
+- [x] Document that adb-go does not yet aim for full official `adb logcat` flag compatibility.
 
 Tests:
 
-- [ ] Documentation examples compile where applicable.
-- [ ] `go test ./...` passes
+- [x] Documentation examples compile where applicable.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can discover how to read logs with adb-go and understand the supported subset.
+- [x] Users can discover how to read logs with adb-go and understand the supported subset.
 
 ## M41 — Device property helpers
 
