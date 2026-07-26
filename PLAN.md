@@ -74,25 +74,25 @@ Done when:
 
 ### M40.2 — Add CLI logcat command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add logcat command`
 
 Tasks:
 
-- [ ] Add an `adb-go logcat` command.
-- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as `shell`, `push`, `pull`, and `install-apk`.
-- [ ] Stream log output to stdout.
-- [ ] Support only the logcat options implemented by the client helper, such as `--dump` if present.
+- [x] Add an `adb-go logcat` command.
+- [x] Support the same TCP, Linux USB, and `--auth-key` connection flags as `shell`, `push`, `pull`, and `install-apk`.
+- [x] Stream log output to stdout.
+- [x] Support only the logcat options implemented by the client helper, such as `--dump` if present.
 
 Tests:
 
-- [ ] CLI tests cover usage, argument validation, connection flag propagation, success, and streaming/failure behavior.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, argument validation, connection flag propagation, success, and streaming/failure behavior.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can run `adb-go logcat [connection flags]` to stream or dump device logs through supported adb-go transports.
+- [x] CLI users can run `adb-go logcat [connection flags]` to stream or dump device logs through supported adb-go transports.
 
 ### M40.3 — Document logcat support and limitations
 

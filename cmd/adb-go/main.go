@@ -22,6 +22,7 @@ Commands:
   help        Show this help message
   targets     List adb-go connection targets visible locally
   shell       Run a shell command on a connected device
+  logcat      Stream Android log output from a connected device
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -37,6 +38,7 @@ func main() {
 type deviceClient interface {
 	Close() error
 	ShellStream(ctx context.Context, cmd string, stdout io.Writer) error
+	Logcat(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
 	PushFile(ctx context.Context, localPath, remotePath string) error
 	PullFile(ctx context.Context, remotePath, localPath string) error
 	PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
@@ -272,6 +274,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runTargets(args[1:], stdout, stderr)
 	case "shell":
 		return runShell(args[1:], stdout, stderr)
+	case "logcat":
+		return runLogcat(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
@@ -337,6 +341,55 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 
 	if err := client.ShellStream(context.Background(), cmd, stdout); err != nil {
 		fmt.Fprintf(stderr, "adb-go shell: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+const logcatUsage = `Usage:
+  adb-go logcat (--addr HOST[:PORT] | --usb [USB selection]) [--dump]
+
+Streams Android logcat output from the selected ADB device to stdout. TCP
+addresses come from --addr, or from ADB_GO_ADDR when --addr is omitted. USB
+support is Linux-only initially. By default, logcat follows the device log
+stream until the device closes it or the process is interrupted. Pass --dump to
+request logcat's dump-and-exit mode, equivalent to logcat -d. For example:
+
+  adb-go logcat --addr 127.0.0.1:5555
+  adb-go logcat --dump --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002
+`
+
+func runLogcat(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("logcat", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	dump := fs.Bool("dump", false, "dump the log and exit by passing logcat -d")
+	fs.Usage = func() { fmt.Fprint(stderr, logcatUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go logcat: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprint(stderr, "adb-go logcat: unexpected arguments\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	client, err := connectDevice(context.Background(), target)
+	if err != nil {
+		printConnectError(stderr, "logcat", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	if err := client.Logcat(context.Background(), stdout, adb.LogcatOptions{Dump: *dump}); err != nil {
+		fmt.Fprintf(stderr, "adb-go logcat: %v\n", err)
 		return 1
 	}
 	return 0

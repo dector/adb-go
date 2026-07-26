@@ -473,6 +473,143 @@ func TestRunShellConnectFailure(t *testing.T) {
 	}
 }
 
+func TestRunLogcatMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"logcat"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(logcat missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go logcat --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunLogcatRejectsUnexpectedArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"logcat", "--addr", "127.0.0.1:5555", "*:I"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(logcat unexpected arg) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "unexpected arguments") || !strings.Contains(got, "adb-go logcat --addr") {
+		t.Fatalf("stderr = %q, want unexpected arguments usage error", got)
+	}
+}
+
+func TestRunLogcatUsesConnectionFlagsAndDumpOption(t *testing.T) {
+	keyPath := writeADBKeyFile(t)
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	var gotOpts adb.LogcatOptions
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{logcat: func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error {
+			gotOpts = opts
+			_, err := io.WriteString(stdout, "dumped log\n")
+			return err
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"logcat", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "--dump"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(logcat --dump) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "dumped log\n" {
+		t.Fatalf("stdout = %q, want dumped log", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP target", gotTarget)
+	}
+	if len(gotTarget.auth) != 1 {
+		t.Fatalf("target auth credentials = %d, want 1", len(gotTarget.auth))
+	}
+	if !gotOpts.Dump {
+		t.Fatalf("LogcatOptions.Dump = false, want true")
+	}
+}
+
+func TestRunLogcatUsesUSBConnection(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{logcat: func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error {
+			if opts.Dump {
+				t.Fatalf("LogcatOptions.Dump = true, want false")
+			}
+			_, err := io.WriteString(stdout, "usb log\n")
+			return err
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"logcat", "--usb-path", "/dev/bus/usb/001/002"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(logcat --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+	if stdout.String() != "usb log\n" {
+		t.Fatalf("stdout = %q, want USB log output", stdout.String())
+	}
+}
+
+func TestRunLogcatStreamsOutput(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:logcat", writeCLIShellOutput(t, "01-02 03:04:05.678  123  456 I Tag: hello\n"))
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"logcat", "--addr", server.Addr()}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(logcat) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "01-02 03:04:05.678  123  456 I Tag: hello\n" {
+		t.Fatalf("stdout = %q, want log line", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunLogcatReportsStreamingFailure(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{logcat: func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error {
+			return errors.New("stream broke")
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"logcat", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(logcat failure) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "stream broke") {
+		t.Fatalf("stderr = %q, want stream failure", got)
+	}
+}
+
 func TestRunPushMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
@@ -915,6 +1052,7 @@ func writeADBKeyFile(t testing.TB) string {
 
 type fakeCLIClient struct {
 	shellOutput           string
+	logcat                func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
 	installAPK            func(ctx context.Context, localPath string) error
 	installAPKWithOptions func(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
@@ -924,6 +1062,13 @@ func (c fakeCLIClient) Close() error { return nil }
 func (c fakeCLIClient) ShellStream(ctx context.Context, cmd string, stdout io.Writer) error {
 	_, err := io.WriteString(stdout, c.shellOutput)
 	return err
+}
+
+func (c fakeCLIClient) Logcat(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error {
+	if c.logcat != nil {
+		return c.logcat(ctx, stdout, opts)
+	}
+	return nil
 }
 
 func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath string) error { return nil }
