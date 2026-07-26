@@ -21,6 +21,9 @@ type InstallOptions = client.InstallOptions
 // LogcatOptions controls Client.Logcat behavior.
 type LogcatOptions = client.LogcatOptions
 
+// RebootMode selects a device reboot target supported by Client.Reboot.
+type RebootMode = client.RebootMode
+
 // ConnectOptions controls optional high-level connection behavior.
 type ConnectOptions = client.ConnectOptions
 
@@ -42,6 +45,17 @@ type TCPTarget = client.TCPTarget
 
 // TCPScanOptions controls TCP ADB target scanning.
 type TCPScanOptions = client.TCPScanOptions
+
+const (
+	// RebootNormal requests a normal Android reboot.
+	RebootNormal RebootMode = client.RebootNormal
+
+	// RebootBootloader requests a reboot into the device bootloader.
+	RebootBootloader RebootMode = client.RebootBootloader
+
+	// RebootRecovery requests a reboot into Android recovery.
+	RebootRecovery RebootMode = client.RebootRecovery
+)
 
 var (
 	// ErrAuthRequired reports that the ADB peer requires authentication that is

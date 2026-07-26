@@ -266,26 +266,26 @@ Goal: expose a small, explicit reboot workflow while making the disruptive natur
 
 ### M43.1 — Add client reboot helper
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add reboot helper`
 
 Tasks:
 
-- [ ] Add a high-level reboot helper, for example `Client.Reboot(ctx, mode RebootMode) error`.
-- [ ] Define intentionally supported reboot modes, initially normal reboot plus optional bootloader/recovery if they map cleanly.
-- [ ] Choose the implementation path deliberately, such as ADB `reboot:` service or a shell command, and document the choice in code comments.
-- [ ] Re-export stable reboot APIs from the root package if they are part of the high-level API.
+- [x] Add a high-level reboot helper, for example `Client.Reboot(ctx, mode RebootMode) error`.
+- [x] Define intentionally supported reboot modes, initially normal reboot plus optional bootloader/recovery if they map cleanly.
+- [x] Choose the implementation path deliberately, such as ADB `reboot:` service or a shell command, and document the choice in code comments.
+- [x] Re-export stable reboot APIs from the root package if they are part of the high-level API.
 
 Tests:
 
-- [ ] Client tests cover service/command flow through `internal/fakeadb`.
-- [ ] Client tests cover unsupported mode validation.
-- [ ] `go test ./...` passes
+- [x] Client tests cover service/command flow through `internal/fakeadb`.
+- [x] Client tests cover unsupported mode validation.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can request a supported device reboot mode with explicit API behavior.
+- [x] Library callers can request a supported device reboot mode with explicit API behavior.
 
 ### M43.2 — Add CLI reboot command
 
