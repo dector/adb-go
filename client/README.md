@@ -3,8 +3,8 @@
 Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
-opening, shell helpers, Android property helpers, logcat streaming, single-file
-`sync:` push/pull helpers, and a small APK install helper.
+opening, shell helpers, Android property helpers, logcat streaming, screenshot
+capture, single-file `sync:` push/pull helpers, and a small APK install helper.
 
 ## Contents
 
@@ -14,6 +14,7 @@ opening, shell helpers, Android property helpers, logcat streaming, single-file
 - [Shell commands](#shell-commands)
 - [Device properties](#device-properties)
 - [Logcat](#logcat)
+- [Screencap](#screencap)
 - [File transfer](#file-transfer)
 - [Install one APK](#install-one-apk)
 - [Open a raw service](#open-a-raw-service)
@@ -217,6 +218,49 @@ Log output is remote device data. Treat it with the same care as shell output:
 it may be large, long-lived, and controlled by apps and services on the selected
 device. Use context deadlines or cancellation when your application needs a
 bounded logcat session.
+
+## Screencap
+
+`Screencap` captures one PNG screenshot from the connected device by opening a
+`shell:` stream and running Android's `screencap -p` command:
+
+```go
+png, err := c.Screencap(ctx)
+if err != nil {
+    return err
+}
+err = os.WriteFile("screen.png", png, 0o666)
+```
+
+For the common case where adb-go should write the file itself, use
+`ScreencapFile`:
+
+```go
+err := c.ScreencapFile(ctx, "screen.png")
+if err != nil {
+    return err
+}
+```
+
+`ScreencapFile` creates the local destination with exclusive-create semantics:
+it returns an error matching `adb.ErrDestinationExists` if the path already
+exists. This mirrors adb-go's cautious pull behavior and prevents accidental
+replacement of an existing screenshot or another local file. If an application
+wants overwrite behavior, call `Screencap`, decide explicitly that replacement
+is safe, and then write the returned bytes with its own file policy.
+
+The returned data is expected to be PNG bytes from the device. Some Android
+shell paths historically mangle binary shell output by expanding line feeds to
+carriage-return/line-feed sequences. adb-go recognizes the resulting malformed
+PNG signature and removes the inserted carriage returns so callers receive a
+normal PNG stream. The cleanup is intentionally narrow: if the output does not
+look like a CRLF-mangled PNG, adb-go leaves it unchanged and returns the device
+output as-is.
+
+Screenshots are remote device data. They may contain sensitive content from the
+selected device's display, and the exact pixels depend on device state at capture
+time. Use context deadlines or cancellation if the device-side command should not
+be allowed to block indefinitely.
 
 ## File transfer
 

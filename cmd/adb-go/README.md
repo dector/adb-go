@@ -17,6 +17,7 @@ clone of the official `adb` command.
   - [`install-apk`](#install-apk)
   - [`getprop`](#getprop)
   - [`logcat`](#logcat)
+  - [`screencap`](#screencap)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -45,6 +46,7 @@ adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
 adb-go getprop --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --addr 127.0.0.1:5555
+adb-go screencap --addr 127.0.0.1:5555 ./screen.png
 ```
 
 If the port is omitted, the library connection path defaults to the standard ADB
@@ -62,6 +64,7 @@ adb-go install-apk --replace ./app.apk
 adb-go getprop ro.product.model
 adb-go getprop
 adb-go logcat --dump
+adb-go screencap ./screen.png
 ```
 
 ## USB targets
@@ -76,6 +79,7 @@ adb-go pull --usb-vid 18d1 --usb-pid 4ee7 /data/local/tmp/remote.txt ./remote.tx
 adb-go install-apk --usb-path /dev/bus/usb/001/002 ./app.apk
 adb-go getprop --usb-path /dev/bus/usb/001/002 ro.product.model
 adb-go logcat --usb-path /dev/bus/usb/001/002
+adb-go screencap --usb-path /dev/bus/usb/001/002 ./screen.png
 ```
 
 `--usb` requests USB discovery without narrowing selection. It succeeds only
@@ -96,6 +100,7 @@ adb-go shell --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 getpro
 adb-go install-apk --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./app.apk
 adb-go getprop --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 --dump
+adb-go screencap --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./screen.png
 ```
 
 The CLI does not create or modify key files.
@@ -255,14 +260,50 @@ Logcat output comes from the connected device and can be long-running or large.
 Redirect it, pipe it, or interrupt the command according to your shell's normal
 stdout/process behavior.
 
+### `screencap`
+
+`adb-go screencap` captures one PNG screenshot from the selected device and saves
+it as a local file:
+
+```sh
+adb-go screencap --addr 127.0.0.1:5555 ./screen.png
+adb-go screencap --usb-path /dev/bus/usb/001/002 ./screen.png
+adb-go screencap --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./screen.png
+```
+
+If `LOCAL_PNG` is omitted, adb-go writes to a timestamped file in the current
+directory named like `screen-yyyymmdd-hhmmssmmm.png`, for example
+`screen-20260102-030405123.png`, and prints the chosen path to stdout:
+
+```sh
+adb-go screencap --addr 127.0.0.1:5555
+```
+
+By default the command refuses to replace an existing local path. Pass
+`--overwrite` only when replacement is intentional:
+
+```sh
+adb-go screencap --overwrite --addr 127.0.0.1:5555 ./screen.png
+```
+
+Internally the command uses the library's `Screencap` helper, which runs the
+Android device command `screencap -p` through an ADB `shell:` stream and writes
+the resulting PNG bytes locally. adb-go includes a narrow compatibility cleanup
+for Android shell paths that CRLF-mangle PNG output, but it does not otherwise
+interpret or validate the screenshot contents.
+
+Screenshots come from the connected device and may contain sensitive on-screen
+information. Treat the output file as remote device data captured at the moment
+the command runs.
+
 ## Limitations
 
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
 `devices`, official `adb install` compatibility, full official `adb logcat`
 flag compatibility, server management, wireless pairing, forwarding, and most
 official flags are not implemented. Use `getprop` for adb-go's limited property
-inspection workflow and `install-apk` for adb-go's limited one-APK installation
-workflow.
+inspection workflow, `screencap` for one-shot PNG screenshot capture, and
+`install-apk` for adb-go's limited one-APK installation workflow.
 
 ## Testing
 

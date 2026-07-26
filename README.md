@@ -7,8 +7,8 @@ applications, with an experimental CLI wrapper for supported workflows.
 > **Status:** v0 is not a full replacement for the official `adb` binary yet.
 > It currently implements explicit TCP connections, initial Linux USB support,
 > explicit-key authentication, service opening, shell execution/streaming,
-> Android property lookup, logcat streaming/dump, single-file push/pull, and
-> one-APK installation.
+> Android property lookup, logcat streaming/dump, screenshot capture, single-file
+> push/pull, and one-APK installation.
 
 ## Contents
 
@@ -40,8 +40,8 @@ dependencies are required.
 
 Use the root package for the stable high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
-reading Android system properties, streaming Android logs, pushing or pulling one
-file, and installing one APK.
+reading Android system properties, streaming Android logs, capturing screenshots,
+pushing or pulling one file, and installing one APK.
 
 ```go
 ctx := context.Background()
@@ -89,6 +89,25 @@ long-running stream:
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true})
+if err != nil {
+    return err
+}
+```
+
+Capture one PNG screenshot with the screencap helper:
+
+```go
+png, err := c.Screencap(ctx)
+if err != nil {
+    return err
+}
+err = os.WriteFile("screen.png", png, 0o666)
+```
+
+Or let adb-go write to a new local destination that must not already exist:
+
+```go
+err := c.ScreencapFile(ctx, "screen.png")
 if err != nil {
     return err
 }
@@ -157,6 +176,7 @@ adb-go getprop --addr 127.0.0.1:5555 ro.product.model
 adb-go getprop --addr 127.0.0.1:5555
 adb-go logcat --addr 127.0.0.1:5555
 adb-go logcat --dump --addr 127.0.0.1:5555
+adb-go screencap --addr 127.0.0.1:5555 ./screen.png
 ```
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
@@ -188,8 +208,9 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
-  Android property lookup, logcat streaming/dump, single-file push/pull, and
-  one-APK installation are the main supported workflows.
+  Android property lookup, logcat streaming/dump, screenshot capture,
+  single-file push/pull, and one-APK installation are the main supported
+  workflows.
 - APK installation is exposed as `install-apk`, an adb-go-specific helper rather
   than official `adb install` compatibility. It currently supports one local APK
   and the replace-existing-app option only.
@@ -199,6 +220,9 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - Logcat support intentionally covers only adb-go's `Logcat` helper and CLI
   `logcat` command with optional dump mode. It is not a full implementation of
   every official `adb logcat` filter, format, buffer, or output flag.
+- Screencap support captures one PNG image through Android's `screencap -p`
+  shell command. The CLI writes to a local PNG file and refuses to overwrite an
+  existing path unless `--overwrite` is passed.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 
