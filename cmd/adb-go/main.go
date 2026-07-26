@@ -15,6 +15,7 @@ import (
 	"time"
 
 	adb "github.com/dector/adb-go"
+	"github.com/dector/adb-go/internal/daemon"
 )
 
 const usage = `adb-go is a pure-Go Android Debug Bridge client.
@@ -31,6 +32,7 @@ Commands:
   screencap   Save a PNG screenshot from a connected device
   reboot      Reboot a connected device
   forward     Forward local TCP connections to a device TCP endpoint
+  daemon      Control the local adb-god daemon
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -313,6 +315,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runReboot(args[1:], stdout, stderr)
 	case "forward":
 		return runForward(args[1:], stdout, stderr)
+	case "daemon":
+		return runDaemon(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
@@ -332,6 +336,94 @@ func printConnectError(stderr io.Writer, command, description string, err error)
 		return
 	}
 	fmt.Fprintf(stderr, "adb-go %s: connect to %s: %v\n", command, description, err)
+}
+
+const daemonUsage = `Usage:
+  adb-go daemon [--socket PATH] COMMAND
+
+Controls the local adb-god daemon over its Unix domain socket. This command
+only exposes daemon process controls; adb-god does not persist devices,
+transports, forwards, sessions, or authentication state yet.
+
+Commands:
+  ping    Check whether adb-god responds to the control protocol
+  status  Print basic adb-god process metadata
+  stop    Request graceful adb-god shutdown
+
+Socket path selection uses --socket when provided, otherwise ADB_GO_DAEMON_SOCKET,
+then XDG_RUNTIME_DIR, then a per-user temporary directory.
+`
+
+func runDaemon(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	socketPathFlag := fs.String("socket", "", "absolute Unix domain socket path")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprint(stderr, "adb-go daemon: requires exactly one COMMAND\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	socketPath := strings.TrimSpace(*socketPathFlag)
+	if socketPath == "" {
+		var err error
+		socketPath, err = daemon.DefaultSocketPath()
+		if err != nil {
+			fmt.Fprintf(stderr, "adb-go daemon: %v\n", err)
+			return 1
+		}
+	}
+
+	command := fs.Arg(0)
+	switch command {
+	case daemon.CommandPing, daemon.CommandStatus, "stop":
+	default:
+		fmt.Fprintf(stderr, "adb-go daemon: unknown daemon command %q\n\n", command)
+		fs.Usage()
+		return 2
+	}
+
+	protocolCommand := command
+	if command == "stop" {
+		protocolCommand = daemon.CommandShutdown
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := daemon.Send(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: protocolCommand})
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon %s: daemon is not running or socket is unavailable at %s: %v\n", command, socketPath, err)
+		return 1
+	}
+	if !resp.OK {
+		if resp.Error != nil {
+			fmt.Fprintf(stderr, "adb-go daemon %s: daemon error %s: %s\n", command, resp.Error.Code, resp.Error.Message)
+		} else {
+			fmt.Fprintf(stderr, "adb-go daemon %s: daemon returned an unsuccessful response\n", command)
+		}
+		return 1
+	}
+
+	switch command {
+	case daemon.CommandPing:
+		fmt.Fprintln(stdout, "pong")
+	case daemon.CommandStatus:
+		printDaemonStatus(stdout, resp.Result)
+	case "stop":
+		fmt.Fprintln(stdout, "adb-god shutting down")
+	}
+	return 0
+}
+
+func printDaemonStatus(stdout io.Writer, result map[string]any) {
+	fmt.Fprintf(stdout, "state: %v\n", result["state"])
+	fmt.Fprintf(stdout, "pid: %v\n", result["pid"])
+	fmt.Fprintf(stdout, "socketPath: %v\n", result["socketPath"])
+	fmt.Fprintf(stdout, "protocolVersion: %v\n", result["protocolVersion"])
+	fmt.Fprintf(stdout, "uptimeMillis: %v\n", result["uptimeMillis"])
 }
 
 const shellUsage = `Usage:

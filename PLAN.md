@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M45.3 — Add adb-go daemon control subcommand.
+- Current milestone: M45.4 — Document daemon foundation.
 - Completed milestone range: Milestones 17–44 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, and foreground port forwarding support.
 - Active focus: add the minimal daemon foundation for future persistence: an `adb-god` daemon process, a Unix domain socket control channel, and `adb-go daemon` CLI controls. Do not add persistent device/session functionality yet.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -97,26 +97,26 @@ Done when:
 
 ### M45.3 — Add adb-go daemon control subcommand
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add daemon control command`
 
 Tasks:
 
-- [ ] Add an `adb-go daemon` command group for controlling `adb-god`.
-- [ ] Implement minimal controls that map to the daemon protocol, such as `status`, `start`, and `stop` if supported by the M45.1 design.
-- [ ] Connect to the daemon over the configured Unix socket path.
-- [ ] Print clear errors when the daemon is not running or the socket is unavailable.
-- [ ] Avoid exposing any device/session persistence commands yet.
+- [x] Add an `adb-go daemon` command group for controlling `adb-god`.
+- [x] Implement minimal controls that map to the daemon protocol, such as `status`, `start`, and `stop` if supported by the M45.1 design.
+- [x] Connect to the daemon over the configured Unix socket path.
+- [x] Print clear errors when the daemon is not running or the socket is unavailable.
+- [x] Avoid exposing any device/session persistence commands yet.
 
 Tests:
 
-- [ ] CLI tests cover usage, socket path configuration, status success/failure, and stop/start behavior if implemented.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, socket path configuration, status success/failure, and stop/start behavior if implemented.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can control the minimal `adb-god` daemon through `adb-go daemon ...` commands.
+- [x] CLI users can control the minimal `adb-god` daemon through `adb-go daemon ...` commands.
 
 ### M45.4 — Document daemon foundation
 
