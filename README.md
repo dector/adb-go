@@ -234,7 +234,9 @@ version=$(./tools/git-version.sh)
 go build -ldflags "-X main.version=${version}" ./cmd/adb-go
 ```
 
-CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
+CLI docs, including troubleshooting for common connection, authentication,
+unsupported-platform, overwrite, and local-path errors:
+[`cmd/adb-go/README.md`](cmd/adb-go/README.md).
 
 ## adb-god daemon foundation
 

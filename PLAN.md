@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M52 — Add CLI version reporting.
-- Completed milestone range: Milestones 17–51 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, and daemon service reinstall.
+- Current milestone: M53 — Improve CLI error messages.
+- Completed milestone range: Milestones 17–52 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, and CLI version reporting.
 - Active focus: improve observability and supportability around the existing minimal `adb-god` daemon and CLI without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -144,27 +144,27 @@ Done when:
 
 ## M53 — Improve CLI error messages
 
-Status: Not started
+Status: Implemented
 
 Commit: `fix(cli): improve common error messages`
 
 Tasks:
 
-- [ ] Audit current CLI error output for common failures: connection refused, timeout, auth required, unsupported USB platform, destination exists, and missing local files.
-- [ ] Add small formatting helpers where they make errors clearer without hiding wrapped sentinel errors in library code.
-- [ ] Keep errors concise and actionable, with examples where useful.
-- [ ] Avoid changing public library error semantics unless a specific bug is found and scoped.
-- [ ] Document any user-visible behavior changes in CLI docs if needed.
+- [x] Audit current CLI error output for common failures: connection refused, timeout, auth required, unsupported USB platform, destination exists, and missing local files.
+- [x] Add small formatting helpers where they make errors clearer without hiding wrapped sentinel errors in library code.
+- [x] Keep errors concise and actionable, with examples where useful.
+- [x] Avoid changing public library error semantics unless a specific bug is found and scoped.
+- [x] Document any user-visible behavior changes in CLI docs if needed.
 
 Tests:
 
-- [ ] CLI tests cover at least the most important improved error messages.
-- [ ] Existing library tests continue to validate sentinel error behavior.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover at least the most important improved error messages.
+- [x] Existing library tests continue to validate sentinel error behavior.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Common CLI failures point users toward the likely fix without changing the underlying adb-go library contract.
+- [x] Common CLI failures point users toward the likely fix without changing the underlying adb-go library contract.
 
 ## M54 — Expand integration test documentation
 

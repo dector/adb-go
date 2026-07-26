@@ -22,6 +22,7 @@ clone of the official `adb` command.
   - [`reboot`](#reboot)
   - [`forward`](#forward)
   - [`daemon`](#daemon)
+- [Troubleshooting common errors](#troubleshooting-common-errors)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -586,6 +587,25 @@ USB/TCP transports, foreground forwards, shell sessions, install state, logcat
 streams, screenshots, reboots, or authentication keys alive after a CLI command
 exits. Those are future design areas built on this process and socket
 foundation.
+
+## Troubleshooting common errors
+
+The CLI keeps the original lower-level error text, but common failures include a
+short hint before it:
+
+- `device requires authentication`: pass `--auth-key PATH` for an existing ADB
+  private key trusted by the device.
+- `connection refused`: check that the emulator/device is running ADB TCP at the
+  selected address. For local emulators, try `adb-go targets --scan`.
+- `operation timed out`: check target reachability, device online state, and USB
+  permissions.
+- `operation unsupported`: the selected transport, selector, or feature is not
+  implemented in this adb-go build; USB is Linux-only initially and USB serial
+  selection is still reserved.
+- `destination already exists`: `pull` and `screencap` refuse to overwrite local
+  files by default; pass `--overwrite` only when replacement is intentional.
+- `local file or directory not found`: check local source paths for `push` and
+  `install-apk`, or the parent directory for local destinations.
 
 ## Limitations
 

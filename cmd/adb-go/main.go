@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	adb "github.com/dector/adb-go"
@@ -389,11 +390,42 @@ func runVersion(args []string, stdout, stderr io.Writer) int {
 }
 
 func printConnectError(stderr io.Writer, command, description string, err error) {
-	if errors.Is(err, adb.ErrAuthRequired) {
-		fmt.Fprintf(stderr, "adb-go %s: connect to %s: device requires authentication; pass --auth-key PATH for an existing ADB private key: %v\n", command, description, err)
-		return
+	fmt.Fprintf(stderr, "adb-go %s: connect to %s: %s\n", command, description, formatCLIError(err))
+}
+
+func printCommandError(stderr io.Writer, command string, err error) {
+	fmt.Fprintf(stderr, "adb-go %s: %s\n", command, formatCLIError(err))
+}
+
+func formatCLIError(err error) string {
+	switch {
+	case errors.Is(err, adb.ErrAuthRequired):
+		return fmt.Sprintf("device requires authentication; pass --auth-key PATH for an existing ADB private key: %v", err)
+	case errors.Is(err, adb.ErrDestinationExists):
+		return fmt.Sprintf("destination already exists; pass --overwrite to replace it deliberately: %v", err)
+	case errors.Is(err, adb.ErrUnsupported):
+		return fmt.Sprintf("operation unsupported in this adb-go build; check whether the requested transport or selector is implemented for this platform: %v", err)
+	case isConnectionRefused(err):
+		return fmt.Sprintf("connection refused; check that the device/emulator is running ADB TCP at this address, or run `adb-go targets --scan` for local emulators: %v", err)
+	case isTimeout(err):
+		return fmt.Sprintf("operation timed out; check that the target address is reachable, the device is online, and USB permissions are sufficient: %v", err)
+	case errors.Is(err, os.ErrNotExist):
+		return fmt.Sprintf("local file or directory not found; check the path and parent directory: %v", err)
+	default:
+		return err.Error()
 	}
-	fmt.Fprintf(stderr, "adb-go %s: connect to %s: %v\n", command, description, err)
+}
+
+func isConnectionRefused(err error) bool {
+	return errors.Is(err, syscall.ECONNREFUSED)
+}
+
+func isTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || os.IsTimeout(err) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 const daemonUsage = `Usage:
@@ -1125,7 +1157,7 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 	defer client.Close()
 
 	if err := client.ShellStream(context.Background(), cmd, stdout); err != nil {
-		fmt.Fprintf(stderr, "adb-go shell: %v\n", err)
+		printCommandError(stderr, "shell", err)
 		return 1
 	}
 	return 0
@@ -1174,7 +1206,7 @@ func runLogcat(args []string, stdout, stderr io.Writer) int {
 	defer client.Close()
 
 	if err := client.Logcat(context.Background(), stdout, adb.LogcatOptions{Dump: *dump}); err != nil {
-		fmt.Fprintf(stderr, "adb-go logcat: %v\n", err)
+		printCommandError(stderr, "logcat", err)
 		return 1
 	}
 	return 0
@@ -1224,7 +1256,7 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 	if fs.NArg() == 1 {
 		value, err := client.GetProp(context.Background(), fs.Arg(0))
 		if err != nil {
-			fmt.Fprintf(stderr, "adb-go getprop: %v\n", err)
+			printCommandError(stderr, "getprop", err)
 			return 1
 		}
 		fmt.Fprintln(stdout, value)
@@ -1233,7 +1265,7 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 
 	props, err := client.Properties(context.Background())
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go getprop: %v\n", err)
+		printCommandError(stderr, "getprop", err)
 		return 1
 	}
 	names := make([]string, 0, len(props))
@@ -1300,11 +1332,11 @@ func runScreencap(args []string, stdout, stderr io.Writer) int {
 
 	png, err := client.Screencap(context.Background())
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go screencap: %v\n", err)
+		printCommandError(stderr, "screencap", err)
 		return 1
 	}
 	if err := writeScreencapFile(localPath, png, *overwrite); err != nil {
-		fmt.Fprintf(stderr, "adb-go screencap: %v\n", err)
+		printCommandError(stderr, "screencap", err)
 		return 1
 	}
 	fmt.Fprintf(stdout, "%s\n", localPath)
@@ -1399,7 +1431,7 @@ func runReboot(args []string, stdout, stderr io.Writer) int {
 	defer client.Close()
 
 	if err := client.Reboot(context.Background(), mode); err != nil {
-		fmt.Fprintf(stderr, "adb-go reboot: %v\n", err)
+		printCommandError(stderr, "reboot", err)
 		return 1
 	}
 	return 0
@@ -1479,14 +1511,14 @@ func runForward(args []string, stdout, stderr io.Writer) int {
 
 	forward, err := startForward(ctx, client, localAddr, remote)
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: %v\n", err)
+		printCommandError(stderr, "forward", err)
 		return 1
 	}
 	defer forward.Close()
 	fmt.Fprintf(stdout, "Forwarding %s -> %s. Press Ctrl+C to stop.\n", forward.LocalAddr(), fs.Arg(1))
 
 	if err := forward.Wait(); err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: %v\n", err)
+		printCommandError(stderr, "forward", err)
 		return 1
 	}
 	return 0
@@ -1571,7 +1603,7 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 	defer client.Close()
 
 	if err := client.PushFile(context.Background(), localPath, remotePath); err != nil {
-		fmt.Fprintf(stderr, "adb-go push: %v\n", err)
+		printCommandError(stderr, "push", err)
 		return 1
 	}
 	return 0
@@ -1640,7 +1672,7 @@ func runInstallAPK(args []string, stdout, stderr io.Writer) int {
 		err = client.InstallAPK(context.Background(), localPath)
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go install-apk: %v\n", err)
+		printCommandError(stderr, "install-apk", err)
 		return 1
 	}
 	return 0
@@ -1682,7 +1714,7 @@ func runPull(args []string, stdout, stderr io.Writer) int {
 		err = client.PullFile(context.Background(), remotePath, localPath)
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go pull: %v\n", err)
+		printCommandError(stderr, "pull", err)
 		return 1
 	}
 	return 0

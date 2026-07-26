@@ -10,11 +10,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -504,8 +506,12 @@ func TestRunShellJoinsCommandArguments(t *testing.T) {
 
 func TestRunShellConnectFailure(t *testing.T) {
 	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return nil, fmt.Errorf("adb connect TCP %s: %w", target.tcpAddr, syscall.ECONNREFUSED)
+	})
+	defer restore()
 
-	code := run([]string{"shell", "--addr", "127.0.0.1:1", "echo", "hello"}, &stdout, &stderr)
+	code := run([]string{"shell", "--addr", "127.0.0.1:5555", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 1 {
 		t.Fatalf("run(shell connect failure) exit code = %d, want 1", code)
@@ -513,8 +519,45 @@ func TestRunShellConnectFailure(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if got := stderr.String(); !strings.Contains(got, "connect to 127.0.0.1:1") {
-		t.Fatalf("stderr = %q, want connect error", got)
+	if got := stderr.String(); !strings.Contains(got, "connect to 127.0.0.1:5555") || !strings.Contains(got, "connection refused") || !strings.Contains(got, "adb-go targets --scan") {
+		t.Fatalf("stderr = %q, want actionable connection refused error", got)
+	}
+}
+
+func TestRunShellUnsupportedUSBConnectFailure(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return nil, adb.ErrUnsupported
+	})
+	defer restore()
+
+	code := run([]string{"shell", "--usb", "echo", "hello"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(shell unsupported USB) exit code = %d, want 1", code)
+	}
+	if got := stderr.String(); !strings.Contains(got, "operation unsupported") || !strings.Contains(got, "requested transport or selector") {
+		t.Fatalf("stderr = %q, want unsupported-platform guidance", got)
+	}
+}
+
+func TestFormatCLIErrorAddsActionableHints(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "auth", err: fmt.Errorf("wrapped: %w", adb.ErrAuthRequired), want: "--auth-key PATH"},
+		{name: "destination exists", err: fmt.Errorf("wrapped: %w", adb.ErrDestinationExists), want: "--overwrite"},
+		{name: "missing local file", err: fmt.Errorf("wrapped: %w", os.ErrNotExist), want: "local file or directory not found"},
+		{name: "timeout", err: context.DeadlineExceeded, want: "timed out"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatCLIError(tt.err); !strings.Contains(got, tt.want) {
+				t.Fatalf("formatCLIError(%v) = %q, want substring %q", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -1413,6 +1456,28 @@ func TestRunPushWrongArgCount(t *testing.T) {
 	}
 }
 
+func TestRunPushMissingLocalFileShowsPathHint(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{pushFile: func(ctx context.Context, localPath, remotePath string) error {
+			return fmt.Errorf("adb push open source %q: %w", localPath, os.ErrNotExist)
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"push", "--addr", "127.0.0.1:5555", "./missing.txt", "/data/local/tmp/missing.txt"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(push missing local file) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "local file or directory not found") || !strings.Contains(got, "./missing.txt") {
+		t.Fatalf("stderr = %q, want missing local file guidance", got)
+	}
+}
+
 func TestRunPushTransfersFile(t *testing.T) {
 	server := fakeadb.Start(t)
 	result := make(chan cliSyncPushResult, 1)
@@ -1612,6 +1677,28 @@ func TestRunPullWrongArgCount(t *testing.T) {
 				t.Fatalf("stderr = %q, want arg count usage error", got)
 			}
 		})
+	}
+}
+
+func TestRunPullExistingDestinationSuggestsOverwrite(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{pullFile: func(ctx context.Context, remotePath, localPath string) error {
+			return fmt.Errorf("adb pull destination %q exists: %w", localPath, adb.ErrDestinationExists)
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"pull", "--addr", "127.0.0.1:5555", "/data/local/tmp/remote.txt", "./remote.txt"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(pull existing destination) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "destination already exists") || !strings.Contains(got, "--overwrite") {
+		t.Fatalf("stderr = %q, want overwrite guidance", got)
 	}
 }
 
@@ -1835,6 +1922,9 @@ type fakeCLIClient struct {
 	properties            func(ctx context.Context) (map[string]string, error)
 	screencap             func(ctx context.Context) ([]byte, error)
 	reboot                func(ctx context.Context, mode adb.RebootMode) error
+	pushFile              func(ctx context.Context, localPath, remotePath string) error
+	pullFile              func(ctx context.Context, remotePath, localPath string) error
+	pullFileWithOptions   func(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
 	installAPK            func(ctx context.Context, localPath string) error
 	installAPKWithOptions func(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
@@ -1881,11 +1971,24 @@ func (c fakeCLIClient) Reboot(ctx context.Context, mode adb.RebootMode) error {
 	return nil
 }
 
-func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath string) error { return nil }
+func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath string) error {
+	if c.pushFile != nil {
+		return c.pushFile(ctx, localPath, remotePath)
+	}
+	return nil
+}
 
-func (c fakeCLIClient) PullFile(ctx context.Context, remotePath, localPath string) error { return nil }
+func (c fakeCLIClient) PullFile(ctx context.Context, remotePath, localPath string) error {
+	if c.pullFile != nil {
+		return c.pullFile(ctx, remotePath, localPath)
+	}
+	return nil
+}
 
 func (c fakeCLIClient) PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error {
+	if c.pullFileWithOptions != nil {
+		return c.pullFileWithOptions(ctx, remotePath, localPath, opts)
+	}
 	return nil
 }
 
