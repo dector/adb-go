@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 35 — Add client APK install helper.
-- Completed milestone range: Milestones 17–34 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, and explicit ADB authentication support.
+- Current milestone: Milestone 36 — Add CLI install-apk command.
+- Completed milestone range: Milestones 17–35 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, and the client APK install helper.
 - Active focus: implement an adb-go-specific alternative to `adb install` in small slices: first a library helper, then a CLI command, then documentation.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -71,25 +71,25 @@ Done when:
 
 ## Milestone 36 — Add CLI install-apk command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add install-apk command`
 
 Tasks:
 
-- [ ] Add an `adb-go install-apk` command as the adb-go-specific alternative to `adb install`.
-- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as `shell`, `push`, and `pull`.
-- [ ] Accept exactly one local APK path, plus only the install options implemented by the client helper.
-- [ ] Print package-manager failure output clearly without implying compatibility with every official `adb install` flag.
+- [x] Add an `adb-go install-apk` command as the adb-go-specific alternative to `adb install`.
+- [x] Support the same TCP, Linux USB, and `--auth-key` connection flags as `shell`, `push`, and `pull`.
+- [x] Accept exactly one local APK path, plus only the install options implemented by the client helper.
+- [x] Print package-manager failure output clearly without implying compatibility with every official `adb install` flag.
 
 Tests:
 
-- [ ] CLI tests cover usage, argument validation, connection flag propagation, success, and install failure messaging.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, argument validation, connection flag propagation, success, and install failure messaging.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can run `adb-go install-apk [connection flags] LOCAL_APK` to install one APK through supported adb-go transports.
+- [x] CLI users can run `adb-go install-apk [connection flags] LOCAL_APK` to install one APK through supported adb-go transports.
 
 ## Milestone 37 — Document APK installation support and limitations
 

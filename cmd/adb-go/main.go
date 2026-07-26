@@ -24,6 +24,7 @@ Commands:
   shell       Run a shell command on a connected device
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
+  install-apk Install one local APK on a connected device
 
 adb-go is not a full replacement for the official adb binary yet. The CLI is a
 thin wrapper around the adb-go library and will grow command coverage gradually.
@@ -39,6 +40,8 @@ type deviceClient interface {
 	PushFile(ctx context.Context, localPath, remotePath string) error
 	PullFile(ctx context.Context, remotePath, localPath string) error
 	PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
+	InstallAPK(ctx context.Context, localPath string) error
+	InstallAPKWithOptions(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
 
 type connectionOptions struct {
@@ -273,6 +276,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
 		return runPull(args[1:], stdout, stderr)
+	case "install-apk":
+		return runInstallAPK(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "adb-go: unknown command %q\n\n", args[0])
 		fmt.Fprint(stderr, usage)
@@ -395,6 +400,63 @@ local destination; pass --overwrite to replace it deliberately. For example:
   adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
   adb-go pull --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 /data/local/tmp/remote.txt ./remote.txt
 `
+
+const installAPKUsage = `Usage:
+  adb-go install-apk (--addr HOST[:PORT] | --usb [USB selection]) [--replace] LOCAL_APK
+
+Installs exactly one local APK on the selected ADB device. This is an
+adb-go-specific helper, not a full clone of "adb install". It pushes the APK to
+a temporary path under /data/local/tmp, runs pm install, and asks the device to
+remove the temporary APK afterward. TCP addresses come from --addr, or from
+ADB_GO_ADDR when --addr is omitted. USB support is Linux-only initially. Pass
+--replace to allow replacing an already-installed app via pm install -r. For
+example:
+
+  adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
+  adb-go install-apk --replace --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 ./app.apk
+`
+
+func runInstallAPK(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("install-apk", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	replace := fs.Bool("replace", false, "allow package replacement with pm install -r")
+	fs.Usage = func() { fmt.Fprint(stderr, installAPKUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go install-apk: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprint(stderr, "adb-go install-apk: requires exactly LOCAL_APK\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	localPath := fs.Arg(0)
+	client, err := connectDevice(context.Background(), target)
+	if err != nil {
+		printConnectError(stderr, "install-apk", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	if *replace {
+		err = client.InstallAPKWithOptions(context.Background(), localPath, adb.InstallOptions{Replace: true})
+	} else {
+		err = client.InstallAPK(context.Background(), localPath)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go install-apk: %v\n", err)
+		return 1
+	}
+	return 0
+}
 
 func runPull(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("pull", flag.ContinueOnError)

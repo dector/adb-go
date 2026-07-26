@@ -547,6 +547,134 @@ func TestRunPushTransfersFile(t *testing.T) {
 	}
 }
 
+func TestRunInstallAPKMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"install-apk", "./app.apk"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(install-apk missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go install-apk --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunInstallAPKWrongArgCount(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "missing local apk", args: []string{"install-apk", "--addr", "127.0.0.1:5555"}},
+		{name: "extra argument", args: []string{"install-apk", "--addr", "127.0.0.1:5555", "./app.apk", "extra"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			code := run(tt.args, &stdout, &stderr)
+
+			if code != 2 {
+				t.Fatalf("run(install-apk wrong arg count) exit code = %d, want 2", code)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
+			}
+			if got := stderr.String(); !strings.Contains(got, "requires exactly LOCAL_APK") || !strings.Contains(got, "adb-go install-apk --addr") {
+				t.Fatalf("stderr = %q, want arg count usage error", got)
+			}
+		})
+	}
+}
+
+func TestRunInstallAPKUsesConnectionFlagsAndReplaceOption(t *testing.T) {
+	keyPath := writeADBKeyFile(t)
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	var gotPath string
+	var gotOpts adb.InstallOptions
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{installAPKWithOptions: func(ctx context.Context, localPath string, opts adb.InstallOptions) error {
+			gotPath = localPath
+			gotOpts = opts
+			return nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"install-apk", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "--replace", "./app.apk"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(install-apk --replace) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("stdout/stderr = %q/%q, want empty", stdout.String(), stderr.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP target", gotTarget)
+	}
+	if len(gotTarget.auth) != 1 {
+		t.Fatalf("target auth credentials = %d, want 1", len(gotTarget.auth))
+	}
+	if gotPath != "./app.apk" {
+		t.Fatalf("install path = %q, want ./app.apk", gotPath)
+	}
+	if !gotOpts.Replace {
+		t.Fatalf("InstallOptions.Replace = false, want true")
+	}
+}
+
+func TestRunInstallAPKUsesUSBConnection(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{installAPK: func(ctx context.Context, localPath string) error {
+			if localPath != "./app.apk" {
+				t.Fatalf("install path = %q, want ./app.apk", localPath)
+			}
+			return nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"install-apk", "--usb-path", "/dev/bus/usb/001/002", "./app.apk"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(install-apk --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+}
+
+func TestRunInstallAPKReportsPackageManagerFailure(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{installAPK: func(ctx context.Context, localPath string) error {
+			return errors.New("adb install apk \"./app.apk\": package manager failed: Failure [INSTALL_FAILED_ALREADY_EXISTS]")
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"install-apk", "--addr", "127.0.0.1:5555", "./app.apk"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(install-apk failure) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "package manager failed") || !strings.Contains(got, "INSTALL_FAILED_ALREADY_EXISTS") {
+		t.Fatalf("stderr = %q, want package-manager failure output", got)
+	}
+}
+
 func TestRunPullMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
@@ -786,7 +914,9 @@ func writeADBKeyFile(t testing.TB) string {
 }
 
 type fakeCLIClient struct {
-	shellOutput string
+	shellOutput           string
+	installAPK            func(ctx context.Context, localPath string) error
+	installAPKWithOptions func(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
 
 func (c fakeCLIClient) Close() error { return nil }
@@ -801,6 +931,20 @@ func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath strin
 func (c fakeCLIClient) PullFile(ctx context.Context, remotePath, localPath string) error { return nil }
 
 func (c fakeCLIClient) PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error {
+	return nil
+}
+
+func (c fakeCLIClient) InstallAPK(ctx context.Context, localPath string) error {
+	if c.installAPK != nil {
+		return c.installAPK(ctx, localPath)
+	}
+	return nil
+}
+
+func (c fakeCLIClient) InstallAPKWithOptions(ctx context.Context, localPath string, opts adb.InstallOptions) error {
+	if c.installAPKWithOptions != nil {
+		return c.installAPKWithOptions(ctx, localPath, opts)
+	}
 	return nil
 }
 
