@@ -1,0 +1,53 @@
+name: Snapshot release
+
+on:
+  push:
+    branches:
+      - trunk
+
+permissions:
+  contents: write
+
+jobs:
+  publish-linux-cli:
+    name: Build and publish Linux CLI snapshot
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Linux CLI
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o "dist/adbgo-${short_sha}" ./cmd/adb-go
+          chmod +x "dist/adbgo-${short_sha}"
+          echo "binary=dist/adbgo-${short_sha}" >> "$GITHUB_ENV"
+
+      - name: Move snapshot tag
+        run: |
+          set -euo pipefail
+          git tag -f snapshot "$GITHUB_SHA"
+          git push --force origin refs/tags/snapshot
+
+      - name: Create or update snapshot release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view snapshot >/dev/null 2>&1; then
+            gh release edit snapshot --title snapshot --prerelease --latest=false
+          else
+            gh release create snapshot --title snapshot --notes "Automated Linux CLI snapshot build." --prerelease --latest=false
+          fi
+          gh release upload snapshot "$binary" --clobber
