@@ -69,6 +69,7 @@ var connectDevice = func(ctx context.Context, target connectionTarget) (deviceCl
 }
 
 var listUSBDevices = adb.ListUSBDevices
+var scanTCPTargets = adb.ScanTCPTargets
 
 func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
 	return connectionOptions{
@@ -167,16 +168,18 @@ func flagWasProvided(fs *flag.FlagSet, name string) bool {
 }
 
 const targetsUsage = `Usage:
-  adb-go targets
+  adb-go targets [--scan]
 
 Lists adb-go connection targets visible from the local machine. This is an
 adb-go-specific alternative to "adb devices", not a clone of the official adb
 server's device list. It can show ADB_GO_ADDR as a TCP target and, on Linux,
-USB interfaces discovered under /dev/bus/usb.
+USB interfaces discovered under /dev/bus/usb. With --scan, it also scans local
+emulator TCP ports 127.0.0.1:5555..5585, odd ports only.
 `
 
 func runTargets(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("targets", flag.ContinueOnError)
+	scan := fs.Bool("scan", false, "scan localhost emulator TCP ports 5555..5585, odd ports only")
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, targetsUsage) }
 	if err := fs.Parse(args); err != nil {
@@ -191,6 +194,20 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 	rows := []string{}
 	if addr := strings.TrimSpace(os.Getenv("ADB_GO_ADDR")); addr != "" {
 		rows = append(rows, fmt.Sprintf("tcp\t--addr %s\tfrom ADB_GO_ADDR", addr))
+	}
+	if *scan {
+		targets, err := scanTCPTargets(context.Background(), adb.TCPScanOptions{})
+		if err != nil {
+			fmt.Fprintf(stderr, "adb-go targets: scan TCP targets: %v\n", err)
+			return 1
+		}
+		for _, target := range targets {
+			details := "scanned localhost emulator port"
+			if target.AuthRequired {
+				details += ", auth required"
+			}
+			rows = append(rows, fmt.Sprintf("tcp\t--addr %s\t%s", target.Addr, details))
+		}
 	}
 
 	usbUnsupported := false
@@ -222,7 +239,7 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 
 	if len(rows) == 0 {
 		fmt.Fprintln(stdout, "No adb-go connection targets found.")
-		fmt.Fprintln(stdout, "TCP targets are explicit: pass --addr HOST[:PORT] or set ADB_GO_ADDR.")
+		fmt.Fprintln(stdout, "TCP targets are explicit: pass --addr HOST[:PORT], set ADB_GO_ADDR, or use targets --scan for local emulators.")
 		if usbUnsupported {
 			fmt.Fprintln(stdout, "USB target discovery is Linux-only in this version.")
 		} else {

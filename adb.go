@@ -31,6 +31,12 @@ type USBDevice = client.USBDevice
 // USBOptions selects an ADB-capable USB interface for ConnectUSB.
 type USBOptions = client.USBOptions
 
+// TCPTarget describes one TCP ADB connection target discovered by scanning.
+type TCPTarget = client.TCPTarget
+
+// TCPScanOptions controls TCP ADB target scanning.
+type TCPScanOptions = client.TCPScanOptions
+
 var (
 	// ErrAuthRequired reports that the ADB peer requires authentication that is
 	// not implemented by adb-go yet.
@@ -81,4 +87,10 @@ func ConnectUSB(ctx context.Context, opts USBOptions) (*Client, error) {
 // interface class/subclass/protocol. The initial USB backend is Linux-only.
 func ListUSBDevices(ctx context.Context) ([]USBDevice, error) {
 	return client.ListUSBDevices(ctx)
+}
+
+// ScanTCPTargets scans a small TCP port range for ADB endpoints. By default it
+// scans localhost odd emulator ADB ports 5555..5585.
+func ScanTCPTargets(ctx context.Context, opts TCPScanOptions) ([]TCPTarget, error) {
+	return client.ScanTCPTargets(ctx, opts)
 }

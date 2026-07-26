@@ -235,8 +235,13 @@ adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
 `adb-go targets` is an adb-go-specific alternative to `adb devices`. It does
 not query the official adb server and does not try to reproduce the official
 state list. Instead, it prints connection selectors that adb-go itself can use:
-`ADB_GO_ADDR` as an explicit TCP target, plus locally discovered Linux USB ADB
+`ADB_GO_ADDR` as an explicit TCP target, optionally scanned local emulator TCP
+ports with `adb-go targets --scan`, plus locally discovered Linux USB ADB
 interfaces when available.
+
+`--scan` probes localhost emulator ADB ports `5555..5585`, odd ports only, with
+a short timeout. This is useful for emulator serials such as `emulator-5554`,
+whose ADB TCP endpoint is normally `127.0.0.1:5555`.
 
 On Linux, pass USB selection flags instead of `--addr`:
 
@@ -282,6 +287,7 @@ replace an existing local destination unless `--overwrite` is provided.
 ```text
 TRANSPORT  SELECTOR                         DETAILS
 tcp        --addr 127.0.0.1:5555            from ADB_GO_ADDR
+tcp        --addr 127.0.0.1:5557            scanned localhost emulator port
 usb        --usb-path /dev/bus/usb/001/002  bus=001 device=002 vid:pid=18d1:4ee7 interface=3 endpoints=in:0x81,out:0x02
 ```
 

@@ -69,6 +69,59 @@ func TestRunUnknownCommand(t *testing.T) {
 	}
 }
 
+func TestRunTargetsScanListsDiscoveredTCPTargets(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	var stdout, stderr bytes.Buffer
+	restoreUSB := replaceListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+		return nil, nil
+	})
+	defer restoreUSB()
+	restoreScan := replaceScanTCPTargets(func(ctx context.Context, opts adb.TCPScanOptions) ([]adb.TCPTarget, error) {
+		return []adb.TCPTarget{{Addr: "127.0.0.1:5555", Host: "127.0.0.1", Port: 5555}, {Addr: "127.0.0.1:5557", Host: "127.0.0.1", Port: 5557, AuthRequired: true}}, nil
+	})
+	defer restoreScan()
+
+	code := run([]string{"targets", "--scan"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(targets --scan) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"TRANSPORT", "tcp\t--addr 127.0.0.1:5555\tscanned localhost emulator port", "tcp\t--addr 127.0.0.1:5557\tscanned localhost emulator port, auth required"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunTargetsReportsScanErrors(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	var stdout, stderr bytes.Buffer
+	restoreUSB := replaceListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+		return nil, nil
+	})
+	defer restoreUSB()
+	restoreScan := replaceScanTCPTargets(func(ctx context.Context, opts adb.TCPScanOptions) ([]adb.TCPTarget, error) {
+		return nil, errors.New("boom")
+	})
+	defer restoreScan()
+
+	code := run([]string{"targets", "--scan"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(targets --scan) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "scan TCP targets: boom") {
+		t.Fatalf("stderr = %q, want scan error", got)
+	}
+}
+
 func TestRunTargetsListsEnvAndUSBTargets(t *testing.T) {
 	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
 	var stdout, stderr bytes.Buffer
@@ -761,4 +814,10 @@ func replaceListUSBDevices(fn func(context.Context) ([]adb.USBDevice, error)) fu
 	old := listUSBDevices
 	listUSBDevices = fn
 	return func() { listUSBDevices = old }
+}
+
+func replaceScanTCPTargets(fn func(context.Context, adb.TCPScanOptions) ([]adb.TCPTarget, error)) func() {
+	old := scanTCPTargets
+	scanTCPTargets = fn
+	return func() { scanTCPTargets = old }
 }
