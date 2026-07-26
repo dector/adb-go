@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -23,6 +24,7 @@ Commands:
   targets     List adb-go connection targets visible locally
   shell       Run a shell command on a connected device
   logcat      Stream Android log output from a connected device
+  getprop     Read Android system properties from a connected device
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -39,6 +41,8 @@ type deviceClient interface {
 	Close() error
 	ShellStream(ctx context.Context, cmd string, stdout io.Writer) error
 	Logcat(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
+	GetProp(ctx context.Context, name string) (string, error)
+	Properties(ctx context.Context) (map[string]string, error)
 	PushFile(ctx context.Context, localPath, remotePath string) error
 	PullFile(ctx context.Context, remotePath, localPath string) error
 	PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
@@ -276,6 +280,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runShell(args[1:], stdout, stderr)
 	case "logcat":
 		return runLogcat(args[1:], stdout, stderr)
+	case "getprop":
+		return runGetProp(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
@@ -391,6 +397,73 @@ func runLogcat(args []string, stdout, stderr io.Writer) int {
 	if err := client.Logcat(context.Background(), stdout, adb.LogcatOptions{Dump: *dump}); err != nil {
 		fmt.Fprintf(stderr, "adb-go logcat: %v\n", err)
 		return 1
+	}
+	return 0
+}
+
+const getPropUsage = `Usage:
+  adb-go getprop (--addr HOST[:PORT] | --usb [USB selection]) [PROPERTY]
+
+Reads Android system properties from the selected ADB device. With PROPERTY,
+prints that single property value. With no PROPERTY, prints all properties in
+stable name order using getprop's standard [name]: [value] format. TCP
+addresses come from --addr, or from ADB_GO_ADDR when --addr is omitted. USB
+support is Linux-only initially. For example:
+
+  adb-go getprop --addr 127.0.0.1:5555 ro.product.model
+  adb-go getprop --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002
+`
+
+func runGetProp(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("getprop", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	fs.Usage = func() { fmt.Fprint(stderr, getPropUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go getprop: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() > 1 {
+		fmt.Fprint(stderr, "adb-go getprop: accepts at most one PROPERTY argument\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	client, err := connectDevice(context.Background(), target)
+	if err != nil {
+		printConnectError(stderr, "getprop", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	if fs.NArg() == 1 {
+		value, err := client.GetProp(context.Background(), fs.Arg(0))
+		if err != nil {
+			fmt.Fprintf(stderr, "adb-go getprop: %v\n", err)
+			return 1
+		}
+		fmt.Fprintln(stdout, value)
+		return 0
+	}
+
+	props, err := client.Properties(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go getprop: %v\n", err)
+		return 1
+	}
+	names := make([]string, 0, len(props))
+	for name := range props {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		fmt.Fprintf(stdout, "[%s]: [%s]\n", name, props[name])
 	}
 	return 0
 }

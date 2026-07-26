@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M41.1 — Add client device property helpers.
+- Current milestone: M41.2 — Add CLI getprop command.
 - Completed milestone range: Milestones 17–40 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, and logcat library/CLI/documentation support.
 - Active focus: add missing non-USB ADB workflows in small library/CLI/docs slices. Start with shell-backed features that fit the current direct-device architecture, then investigate forwarding separately because official `adb forward` semantics usually involve host-side listener behavior.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -146,25 +146,25 @@ Done when:
 
 ### M41.2 — Add CLI getprop command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add getprop command`
 
 Tasks:
 
-- [ ] Add an `adb-go getprop` command.
-- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
-- [ ] With one property argument, print that property value.
-- [ ] With no property argument, print all properties in a stable, readable format.
+- [x] Add an `adb-go getprop` command.
+- [x] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
+- [x] With one property argument, print that property value.
+- [x] With no property argument, print all properties in a stable, readable format.
 
 Tests:
 
-- [ ] CLI tests cover usage, argument validation, connection flag propagation, one-property output, all-property output, and errors.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, argument validation, connection flag propagation, one-property output, all-property output, and errors.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can run `adb-go getprop [connection flags] [PROPERTY]` for common Android property inspection.
+- [x] CLI users can run `adb-go getprop [connection flags] [PROPERTY]` for common Android property inspection.
 
 ### M41.3 — Document property helpers
 

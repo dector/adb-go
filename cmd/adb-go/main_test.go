@@ -610,6 +610,158 @@ func TestRunLogcatReportsStreamingFailure(t *testing.T) {
 	}
 }
 
+func TestRunGetPropMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"getprop", "ro.product.model"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(getprop missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go getprop --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunGetPropRejectsExtraArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"getprop", "--addr", "127.0.0.1:5555", "ro.product.model", "extra"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(getprop extra arg) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "accepts at most one PROPERTY") || !strings.Contains(got, "adb-go getprop --addr") {
+		t.Fatalf("stderr = %q, want arg count usage error", got)
+	}
+}
+
+func TestRunGetPropUsesConnectionFlagsForOneProperty(t *testing.T) {
+	keyPath := writeADBKeyFile(t)
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	var gotName string
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{getProp: func(ctx context.Context, name string) (string, error) {
+			gotName = name
+			return "Pixel Fixture", nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"getprop", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "ro.product.model"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(getprop property) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "Pixel Fixture\n" {
+		t.Fatalf("stdout = %q, want property value", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP target", gotTarget)
+	}
+	if len(gotTarget.auth) != 1 {
+		t.Fatalf("target auth credentials = %d, want 1", len(gotTarget.auth))
+	}
+	if gotName != "ro.product.model" {
+		t.Fatalf("property name = %q, want ro.product.model", gotName)
+	}
+}
+
+func TestRunGetPropUsesUSBConnectionForAllProperties(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{properties: func(ctx context.Context) (map[string]string, error) {
+			return map[string]string{"ro.product.model": "Pixel Fixture", "ro.build.version.sdk": "35"}, nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"getprop", "--usb-path", "/dev/bus/usb/001/002"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(getprop --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+	want := "[ro.build.version.sdk]: [35]\n[ro.product.model]: [Pixel Fixture]\n"
+	if stdout.String() != want {
+		t.Fatalf("stdout = %q, want sorted properties %q", stdout.String(), want)
+	}
+}
+
+func TestRunGetPropReadsOnePropertyThroughADB(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:getprop 'ro.product.model'", writeCLIShellOutput(t, "Pixel Fixture\n"))
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"getprop", "--addr", server.Addr(), "ro.product.model"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(getprop property) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "Pixel Fixture\n" {
+		t.Fatalf("stdout = %q, want property value", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunGetPropReadsAllPropertiesThroughADB(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:getprop", writeCLIShellOutput(t, "[ro.product.model]: [Pixel Fixture]\n[ro.build.version.sdk]: [35]\n"))
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"getprop", "--addr", server.Addr()}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(getprop all) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	want := "[ro.build.version.sdk]: [35]\n[ro.product.model]: [Pixel Fixture]\n"
+	if stdout.String() != want {
+		t.Fatalf("stdout = %q, want sorted properties %q", stdout.String(), want)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunGetPropReportsErrors(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{properties: func(ctx context.Context) (map[string]string, error) {
+			return nil, errors.New("malformed getprop line 1")
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"getprop", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(getprop failure) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "malformed getprop line 1") {
+		t.Fatalf("stderr = %q, want getprop failure", got)
+	}
+}
+
 func TestRunPushMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
@@ -1053,6 +1205,8 @@ func writeADBKeyFile(t testing.TB) string {
 type fakeCLIClient struct {
 	shellOutput           string
 	logcat                func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
+	getProp               func(ctx context.Context, name string) (string, error)
+	properties            func(ctx context.Context) (map[string]string, error)
 	installAPK            func(ctx context.Context, localPath string) error
 	installAPKWithOptions func(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
@@ -1069,6 +1223,20 @@ func (c fakeCLIClient) Logcat(ctx context.Context, stdout io.Writer, opts adb.Lo
 		return c.logcat(ctx, stdout, opts)
 	}
 	return nil
+}
+
+func (c fakeCLIClient) GetProp(ctx context.Context, name string) (string, error) {
+	if c.getProp != nil {
+		return c.getProp(ctx, name)
+	}
+	return "", nil
+}
+
+func (c fakeCLIClient) Properties(ctx context.Context) (map[string]string, error) {
+	if c.properties != nil {
+		return c.properties(ctx)
+	}
+	return nil, nil
 }
 
 func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath string) error { return nil }
