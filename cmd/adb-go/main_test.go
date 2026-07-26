@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1149,6 +1150,158 @@ func TestRunRebootReportsFailure(t *testing.T) {
 	}
 }
 
+func TestRunForwardMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"forward", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(forward missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go forward --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunForwardRejectsWrongArgCount(t *testing.T) {
+	for _, args := range [][]string{
+		{"forward", "--addr", "127.0.0.1:5555", "tcp:9000"},
+		{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000", "extra"},
+	} {
+		var stdout, stderr bytes.Buffer
+
+		code := run(args, &stdout, &stderr)
+
+		if code != 2 {
+			t.Fatalf("run(%v) exit code = %d, want 2", args, code)
+		}
+		if stdout.Len() != 0 {
+			t.Fatalf("stdout = %q, want empty", stdout.String())
+		}
+		if got := stderr.String(); !strings.Contains(got, "requires exactly LOCAL and REMOTE") {
+			t.Fatalf("stderr = %q, want argument count error", got)
+		}
+	}
+}
+
+func TestRunForwardRejectsUnsupportedTargets(t *testing.T) {
+	for _, args := range [][]string{
+		{"forward", "--addr", "127.0.0.1:5555", "localabstract:name", "tcp:8000"},
+		{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "localabstract:name"},
+		{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:0"},
+	} {
+		var stdout, stderr bytes.Buffer
+
+		code := run(args, &stdout, &stderr)
+
+		if code != 2 {
+			t.Fatalf("run(%v) exit code = %d, want 2", args, code)
+		}
+		if stdout.Len() != 0 {
+			t.Fatalf("stdout = %q, want empty", stdout.String())
+		}
+		if got := stderr.String(); !strings.Contains(got, "forward target") && !strings.Contains(got, "out of range") {
+			t.Fatalf("stderr = %q, want target validation error", got)
+		}
+	}
+}
+
+func TestRunForwardUsesConnectionFlagsAndStartsForegroundSession(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{}, nil
+	})
+	defer restoreConnect()
+	var gotLocal string
+	restoreForward := replaceStartForward(func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+		gotLocal = localAddr
+		return fakeForwardSession{addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000}}, nil
+	})
+	defer restoreForward()
+
+	code := run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP addr", gotTarget)
+	}
+	if gotLocal != "127.0.0.1:9000" {
+		t.Fatalf("localAddr = %q, want 127.0.0.1:9000", gotLocal)
+	}
+	if got := stdout.String(); !strings.Contains(got, "Forwarding 127.0.0.1:9000 -> tcp:8000") || !strings.Contains(got, "Ctrl+C") {
+		t.Fatalf("stdout = %q, want foreground forward status", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunForwardUsesUSBConnection(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{}, nil
+	})
+	defer restoreConnect()
+	restoreForward := replaceStartForward(func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+		return fakeForwardSession{addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 7777}}, nil
+	})
+	defer restoreForward()
+
+	code := run([]string{"forward", "--usb-path", "/dev/bus/usb/001/002", "tcp:0", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(forward --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+}
+
+func TestRunForwardReportsSetupAndWaitErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		startErr   error
+		waitErr    error
+		wantSubstr string
+	}{
+		{name: "setup", startErr: errors.New("listen denied"), wantSubstr: "listen denied"},
+		{name: "wait", waitErr: errors.New("accept failed"), wantSubstr: "accept failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+				return fakeCLIClient{}, nil
+			})
+			defer restoreConnect()
+			restoreForward := replaceStartForward(func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+				if tc.startErr != nil {
+					return nil, tc.startErr
+				}
+				return fakeForwardSession{addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000}, waitErr: tc.waitErr}, nil
+			})
+			defer restoreForward()
+
+			code := run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+
+			if code != 1 {
+				t.Fatalf("run(forward %s error) exit code = %d, want 1", tc.name, code)
+			}
+			if got := stderr.String(); !strings.Contains(got, tc.wantSubstr) {
+				t.Fatalf("stderr = %q, want %q", got, tc.wantSubstr)
+			}
+		})
+	}
+}
+
 func TestParseRebootMode(t *testing.T) {
 	tests := []struct {
 		value string
@@ -1623,6 +1776,15 @@ func writeADBKeyFile(t testing.TB) string {
 	return path
 }
 
+type fakeForwardSession struct {
+	addr    net.Addr
+	waitErr error
+}
+
+func (f fakeForwardSession) LocalAddr() net.Addr { return f.addr }
+func (f fakeForwardSession) Close() error        { return nil }
+func (f fakeForwardSession) Wait() error         { return f.waitErr }
+
 type fakeCLIClient struct {
 	shellOutput           string
 	logcat                func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
@@ -1714,6 +1876,12 @@ func replaceScanTCPTargets(fn func(context.Context, adb.TCPScanOptions) ([]adb.T
 	old := scanTCPTargets
 	scanTCPTargets = fn
 	return func() { scanTCPTargets = old }
+}
+
+func replaceStartForward(fn func(context.Context, deviceClient, string, adb.ForwardTarget) (forwardSession, error)) func() {
+	old := startForward
+	startForward = fn
+	return func() { startForward = old }
 }
 
 func replaceCurrentTime(fn func() time.Time) func() {

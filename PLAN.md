@@ -392,25 +392,25 @@ Done when:
 
 ### M44.3 — Add CLI forward command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add forward command`
 
 Tasks:
 
-- [ ] Add an `adb-go forward` command based on the client forwarding API.
-- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
-- [ ] Support only the remote/local target forms implemented by the library.
-- [ ] Make foreground lifetime and shutdown behavior explicit.
+- [x] Add an `adb-go forward` command based on the client forwarding API.
+- [x] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
+- [x] Support only the remote/local target forms implemented by the library.
+- [x] Make foreground lifetime and shutdown behavior explicit.
 
 Tests:
 
-- [ ] CLI tests cover usage, argument validation, connection flag propagation, successful forward setup, and errors.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, argument validation, connection flag propagation, successful forward setup, and errors.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can start a supported adb-go forwarding session with clear lifecycle behavior.
+- [x] CLI users can start a supported adb-go forwarding session with clear lifecycle behavior.
 
 ### M44.4 — Document forwarding support and limitations
 

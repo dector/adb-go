@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"os/signal"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,6 +30,7 @@ Commands:
   getprop     Read Android system properties from a connected device
   screencap   Save a PNG screenshot from a connected device
   reboot      Reboot a connected device
+  forward     Forward local TCP connections to a device TCP endpoint
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -85,6 +88,22 @@ var connectDevice = func(ctx context.Context, target connectionTarget) (deviceCl
 var listUSBDevices = adb.ListUSBDevices
 var scanTCPTargets = adb.ScanTCPTargets
 var currentTime = time.Now
+
+type forwardSession interface {
+	LocalAddr() net.Addr
+	Close() error
+	Wait() error
+}
+
+var startForward = func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+	forwarder, ok := client.(interface {
+		ForwardLocalTCP(context.Context, string, adb.ForwardTarget) (*adb.Forward, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("connected client does not support forwarding")
+	}
+	return forwarder.ForwardLocalTCP(ctx, localAddr, remote)
+}
 
 func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
 	return connectionOptions{
@@ -292,6 +311,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runScreencap(args[1:], stdout, stderr)
 	case "reboot":
 		return runReboot(args[1:], stdout, stderr)
+	case "forward":
+		return runForward(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
@@ -647,6 +668,118 @@ func parseRebootMode(value string) (adb.RebootMode, error) {
 	default:
 		return "", fmt.Errorf("unsupported reboot mode %q; supported modes are normal, bootloader, recovery", value)
 	}
+}
+
+const forwardUsage = `Usage:
+  adb-go forward (--addr HOST[:PORT] | --usb [USB selection]) tcp:LOCAL_PORT tcp:REMOTE_PORT
+
+Starts foreground, process-scoped forwarding from a local TCP listener to a
+TCP endpoint on the selected device. This differs from official "adb forward":
+adb-go does not register persistent mappings in an adb server. The forward
+exists only while this command keeps running; stop the process to remove it.
+
+Use tcp:0 as LOCAL_PORT to ask the OS for an available local port. adb-go
+prints the bound local listener address before it starts waiting. For example:
+
+  adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:8000
+  adb-go forward --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 tcp:0 tcp:8000
+`
+
+func runForward(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("forward", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	fs.Usage = func() { fmt.Fprint(stderr, forwardUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() != 2 {
+		fmt.Fprint(stderr, "adb-go forward: requires exactly LOCAL and REMOTE targets\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	localAddr, err := parseForwardLocalTCP(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	remote, err := parseForwardRemoteTCP(fs.Arg(1))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	client, err := connectDevice(ctx, target)
+	if err != nil {
+		printConnectError(stderr, "forward", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	forward, err := startForward(ctx, client, localAddr, remote)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: %v\n", err)
+		return 1
+	}
+	defer forward.Close()
+	fmt.Fprintf(stdout, "Forwarding %s -> %s. Press Ctrl+C to stop.\n", forward.LocalAddr(), fs.Arg(1))
+
+	if err := forward.Wait(); err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func parseForwardLocalTCP(value string) (string, error) {
+	port, err := parseForwardTCPPort("local", value)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("127.0.0.1:%d", port), nil
+}
+
+func parseForwardRemoteTCP(value string) (adb.ForwardTarget, error) {
+	port, err := parseForwardTCPPort("remote", value)
+	if err != nil {
+		return adb.ForwardTarget{}, err
+	}
+	remote, err := adb.ForwardTCP(port)
+	if err != nil {
+		return adb.ForwardTarget{}, err
+	}
+	return remote, nil
+}
+
+func parseForwardTCPPort(kind, value string) (int, error) {
+	if !strings.HasPrefix(value, "tcp:") {
+		return 0, fmt.Errorf("unsupported %s forward target %q; only tcp:PORT is supported", kind, value)
+	}
+	portText := strings.TrimSpace(strings.TrimPrefix(value, "tcp:"))
+	if portText == "" {
+		return 0, fmt.Errorf("missing %s tcp port in %q", kind, value)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s tcp port in %q", kind, value)
+	}
+	if port < 0 || port > 65535 || (kind == "remote" && port == 0) {
+		return 0, fmt.Errorf("%s tcp port %d out of range", kind, port)
+	}
+	return port, nil
 }
 
 const pushUsage = `Usage:
