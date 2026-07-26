@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: None. The planned ADB authentication slice is complete.
+- Current milestone: Milestone 35 — Add client APK install helper.
 - Completed milestone range: Milestones 17–34 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, and explicit ADB authentication support.
-- Active focus: choose and promote the next deferred milestone before implementation begins.
+- Active focus: implement an adb-go-specific alternative to `adb install` in small slices: first a library helper, then a CLI command, then documentation.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -44,117 +44,74 @@ Milestone rules:
 - Use the listed Conventional Commit message, or update the milestone before committing if the scope changes.
 - Do not keep fully implemented milestone bodies in this file long term; summarize completed ranges in `Progress` instead.
 
-## Milestone 30 — Add authentication package and explicit credential loading
+## Milestone 35 — Add client APK install helper
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(auth): add adb rsa key loading`
-
-Tasks:
-
-- [x] Add an `auth` package that represents ADB host credentials without coupling them to TCP, USB, or the high-level client.
-- [x] Load unencrypted RSA private keys from explicit filesystem paths, supporting the private-key encodings used by common `~/.android/adbkey` files.
-- [x] Generate the ADB public-key payload expected by `AUTH` public-key exchange, including the trailing NUL required on the wire.
-- [x] Keep key loading explicit; do not create, persist, rotate, or discover keys in this milestone.
-
-Tests:
-
-- [x] Unit tests cover valid key loading, unsupported/malformed key files, and deterministic ADB public-key payload generation.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] Callers can load an existing ADB RSA private key and obtain a signer/public-key payload suitable for a later protocol handshake milestone.
-
-## Milestone 31 — Add authenticated protocol handshake
-
-Status: Implemented
-
-Commit: `feat(protocol): add adb authentication handshake`
+Commit: `feat(client): add apk install helper`
 
 Tasks:
 
-- [x] Add protocol-level handshake options for supplying one or more auth signers/public keys while preserving the existing unauthenticated `Handshake(ctx)` behavior.
-- [x] Handle `AUTH TOKEN` by sending an `AUTH SIGNATURE` response and continue the handshake until `CNXN`, another auth challenge, or rejection.
-- [x] Handle public-key offer fallback with `AUTH RSAPUBLICKEY` when configured and document when callers should expect the device authorization prompt.
-- [x] Preserve `ErrAuthRequired` for missing credentials, unsupported auth packets, exhausted credentials, or peers that never complete authentication.
-- [x] Extend `internal/fakeadb` so tests can require AUTH before CNXN.
+- [ ] Add a high-level client method for installing one local APK without exposing it as a full official-`adb install` clone.
+- [ ] Implement the install flow using existing primitives: push the APK to a generated path under `/data/local/tmp`, run `pm install` through `shell:`, then best-effort remove the temporary APK.
+- [ ] Add a small options type for intentionally supported install behavior, initially including replace-existing-app support only if it can map cleanly to `pm install -r`.
+- [ ] Keep caller-controlled local paths and package manager output explicit; do not add broad official adb flag compatibility in this milestone.
+- [ ] Re-export the stable install API from the root package if it is part of the high-level API.
 
 Tests:
 
-- [x] Protocol tests cover successful token signing, public-key fallback, no-credential `ErrAuthRequired`, rejected credentials, and malformed AUTH packets.
-- [x] `go test ./...` passes
+- [ ] Client tests cover successful push/install/cleanup service flow using `internal/fakeadb`.
+- [ ] Client tests cover package-manager failure output returning a useful error.
+- [ ] Client tests cover cleanup being attempted after install failure.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] A protocol connection can complete the CNXN handshake against an auth-requiring fake ADB peer when supplied valid explicit credentials.
+- [ ] Library callers can install one APK on a connected device through adb-go's high-level client API, with clear limitations and no dependency on the official `adb` binary.
 
-## Milestone 32 — Expose authentication through the high-level client
+## Milestone 36 — Add CLI install-apk command
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(client): add authenticated connect options`
+Commit: `feat(cli): add install-apk command`
 
 Tasks:
 
-- [x] Add client connection options that allow callers to provide explicit auth credentials for both TCP and USB connection paths.
-- [x] Preserve existing `Connect`, `ConnectTCP`, and USB helper defaults so callers that do not opt into auth still see `ErrAuthRequired`.
-- [x] Re-export the stable auth types or constructors from the root package when they are part of the high-level API.
-- [x] Add examples showing explicit key loading and authenticated connection without implying command/path safety guarantees.
+- [ ] Add an `adb-go install-apk` command as the adb-go-specific alternative to `adb install`.
+- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as `shell`, `push`, and `pull`.
+- [ ] Accept exactly one local APK path, plus only the install options implemented by the client helper.
+- [ ] Print package-manager failure output clearly without implying compatibility with every official `adb install` flag.
 
 Tests:
 
-- [x] Client tests cover TCP and fake USB/auth transport success with credentials and `ErrAuthRequired` without credentials.
-- [x] Example tests compile.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover usage, argument validation, connection flag propagation, success, and install failure messaging.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Application code can authenticate to TCP or USB devices by loading credentials explicitly and passing them through the high-level API.
+- [ ] CLI users can run `adb-go install-apk [connection flags] LOCAL_APK` to install one APK through supported adb-go transports.
 
-## Milestone 33 — Add CLI authentication support
+## Milestone 37 — Document APK installation support and limitations
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add adb auth key option`
+Commit: `docs: document apk install command`
 
 Tasks:
 
-- [x] Add a CLI flag for an explicit ADB private key path and thread it through every command that opens a device connection.
-- [x] Keep default CLI behavior unchanged when no key flag is supplied.
-- [x] Return a clear user-facing error when a device requires auth and no key was supplied, or when the supplied key cannot authenticate.
-- [x] Avoid writing or generating key material from the CLI in this milestone.
+- [ ] Update README command examples and limitations to mention `install-apk` as an adb-go-specific alternative to `adb install`.
+- [ ] Update `client/README.md` with the library install helper, temporary push behavior, cleanup behavior, and supported options.
+- [ ] Update `cmd/adb-go/README.md` with CLI usage, examples for TCP/USB/auth, and a clear non-goal list for unsupported official `adb install` flags.
+- [ ] Document security considerations: local APK path is caller-controlled, install effects happen on the connected device, and package-manager output comes from the device.
 
 Tests:
 
-- [x] CLI tests cover key flag parsing, propagation to connection setup, and no-key `ErrAuthRequired` messaging.
-- [x] `go test ./...` passes
+- [ ] Documentation examples compile where applicable.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] CLI users can run existing supported commands against auth-requiring devices by explicitly providing an existing ADB private key.
-
-## Milestone 34 — Document authentication setup and limitations
-
-Status: Implemented
-
-Commit: `docs: document adb authentication setup`
-
-Tasks:
-
-- [x] Update README examples and limitations to describe explicit authentication support for TCP and Linux USB.
-- [x] Add docs explaining how ADB authentication works at a high level: token challenge, RSA signature, public-key authorization prompt, and final CNXN.
-- [x] Document supported key formats, explicit key-path usage in library and CLI, and unsupported behaviors such as key generation or keychain integration.
-- [x] Explain security considerations: key files are sensitive, commands and paths are caller-controlled, and adb-go does not log by default.
-
-Tests:
-
-- [x] Documentation examples compile where applicable.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] Users can understand when authentication is needed, how to supply an existing key, and what adb-go intentionally does not manage.
+- [ ] Users can discover how to install one APK with adb-go and understand how it differs from the official `adb install` command.
 
 ## Deferred milestones
 
