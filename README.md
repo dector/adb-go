@@ -255,7 +255,15 @@ adb-go daemon service install
 This writes `~/.config/systemd/user/adb-god.service`, reloads the user systemd
 manager, and runs `systemctl --user enable --now adb-god.service`. Pass
 `--adb-god PATH` if the daemon binary is not on `PATH`, and pass `--socket PATH`
-when the service should use a non-default control socket.
+when the service should use a non-default control socket. The same service group
+also supports host-service lifecycle commands:
+
+```sh
+adb-go daemon service start
+adb-go daemon service stop
+adb-go daemon service restart
+adb-go daemon service uninstall
+```
 
 The socket path is selected in this order: an explicit CLI `--socket` path where
 accepted, `ADB_GO_DAEMON_SOCKET`, `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, then a

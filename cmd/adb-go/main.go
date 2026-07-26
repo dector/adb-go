@@ -446,11 +446,14 @@ const daemonServiceUsage = `Usage:
 
 Manages adb-god's host service-manager integration. Currently implemented:
 
-  install  Install and start adb-god as a systemd user service on Linux
+  install    Install and start adb-god as a systemd user service on Linux
+  start      Start adb-god.service with systemd --user
+  stop       Stop adb-god.service with systemd --user
+  restart    Restart adb-god.service with systemd --user
+  uninstall  Disable, stop, and remove the systemd user service
 
-The nested service shape leaves room for later service lifecycle commands such
-as start, stop, restart, and uninstall without mixing them with daemon protocol
-commands like ping/status/shutdown.
+These host service commands are separate from daemon protocol commands like
+ping/status/shutdown.
 `
 
 const daemonServiceInstallUsage = `Usage:
@@ -462,6 +465,21 @@ reloads the user systemd manager and enables/starts the service with:
 
   systemctl --user daemon-reload
   systemctl --user enable --now adb-god.service
+`
+
+const daemonServiceLifecycleUsage = `Usage:
+  adb-go daemon service COMMAND [--systemctl PATH]
+
+Starts, stops, or restarts adb-god.service using systemd --user. COMMAND must be
+start, stop, or restart.
+`
+
+const daemonServiceUninstallUsage = `Usage:
+  adb-go daemon service uninstall [--unit-dir DIR] [--systemctl PATH] [--keep-unit]
+
+Disables and stops adb-god.service using systemd --user, removes the systemd
+user unit file, and reloads the user systemd manager. Use --keep-unit to leave
+the unit file in place after disabling/stopping the service.
 `
 
 func runDaemonService(args []string, socketPath string, stdout, stderr io.Writer) int {
@@ -482,6 +500,10 @@ func runDaemonService(args []string, socketPath string, stdout, stderr io.Writer
 	switch command {
 	case "install":
 		return runDaemonServiceInstall(commandArgs, socketPath, stdout, stderr)
+	case "start", "stop", "restart":
+		return runDaemonServiceLifecycle(command, commandArgs, stdout, stderr)
+	case "uninstall":
+		return runDaemonServiceUninstall(commandArgs, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "adb-go daemon service: unknown service command %q\n\n", command)
 		fs.Usage()
@@ -545,6 +567,89 @@ func runDaemonServiceInstall(args []string, socketPath string, stdout, stderr io
 		fmt.Fprintln(stdout, "systemctl enable/start skipped")
 	} else {
 		fmt.Fprintln(stdout, "adb-god.service enabled and started for the current user")
+	}
+	return 0
+}
+
+func runDaemonServiceLifecycle(command string, args []string, stdout, stderr io.Writer) int {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintf(stderr, "adb-go daemon service %s: systemd user services are supported on Linux only\n", command)
+		return 1
+	}
+	fs := flag.NewFlagSet("daemon service "+command, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	systemctlFlag := fs.String("systemctl", "systemctl", "systemctl binary path")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonServiceLifecycleUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon service %s: unexpected arguments %q\n\n", command, fs.Args())
+		fs.Usage()
+		return 2
+	}
+	if code := runSystemctlUser(stderr, *systemctlFlag, command, "adb-god.service"); code != 0 {
+		return code
+	}
+	fmt.Fprintf(stdout, "adb-god.service %s\n", serviceLifecyclePastTense(command))
+	return 0
+}
+
+func serviceLifecyclePastTense(command string) string {
+	switch command {
+	case "start":
+		return "started"
+	case "stop":
+		return "stopped"
+	case "restart":
+		return "restarted"
+	default:
+		return command
+	}
+}
+
+func runDaemonServiceUninstall(args []string, stdout, stderr io.Writer) int {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintln(stderr, "adb-go daemon service uninstall: systemd user services are supported on Linux only")
+		return 1
+	}
+	fs := flag.NewFlagSet("daemon service uninstall", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	unitDirFlag := fs.String("unit-dir", "", "systemd user unit directory")
+	systemctlFlag := fs.String("systemctl", "systemctl", "systemctl binary path")
+	keepUnitFlag := fs.Bool("keep-unit", false, "disable and stop the service but do not remove the unit file")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonServiceUninstallUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon service uninstall: unexpected arguments %q\n\n", fs.Args())
+		fs.Usage()
+		return 2
+	}
+
+	if code := runSystemctlUser(stderr, *systemctlFlag, "disable", "--now", "adb-god.service"); code != 0 {
+		return code
+	}
+	unitDir, err := systemdUserUnitDir(strings.TrimSpace(*unitDirFlag))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service uninstall: %v\n", err)
+		return 1
+	}
+	unitPath := filepath.Join(unitDir, "adb-god.service")
+	if !*keepUnitFlag {
+		if err := os.Remove(unitPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(stderr, "adb-go daemon service uninstall: remove %s: %v\n", unitPath, err)
+			return 1
+		}
+	}
+	if code := runSystemctlUser(stderr, *systemctlFlag, "daemon-reload"); code != 0 {
+		return code
+	}
+	if *keepUnitFlag {
+		fmt.Fprintln(stdout, "adb-god.service disabled and stopped; unit file kept")
+	} else {
+		fmt.Fprintf(stdout, "adb-god.service disabled and stopped; removed %s\n", unitPath)
 	}
 	return 0
 }

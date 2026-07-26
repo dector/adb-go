@@ -398,6 +398,10 @@ adb-go daemon ping
 adb-go daemon status
 adb-go daemon stop
 adb-go daemon service install
+adb-go daemon service start
+adb-go daemon service stop
+adb-go daemon service restart
+adb-go daemon service uninstall
 ```
 
 `ping` is a liveness check. It sends a protocol `ping` request and prints
@@ -458,6 +462,21 @@ bake a non-default socket path into the unit:
 ```sh
 adb-go daemon --socket /tmp/adb-go-demo/adb-god.sock service install --adb-god /usr/local/bin/adb-god
 ```
+
+The service group also wraps common systemd user lifecycle operations:
+
+```sh
+adb-go daemon service start
+adb-go daemon service stop
+adb-go daemon service restart
+adb-go daemon service uninstall
+```
+
+`service uninstall` runs `systemctl --user disable --now adb-god.service`,
+removes the user unit file, then runs `systemctl --user daemon-reload`. These
+service commands manage the host systemd unit. They are different from
+`adb-go daemon stop`, which sends a graceful shutdown request to the currently
+running daemon over the daemon socket protocol.
 
 The initial daemon is deliberately minimal. It is not the official adb server,
 it does not keep ADB devices,

@@ -178,6 +178,82 @@ func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
 	}
 }
 
+func TestRunDaemonServiceLifecycleCommands(t *testing.T) {
+	for _, tc := range []struct {
+		command string
+		stdout  string
+	}{
+		{command: "start", stdout: "adb-god.service started"},
+		{command: "stop", stdout: "adb-god.service stopped"},
+		{command: "restart", stdout: "adb-god.service restarted"},
+	} {
+		t.Run(tc.command, func(t *testing.T) {
+			systemctlLog := filepath.Join(t.TempDir(), "systemctl.log")
+			systemctlPath := writeFakeSystemctl(t, systemctlLog)
+
+			var stdout, stderr bytes.Buffer
+			code := run([]string{"daemon", "service", tc.command, "--systemctl", systemctlPath}, &stdout, &stderr)
+			if code != 0 {
+				t.Fatalf("run(daemon service %s) exit code = %d, want 0; stderr = %q", tc.command, code, stderr.String())
+			}
+			logBytes, err := os.ReadFile(systemctlLog)
+			if err != nil {
+				t.Fatalf("read systemctl log: %v", err)
+			}
+			wantLog := "--user " + tc.command + " adb-god.service\n"
+			if string(logBytes) != wantLog {
+				t.Fatalf("systemctl log = %q, want %q", string(logBytes), wantLog)
+			}
+			if strings.TrimSpace(stdout.String()) != tc.stdout {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), tc.stdout)
+			}
+		})
+	}
+}
+
+func TestRunDaemonServiceUninstallDisablesStopsRemovesUnitAndReloads(t *testing.T) {
+	unitDir := filepath.Join(t.TempDir(), "units")
+	if err := os.MkdirAll(unitDir, 0o755); err != nil {
+		t.Fatalf("create unit dir: %v", err)
+	}
+	unitPath := filepath.Join(unitDir, "adb-god.service")
+	if err := os.WriteFile(unitPath, []byte("[Service]\n"), 0o644); err != nil {
+		t.Fatalf("write unit: %v", err)
+	}
+	systemctlLog := filepath.Join(t.TempDir(), "systemctl.log")
+	systemctlPath := writeFakeSystemctl(t, systemctlLog)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "service", "uninstall", "--unit-dir", unitDir, "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon service uninstall) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if _, err := os.Stat(unitPath); !os.IsNotExist(err) {
+		t.Fatalf("unit after uninstall: err = %v, want not exist", err)
+	}
+	logBytes, err := os.ReadFile(systemctlLog)
+	if err != nil {
+		t.Fatalf("read systemctl log: %v", err)
+	}
+	got := string(logBytes)
+	if !strings.Contains(got, "--user disable --now adb-god.service\n") || !strings.Contains(got, "--user daemon-reload\n") {
+		t.Fatalf("systemctl log = %q, want disable --now and daemon-reload", got)
+	}
+	if !strings.Contains(stdout.String(), "disabled and stopped") || !strings.Contains(stdout.String(), "removed "+unitPath) {
+		t.Fatalf("stdout = %q, want uninstall message", stdout.String())
+	}
+}
+
+func writeFakeSystemctl(t *testing.T, logPath string) string {
+	t.Helper()
+	systemctlPath := filepath.Join(t.TempDir(), "systemctl")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + strconv.Quote(logPath) + "\n"
+	if err := os.WriteFile(systemctlPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake systemctl: %v", err)
+	}
+	return systemctlPath
+}
+
 func startDaemonCommandTestServer(t *testing.T) (*daemon.Server, string, func()) {
 	t.Helper()
 	socketPath := filepath.Join(t.TempDir(), "adb-god.sock")

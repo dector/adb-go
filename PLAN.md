@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M46 — Install adb-god as a systemd user service.
+- Current milestone: M47 — Manage adb-god systemd user service lifecycle.
 - Completed milestone range: Milestones 17–45 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, and the minimal adb-god daemon foundation.
-- Active focus: add a Linux systemd user-service installer for the existing minimal `adb-god` daemon without adding daemon-owned ADB persistence.
+- Active focus: complete Linux systemd user-service lifecycle controls for the existing minimal `adb-god` daemon without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -162,6 +162,28 @@ Tests:
 Done when:
 
 - [x] Linux users can install and start the minimal adb-god daemon as a current-user systemd service with `adb-go daemon service install`.
+
+## M47 — Manage adb-god systemd user service lifecycle
+
+Status: Implemented
+
+Commit: `feat(cli): manage daemon systemd user service`
+
+Tasks:
+
+- [x] Add `adb-go daemon service start`, `stop`, and `restart` wrappers for systemd user services.
+- [x] Add `adb-go daemon service uninstall` to disable/stop the user service, remove the unit file, and reload systemd.
+- [x] Keep host service lifecycle commands separate from daemon socket protocol commands.
+- [x] Document the service lifecycle commands in README and CLI docs.
+
+Tests:
+
+- [x] CLI tests cover systemctl invocations for start, stop, restart, and uninstall using isolated fake systemctl paths.
+- [x] `go test ./...` passes
+
+Done when:
+
+- [x] Linux users can install, start, stop, restart, and uninstall the adb-god systemd user service from the `adb-go daemon service ...` command group.
 
 ## Deferred milestones
 
