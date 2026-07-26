@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M45.1 — Define adb-god daemon socket protocol and paths.
+- Current milestone: M45.2 — Add adb-god daemon server.
 - Completed milestone range: Milestones 17–44 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, and foreground port forwarding support.
 - Active focus: add the minimal daemon foundation for future persistence: an `adb-god` daemon process, a Unix domain socket control channel, and `adb-go daemon` CLI controls. Do not add persistent device/session functionality yet.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -51,25 +51,25 @@ Goal: introduce the `adb-god` daemon process and a Unix domain socket control pa
 
 ### M45.1 — Define adb-god daemon socket protocol and paths
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs(daemon): design adb-god socket foundation`
 
 Tasks:
 
-- [ ] Decide default Unix socket path behavior, including an override for tests and non-default installations.
-- [ ] Define the minimal request/response protocol needed only for daemon control, such as ping/status/shutdown.
-- [ ] Define daemon lifecycle semantics and explicit non-goals for the first daemon slice.
-- [ ] Document that the daemon does not yet own devices, transports, forwards, or other persistent adb-go functionality.
+- [x] Decide default Unix socket path behavior, including an override for tests and non-default installations.
+- [x] Define the minimal request/response protocol needed only for daemon control, such as ping/status/shutdown.
+- [x] Define daemon lifecycle semantics and explicit non-goals for the first daemon slice.
+- [x] Document that the daemon does not yet own devices, transports, forwards, or other persistent adb-go functionality.
 
 Tests:
 
-- [ ] No code tests required unless the design milestone includes small exploratory tests.
-- [ ] `go test ./...` passes
+- [x] No code tests required unless the design milestone includes small exploratory tests.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] The daemon foundation has a concrete, reviewable design that can be implemented without adding feature persistence.
+- [x] The daemon foundation has a concrete, reviewable design that can be implemented without adding feature persistence.
 
 ### M45.2 — Add adb-god daemon server
 

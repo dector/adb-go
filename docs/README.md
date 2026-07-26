@@ -15,6 +15,8 @@ transport behavior.
 
 - [`authentication.md`](authentication.md) - ADB `AUTH` flow, supported key
   formats, and explicit credential handling.
+- [`daemon-foundation.md`](daemon-foundation.md) - `adb-god` Unix socket path,
+  control protocol, lifecycle semantics, and initial non-goals.
 - [`forwarding-design.md`](forwarding-design.md) - direct-device forwarding
   design, official `adb forward` differences, and proposed library/CLI shape.
 - [`linux-usb-transport.md`](linux-usb-transport.md) - Linux usbfs discovery,
@@ -35,6 +37,10 @@ The codebase is split into a small set of packages:
   handshake support, and stream demultiplexing. It is useful for tests,
   debugging, and advanced protocol work, but it may be less stable than the
   root/client API during v0 development.
+- Future command package `cmd/adb-god` will contain the minimal daemon process
+  described in [`daemon-foundation.md`](daemon-foundation.md). The first daemon
+  slice is only a local control process and does not own devices, transports,
+  forwards, sessions, or authentication state.
 - Package `internal/usb` contains the Linux usbfs discovery and bulk endpoint
   transport implementation behind Linux build tags, plus unsupported-platform
   stubs for other operating systems.
@@ -86,3 +92,6 @@ callers can set deadlines or cancel work.
   future APIs.
 - Forwarding is designed as foreground, process-scoped local listener management
   rather than official adb-server-style persistent forwarding state.
+- The planned `adb-god` daemon foundation defines only a Unix socket control
+  channel for ping, status, and shutdown. It does not yet provide persistent ADB
+  functionality.
