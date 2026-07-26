@@ -55,6 +55,49 @@ func TestRunShowsUsageForHelp(t *testing.T) {
 	}
 }
 
+func TestRunVersionPrintsDevelopmentBuildInfo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"version"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(version) exit code = %d, want 0", code)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"adb-go: dev\n", "go: ", "os: ", "arch: "} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestFormatVersion(t *testing.T) {
+	got := formatVersion(versionInfo{Version: "v1.2.3", GoVersion: "go1.25.0", GOOS: "linux", GOARCH: "amd64"})
+	want := "adb-go: v1.2.3\ngo: go1.25.0\nos: linux\narch: amd64\n"
+	if got != want {
+		t.Fatalf("formatVersion() = %q, want %q", got, want)
+	}
+}
+
+func TestRunVersionRejectsArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"version", "extra"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(version extra) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "unexpected arguments") || !strings.Contains(got, "Usage:") {
+		t.Fatalf("stderr = %q, want unexpected-arguments error and usage", got)
+	}
+}
+
 func TestRunUnknownCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 

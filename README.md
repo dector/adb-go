@@ -205,6 +205,7 @@ a full clone of the official `adb` command.
 ```sh
 go install github.com/dector/adb-go/cmd/adb-go@latest
 
+adb-go version
 adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
@@ -218,6 +219,11 @@ adb-go reboot --addr 127.0.0.1:5555
 adb-go reboot --addr 127.0.0.1:5555 recovery
 adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 ```
+
+`adb-go version` prints the adb-go build version, Go runtime version, target OS,
+and target architecture. Development builds report `dev`; release builds can
+inject a concrete value with Go's standard linker flags, for example
+`go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go`.
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
 

@@ -11,6 +11,7 @@ clone of the official `adb` command.
 - [USB targets](#usb-targets)
 - [Authentication](#authentication)
 - [Commands](#commands)
+  - [`version`](#version)
   - [`targets`](#targets)
   - [`shell`](#shell)
   - [`push` and `pull`](#push-and-pull)
@@ -41,6 +42,7 @@ From a local checkout, run the CLI without installing:
 
 ```sh
 go run ./cmd/adb-go help
+go run ./cmd/adb-go version
 ```
 
 ## Target selection
@@ -129,7 +131,26 @@ Device workflow commands such as `shell`, `push`, `pull`, `install-apk`,
 `getprop`, `logcat`, `screencap`, `reboot`, and `forward` connect directly to an
 explicit TCP or Linux USB target. The `daemon` command is different: it talks to
 the local `adb-god` control socket and does not select or operate on an Android
-device.
+device. The `version` command is host-only and performs no ADB or daemon I/O.
+
+### `version`
+
+`adb-go version` prints concise build and runtime information for support
+requests:
+
+```text
+adb-go: dev
+go: go1.25.0
+os: linux
+arch: amd64
+```
+
+Development builds use `dev` as the adb-go version fallback. Release builds can
+inject a concrete version with Go's standard linker variable support:
+
+```sh
+go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go
+```
 
 ### `targets`
 

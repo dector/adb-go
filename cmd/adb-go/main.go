@@ -28,6 +28,7 @@ Usage:
 
 Commands:
   help        Show this help message
+  version     Print adb-go build and runtime information
   targets     List adb-go connection targets visible locally
   shell       Run a shell command on a connected device
   logcat      Stream Android log output from a connected device
@@ -93,6 +94,12 @@ var connectDevice = func(ctx context.Context, target connectionTarget) (deviceCl
 var listUSBDevices = adb.ListUSBDevices
 var scanTCPTargets = adb.ScanTCPTargets
 var currentTime = time.Now
+
+// version is intentionally a package variable so release builds can inject a
+// concrete value with Go's standard linker flag, for example:
+//
+//	go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go
+var version = "dev"
 
 type forwardSession interface {
 	LocalAddr() net.Addr
@@ -304,6 +311,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return 0
+	case "version":
+		return runVersion(args[1:], stdout, stderr)
 	case "targets":
 		return runTargets(args[1:], stdout, stderr)
 	case "shell":
@@ -331,6 +340,51 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
+}
+
+type versionInfo struct {
+	Version   string
+	GoVersion string
+	GOOS      string
+	GOARCH    string
+}
+
+func currentVersionInfo() versionInfo {
+	return versionInfo{
+		Version:   version,
+		GoVersion: runtime.Version(),
+		GOOS:      runtime.GOOS,
+		GOARCH:    runtime.GOARCH,
+	}
+}
+
+func formatVersion(info versionInfo) string {
+	return fmt.Sprintf("adb-go: %s\ngo: %s\nos: %s\narch: %s\n", info.Version, info.GoVersion, info.GOOS, info.GOARCH)
+}
+
+const versionUsage = `Usage:
+  adb-go version
+
+Prints concise adb-go build and Go runtime information for support requests.
+Release builds can set the adb-go version at build time with:
+
+  go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go
+`
+
+func runVersion(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() { fmt.Fprint(stderr, versionUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprint(stderr, "adb-go version: unexpected arguments\n\n")
+		fs.Usage()
+		return 2
+	}
+	fmt.Fprint(stdout, formatVersion(currentVersionInfo()))
+	return 0
 }
 
 func printConnectError(stderr io.Writer, command, description string, err error) {

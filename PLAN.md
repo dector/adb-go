@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M49 — Add daemon diagnostics command.
-- Completed milestone range: Milestones 17–48 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, and Linux systemd user-service status reporting.
+- Current milestone: M52 — Add CLI version reporting.
+- Completed milestone range: Milestones 17–51 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, and daemon service reinstall.
 - Active focus: improve observability and supportability around the existing minimal `adb-god` daemon and CLI without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -121,26 +121,26 @@ Done when:
 
 ## M52 — Add CLI version reporting
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add version command`
 
 Tasks:
 
-- [ ] Add `adb-go version`.
-- [ ] Print the adb-go version value, Go runtime version, target OS, and target architecture.
-- [ ] Provide build-time version injection through standard Go linker variables while keeping a useful development fallback.
-- [ ] Document the version command in README and CLI docs.
+- [x] Add `adb-go version`.
+- [x] Print the adb-go version value, Go runtime version, target OS, and target architecture.
+- [x] Provide build-time version injection through standard Go linker variables while keeping a useful development fallback.
+- [x] Document the version command in README and CLI docs.
 
 Tests:
 
-- [ ] CLI tests cover the default development version output shape.
-- [ ] Unit tests cover version formatting if implemented outside the command dispatcher.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover the default development version output shape.
+- [x] Unit tests cover version formatting if implemented outside the command dispatcher.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can collect concise adb-go build/runtime information for support requests and bug reports.
+- [x] Users can collect concise adb-go build/runtime information for support requests and bug reports.
 
 ## M53 — Improve CLI error messages
 
