@@ -239,84 +239,30 @@ CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
 ## adb-god daemon foundation
 
 `adb-god` is the first adb-go daemon process. In this initial slice it is only a
-foreground, local control daemon for future adb-go persistence work. It listens
-on a Unix domain socket and supports a small versioned control protocol for
-`ping`, `status`, and graceful `shutdown`; it does not own devices, transports,
-forwards, shell sessions, authentication state, or any other persistent ADB
-workflow yet.
-
-Install or run the daemon binary separately from the CLI:
+local control daemon for future persistence work. It listens on a Unix domain
+socket and supports `ping`, `status`, and graceful `shutdown`; it does not own
+devices, transports, forwards, shell sessions, authentication state, or other
+ADB workflow state yet.
 
 ```sh
 go install github.com/dector/adb-go/cmd/adb-god@latest
 adb-god
-```
 
-Control it with the experimental CLI:
-
-```sh
 adb-go daemon doctor
-adb-go daemon ping
 adb-go daemon status
-adb-go daemon stop
 ```
 
-`adb-go daemon doctor` is the read-only troubleshooting entry point. It prints
-the resolved daemon socket path, whether a compatible daemon answers the socket
-protocol, Linux systemd user-service state when `systemctl` is available, and
-hints for common states such as a missing socket, inactive service, or disabled
-service.
-
-On Linux systems with systemd user services, the CLI can also install and start
-`adb-god` for the current user:
+On Linux with systemd user services, the CLI can install and manage `adb-god` as
+a per-user service:
 
 ```sh
 adb-go daemon service install
-```
-
-This writes `~/.config/systemd/user/adb-god.service`, reloads the user systemd
-manager, and runs `systemctl --user enable --now adb-god.service`. Pass
-`--adb-god PATH` if the daemon binary is not on `PATH`, and pass `--socket PATH`
-when the service should use a non-default control socket. The same service group
-also supports host-service lifecycle commands:
-
-```sh
-adb-go daemon service reinstall
-adb-go daemon service start
-adb-go daemon service stop
-adb-go daemon service restart
 adb-go daemon service status
 adb-go daemon service logs
-adb-go daemon service uninstall
 ```
 
-Use `adb-go daemon service reinstall` after changing the daemon binary path,
-changing the socket path, or refreshing a local build. It rewrites the same unit
-file as `install`, reloads the user systemd manager, enables the service, and
-restarts `adb-god.service` without requiring a manual uninstall/install cycle.
-
-`adb-go daemon service status` asks systemd about the host service and prints
-script-readable fields such as `active: active` and `enabled: enabled`. This is
-different from `adb-go daemon status`, which connects to the daemon socket and
-reports live daemon protocol metadata. `adb-go daemon doctor` combines both
-views without mutating daemon or service state.
-
-Use `adb-go daemon service logs` on Linux to inspect recent `adb-god.service`
-output without remembering the underlying journal command. By default it runs a
-small, predictable `journalctl --user -u adb-god.service -n 100 --no-pager`
-query. Pass `--lines N` to choose how many recent entries to print, `--follow`
-to continue streaming new entries, or `--journalctl PATH` for tests and
-non-default installations.
-
-The socket path is selected in this order: an explicit CLI `--socket` path where
-accepted, `ADB_GO_DAEMON_SOCKET`, `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, then a
-per-user path below Go's temporary directory such as
-`$TMPDIR/adb-go-$UID/adb-god.sock`. The override path must be absolute. On
-startup, `adb-god` removes stale Unix socket files only when they are sockets
-with no live daemon listener; it refuses to delete regular files at the socket
-path. On graceful shutdown it closes the listener and removes its socket file.
-
-Design details: [`docs/daemon-foundation.md`](docs/daemon-foundation.md).
+Daemon design, socket selection, control protocol, troubleshooting, and service
+management details: [`docs/daemon-foundation.md`](docs/daemon-foundation.md).
 
 ## Low-level protocol package
 

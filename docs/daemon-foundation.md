@@ -80,9 +80,76 @@ On graceful shutdown, `adb-god` closes the listener and removes the socket file
 it created. Cleanup should be best-effort, but tests should verify that the
 normal shutdown path removes the socket.
 
-The initial `adb-god` command runs in the foreground. Backgrounding,
-supervision, launchd/systemd integration, and automatic daemon spawning are
-future CLI/package concerns, not part of the foundation protocol.
+The initial `adb-god` command runs in the foreground when invoked directly.
+
+## Running and managing adb-god
+
+Install or run the daemon binary separately from the CLI:
+
+```sh
+go install github.com/dector/adb-go/cmd/adb-god@latest
+adb-god
+```
+
+Control it with the experimental CLI:
+
+```sh
+adb-go daemon doctor
+adb-go daemon ping
+adb-go daemon status
+adb-go daemon stop
+```
+
+`adb-go daemon doctor` is the read-only troubleshooting entry point. It prints
+the resolved daemon socket path, whether a compatible daemon answers the socket
+protocol, Linux systemd user-service state when `systemctl` is available, and
+hints for common states such as a missing socket, inactive service, or disabled
+service.
+
+On Linux systems with systemd user services, the CLI can install and start
+`adb-god` for the current user:
+
+```sh
+adb-go daemon service install
+```
+
+This writes `~/.config/systemd/user/adb-god.service`, reloads the user systemd
+manager, and runs `systemctl --user enable --now adb-god.service`. Pass
+`--adb-god PATH` if the daemon binary is not on `PATH`, and pass `--socket PATH`
+when the service should use a non-default control socket. The same service group
+also supports host-service lifecycle commands:
+
+```sh
+adb-go daemon service reinstall
+adb-go daemon service start
+adb-go daemon service stop
+adb-go daemon service restart
+adb-go daemon service status
+adb-go daemon service logs
+adb-go daemon service uninstall
+```
+
+Use `adb-go daemon service reinstall` after changing the daemon binary path,
+changing the socket path, or refreshing a local build. It rewrites the same unit
+file as `install`, reloads the user systemd manager, enables the service, and
+restarts `adb-god.service` without requiring a manual uninstall/install cycle.
+
+`adb-go daemon service status` asks systemd about the host service and prints
+script-readable fields such as `active: active` and `enabled: enabled`. This is
+different from `adb-go daemon status`, which connects to the daemon socket and
+reports live daemon protocol metadata. `adb-go daemon doctor` combines both
+views without mutating daemon or service state.
+
+Use `adb-go daemon service logs` on Linux to inspect recent `adb-god.service`
+output without remembering the underlying journal command. By default it runs a
+small, predictable `journalctl --user -u adb-god.service -n 100 --no-pager`
+query. Pass `--lines N` to choose how many recent entries to print, `--follow`
+to continue streaming new entries, or `--journalctl PATH` for tests and
+non-default installations.
+
+The host service-manager commands are CLI conveniences around the same local
+control socket. They do not change the foundation daemon's protocol semantics or
+add persistent ADB device/session ownership.
 
 ## Control protocol v1
 
