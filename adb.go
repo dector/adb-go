@@ -18,6 +18,9 @@ type PullOptions = client.PullOptions
 // InstallOptions controls InstallAPKWithOptions behavior.
 type InstallOptions = client.InstallOptions
 
+// LogcatOptions controls Client.Logcat behavior.
+type LogcatOptions = client.LogcatOptions
+
 // ConnectOptions controls optional high-level connection behavior.
 type ConnectOptions = client.ConnectOptions
 

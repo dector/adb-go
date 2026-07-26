@@ -51,26 +51,26 @@ Goal: expose Android log output through adb-go without trying to clone every off
 
 ### M40.1 — Add client logcat streaming helper
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add logcat streaming helper`
 
 Tasks:
 
-- [ ] Add a high-level `Client.Logcat(ctx, stdout, opts)` style API that streams device logs to an `io.Writer`.
-- [ ] Add a small `LogcatOptions` type with intentionally supported behavior, initially including dump-and-exit behavior if it maps cleanly to `logcat -d`.
-- [ ] Implement the helper using existing `shell:` streaming primitives and clear command construction.
-- [ ] Re-export stable logcat API from the root package if it is part of the high-level API.
+- [x] Add a high-level `Client.Logcat(ctx, stdout, opts)` style API that streams device logs to an `io.Writer`.
+- [x] Add a small `LogcatOptions` type with intentionally supported behavior, initially including dump-and-exit behavior if it maps cleanly to `logcat -d`.
+- [x] Implement the helper using existing `shell:` streaming primitives and clear command construction.
+- [x] Re-export stable logcat API from the root package if it is part of the high-level API.
 
 Tests:
 
-- [ ] Client tests cover streaming logcat output through `internal/fakeadb`.
-- [ ] Client tests cover option-to-command behavior, including dump mode if implemented.
-- [ ] `go test ./...` passes
+- [x] Client tests cover streaming logcat output through `internal/fakeadb`.
+- [x] Client tests cover option-to-command behavior, including dump mode if implemented.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can stream logcat output from a connected device through adb-go's high-level client API.
+- [x] Library callers can stream logcat output from a connected device through adb-go's high-level client API.
 
 ### M40.2 — Add CLI logcat command
 

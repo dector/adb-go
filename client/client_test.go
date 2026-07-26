@@ -263,6 +263,74 @@ func TestShellUsesExactSingleCommandString(t *testing.T) {
 	}
 }
 
+func TestLogcatStreamsOutputAgainstFakeServer(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:logcat", writeServiceOutput(t, "01-02 03:04:05.678  123  456 I Tag: hello\n"))
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	var out bytes.Buffer
+	if err := client.Logcat(context.Background(), &out, LogcatOptions{}); err != nil {
+		t.Fatalf("Logcat() error = %v", err)
+	}
+	if out.String() != "01-02 03:04:05.678  123  456 I Tag: hello\n" {
+		t.Fatalf("Logcat() output = %q, want fake log line", out.String())
+	}
+}
+
+func TestLogcatDumpUsesDumpFlag(t *testing.T) {
+	server := fakeadb.Start(t)
+	opened := make(chan string, 1)
+	server.Handle("shell:logcat -d", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		opened <- string(open.Payload[:len(open.Payload)-1])
+		writeServiceOutput(t, "dumped\n")(ctx, conn, open)
+	})
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	var out bytes.Buffer
+	if err := client.Logcat(context.Background(), &out, LogcatOptions{Dump: true}); err != nil {
+		t.Fatalf("Logcat() error = %v", err)
+	}
+	if out.String() != "dumped\n" {
+		t.Fatalf("Logcat() output = %q, want dumped newline", out.String())
+	}
+	if got := <-opened; got != "shell:logcat -d" {
+		t.Fatalf("opened service = %q, want shell:logcat -d", got)
+	}
+}
+
+func TestLogcatCommandOptions(t *testing.T) {
+	if got := logcatCommand(LogcatOptions{}); got != "logcat" {
+		t.Fatalf("logcatCommand(default) = %q, want logcat", got)
+	}
+	if got := logcatCommand(LogcatOptions{Dump: true}); got != "logcat -d" {
+		t.Fatalf("logcatCommand(dump) = %q, want logcat -d", got)
+	}
+}
+
+func TestLogcatRejectsNilWriter(t *testing.T) {
+	server := fakeadb.Start(t)
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	if err := client.Logcat(context.Background(), nil, LogcatOptions{}); err == nil {
+		t.Fatal("Logcat(nil writer) error = nil, want error")
+	}
+}
+
 func TestShellStreamContextCancellationUnblocks(t *testing.T) {
 	server := fakeadb.Start(t)
 	server.Handle("shell:sleep forever", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
