@@ -27,6 +27,7 @@ Commands:
   logcat      Stream Android log output from a connected device
   getprop     Read Android system properties from a connected device
   screencap   Save a PNG screenshot from a connected device
+  reboot      Reboot a connected device
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -46,6 +47,7 @@ type deviceClient interface {
 	GetProp(ctx context.Context, name string) (string, error)
 	Properties(ctx context.Context) (map[string]string, error)
 	Screencap(ctx context.Context) ([]byte, error)
+	Reboot(ctx context.Context, mode adb.RebootMode) error
 	PushFile(ctx context.Context, localPath, remotePath string) error
 	PullFile(ctx context.Context, remotePath, localPath string) error
 	PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
@@ -288,6 +290,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runGetProp(args[1:], stdout, stderr)
 	case "screencap":
 		return runScreencap(args[1:], stdout, stderr)
+	case "reboot":
+		return runReboot(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
@@ -571,6 +575,78 @@ func writeScreencapFile(localPath string, png []byte, overwrite bool) error {
 	}
 	ok = true
 	return nil
+}
+
+const rebootUsage = `Usage:
+  adb-go reboot (--addr HOST[:PORT] | --usb [USB selection]) [MODE]
+
+Requests an immediate reboot of the selected ADB device. With no MODE, adb-go
+requests a normal Android reboot. Supported modes are bootloader and recovery.
+TCP addresses come from --addr, or from ADB_GO_ADDR when --addr is omitted. USB
+support is Linux-only initially. For example:
+
+  adb-go reboot --addr 127.0.0.1:5555
+  adb-go reboot --addr 127.0.0.1:5555 bootloader
+  adb-go reboot --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 recovery
+`
+
+func runReboot(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("reboot", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	fs.Usage = func() { fmt.Fprint(stderr, rebootUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go reboot: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() > 1 {
+		fmt.Fprint(stderr, "adb-go reboot: accepts at most one MODE argument\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	mode := adb.RebootNormal
+	if fs.NArg() == 1 {
+		parsed, err := parseRebootMode(fs.Arg(0))
+		if err != nil {
+			fmt.Fprintf(stderr, "adb-go reboot: %v\n\n", err)
+			fs.Usage()
+			return 2
+		}
+		mode = parsed
+	}
+
+	client, err := connectDevice(context.Background(), target)
+	if err != nil {
+		printConnectError(stderr, "reboot", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	if err := client.Reboot(context.Background(), mode); err != nil {
+		fmt.Fprintf(stderr, "adb-go reboot: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func parseRebootMode(value string) (adb.RebootMode, error) {
+	switch value {
+	case "", "normal":
+		return adb.RebootNormal, nil
+	case string(adb.RebootBootloader):
+		return adb.RebootBootloader, nil
+	case string(adb.RebootRecovery):
+		return adb.RebootRecovery, nil
+	default:
+		return "", fmt.Errorf("unsupported reboot mode %q; supported modes are normal, bootloader, recovery", value)
+	}
 }
 
 const pushUsage = `Usage:

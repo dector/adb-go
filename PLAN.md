@@ -289,25 +289,25 @@ Done when:
 
 ### M43.2 — Add CLI reboot command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add reboot command`
 
 Tasks:
 
-- [ ] Add an `adb-go reboot` command.
-- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
-- [ ] Accept no mode for normal reboot and a small explicit set of supported modes such as `bootloader` and `recovery` if implemented by the client.
-- [ ] Print clear errors for unsupported modes.
+- [x] Add an `adb-go reboot` command.
+- [x] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
+- [x] Accept no mode for normal reboot and a small explicit set of supported modes such as `bootloader` and `recovery` if implemented by the client.
+- [x] Print clear errors for unsupported modes.
 
 Tests:
 
-- [ ] CLI tests cover usage, argument validation, connection flag propagation, supported modes, unsupported modes, and errors.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, argument validation, connection flag propagation, supported modes, unsupported modes, and errors.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can run `adb-go reboot [connection flags] [MODE]` for supported reboot modes.
+- [x] CLI users can run `adb-go reboot [connection flags] [MODE]` for supported reboot modes.
 
 ### M43.3 — Document reboot support and safety
 

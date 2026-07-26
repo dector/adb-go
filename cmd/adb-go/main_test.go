@@ -995,6 +995,184 @@ func TestRunScreencapReportsCaptureFailure(t *testing.T) {
 	}
 }
 
+func TestRunRebootMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"reboot"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(reboot missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go reboot --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunRebootRejectsExtraArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"reboot", "--addr", "127.0.0.1:5555", "bootloader", "extra"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(reboot extra arg) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "accepts at most one MODE") || !strings.Contains(got, "adb-go reboot --addr") {
+		t.Fatalf("stderr = %q, want arg count usage error", got)
+	}
+}
+
+func TestRunRebootRejectsUnsupportedMode(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"reboot", "--addr", "127.0.0.1:5555", "sideload"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(reboot unsupported mode) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, `unsupported reboot mode "sideload"`) || !strings.Contains(got, "bootloader") || !strings.Contains(got, "recovery") {
+		t.Fatalf("stderr = %q, want supported-mode guidance", got)
+	}
+}
+
+func TestRunRebootUsesConnectionFlagsAndNormalMode(t *testing.T) {
+	keyPath := writeADBKeyFile(t)
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	var gotMode adb.RebootMode
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{reboot: func(ctx context.Context, mode adb.RebootMode) error {
+			gotMode = mode
+			return nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"reboot", "--addr", "127.0.0.1:5555", "--auth-key", keyPath}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(reboot) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP target", gotTarget)
+	}
+	if len(gotTarget.auth) != 1 {
+		t.Fatalf("target auth credentials = %d, want 1", len(gotTarget.auth))
+	}
+	if gotMode != adb.RebootNormal {
+		t.Fatalf("reboot mode = %q, want normal", gotMode)
+	}
+}
+
+func TestRunRebootUsesUSBConnectionAndMode(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	var gotMode adb.RebootMode
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{reboot: func(ctx context.Context, mode adb.RebootMode) error {
+			gotMode = mode
+			return nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"reboot", "--usb-path", "/dev/bus/usb/001/002", "recovery"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(reboot --usb-path recovery) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+	if gotMode != adb.RebootRecovery {
+		t.Fatalf("reboot mode = %q, want recovery", gotMode)
+	}
+}
+
+func TestRunRebootOpensServiceThroughADB(t *testing.T) {
+	server := fakeadb.Start(t)
+	opened := make(chan string, 1)
+	server.Handle("reboot:bootloader", cliRebootServiceHandler(t, opened))
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"reboot", "--addr", server.Addr(), "bootloader"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(reboot bootloader) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if got := <-opened; got != "reboot:bootloader" {
+		t.Fatalf("opened service = %q, want reboot:bootloader", got)
+	}
+}
+
+func TestRunRebootReportsFailure(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{reboot: func(ctx context.Context, mode adb.RebootMode) error {
+			return errors.New("reboot refused")
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"reboot", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(reboot failure) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "reboot refused") {
+		t.Fatalf("stderr = %q, want reboot failure", got)
+	}
+}
+
+func TestParseRebootMode(t *testing.T) {
+	tests := []struct {
+		value string
+		want  adb.RebootMode
+	}{
+		{value: "", want: adb.RebootNormal},
+		{value: "normal", want: adb.RebootNormal},
+		{value: "bootloader", want: adb.RebootBootloader},
+		{value: "recovery", want: adb.RebootRecovery},
+	}
+	for _, tt := range tests {
+		got, err := parseRebootMode(tt.value)
+		if err != nil {
+			t.Fatalf("parseRebootMode(%q) error = %v", tt.value, err)
+		}
+		if got != tt.want {
+			t.Fatalf("parseRebootMode(%q) = %q, want %q", tt.value, got, tt.want)
+		}
+	}
+	if _, err := parseRebootMode("fastboot"); err == nil {
+		t.Fatal("parseRebootMode(fastboot) error = nil, want unsupported mode error")
+	}
+}
+
 func TestRunPushMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
@@ -1308,6 +1486,16 @@ func writeCLIShellOutput(t testing.TB, output string) fakeadb.ServiceHandler {
 	}
 }
 
+func cliRebootServiceHandler(t testing.TB, opened chan<- string) fakeadb.ServiceHandler {
+	t.Helper()
+	return func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		opened <- string(open.Payload[:len(open.Payload)-1])
+		remoteID := uint32(42)
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0})
+		_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: remoteID, Arg1: open.Arg0})
+	}
+}
+
 type cliSyncPushResult struct {
 	path     string
 	contents string
@@ -1441,6 +1629,7 @@ type fakeCLIClient struct {
 	getProp               func(ctx context.Context, name string) (string, error)
 	properties            func(ctx context.Context) (map[string]string, error)
 	screencap             func(ctx context.Context) ([]byte, error)
+	reboot                func(ctx context.Context, mode adb.RebootMode) error
 	installAPK            func(ctx context.Context, localPath string) error
 	installAPKWithOptions func(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
@@ -1478,6 +1667,13 @@ func (c fakeCLIClient) Screencap(ctx context.Context) ([]byte, error) {
 		return c.screencap(ctx)
 	}
 	return nil, nil
+}
+
+func (c fakeCLIClient) Reboot(ctx context.Context, mode adb.RebootMode) error {
+	if c.reboot != nil {
+		return c.reboot(ctx, mode)
+	}
+	return nil
 }
 
 func (c fakeCLIClient) PushFile(ctx context.Context, localPath, remotePath string) error { return nil }
