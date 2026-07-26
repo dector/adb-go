@@ -15,6 +15,9 @@ type Client = client.Client
 // PullOptions controls PullFileWithOptions behavior.
 type PullOptions = client.PullOptions
 
+// InstallOptions controls InstallAPKWithOptions behavior.
+type InstallOptions = client.InstallOptions
+
 // ConnectOptions controls optional high-level connection behavior.
 type ConnectOptions = client.ConnectOptions
 

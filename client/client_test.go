@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -421,6 +422,82 @@ func TestPushFileSendsContentsToFakeServer(t *testing.T) {
 	}
 }
 
+func TestInstallAPKPushesInstallsAndCleansUp(t *testing.T) {
+	server := fakeadb.Start(t)
+	remotePath := "/data/local/tmp/adb-go-install-test.apk"
+	withInstallRemotePath(t, remotePath)
+
+	pushResult := make(chan syncPushResult, 1)
+	cleanup := make(chan struct{}, 1)
+	server.Handle("sync:", syncPushHandler(t, remotePath, nil, pushResult))
+	server.Handle("shell:pm install -r '"+remotePath+"'", writeServiceOutput(t, "Success\n"))
+	server.Handle("shell:rm -f -- '"+remotePath+"'", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		cleanup <- struct{}{}
+		writeServiceOutput(t, "")(ctx, conn, open)
+	})
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "app.apk")
+	if err := os.WriteFile(localPath, []byte("apk bytes"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := client.InstallAPKWithOptions(context.Background(), localPath, InstallOptions{Replace: true}); err != nil {
+		t.Fatalf("InstallAPKWithOptions() error = %v", err)
+	}
+	if got := <-pushResult; got.contents != "apk bytes" {
+		t.Fatalf("pushed APK contents = %q, want apk bytes", got.contents)
+	}
+	select {
+	case <-cleanup:
+	case <-time.After(time.Second):
+		t.Fatal("cleanup shell command was not opened")
+	}
+}
+
+func TestInstallAPKPackageManagerFailureIncludesOutput(t *testing.T) {
+	server := fakeadb.Start(t)
+	remotePath := "/data/local/tmp/adb-go-install-fail.apk"
+	withInstallRemotePath(t, remotePath)
+
+	cleanup := make(chan struct{}, 1)
+	server.Handle("sync:", syncPushHandler(t, remotePath, nil, nil))
+	server.Handle("shell:pm install '"+remotePath+"'", writeServiceOutput(t, "Failure [INSTALL_FAILED_VERSION_DOWNGRADE]\n"))
+	server.Handle("shell:rm -f -- '"+remotePath+"'", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		cleanup <- struct{}{}
+		writeServiceOutput(t, "")(ctx, conn, open)
+	})
+
+	client, err := Connect(context.Background(), server.Addr())
+	if err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Close()
+
+	localPath := filepath.Join(t.TempDir(), "app.apk")
+	if err := os.WriteFile(localPath, []byte("apk bytes"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err = client.InstallAPK(context.Background(), localPath)
+	if err == nil {
+		t.Fatal("InstallAPK() error = nil, want package manager failure")
+	}
+	if !strings.Contains(err.Error(), "INSTALL_FAILED_VERSION_DOWNGRADE") {
+		t.Fatalf("InstallAPK() error = %v, want package manager output", err)
+	}
+	select {
+	case <-cleanup:
+	case <-time.After(time.Second):
+		t.Fatal("cleanup shell command was not opened after install failure")
+	}
+}
+
 func TestPushFileMissingLocalFile(t *testing.T) {
 	server := fakeadb.Start(t)
 
@@ -455,6 +532,13 @@ func TestPushFileRemoteError(t *testing.T) {
 	if err == nil {
 		t.Fatal("PushFile() error = nil, want remote error")
 	}
+}
+
+func withInstallRemotePath(t testing.TB, remotePath string) {
+	t.Helper()
+	old := makeInstallRemotePath
+	makeInstallRemotePath = func(string) string { return remotePath }
+	t.Cleanup(func() { makeInstallRemotePath = old })
 }
 
 func writeServiceOutput(t testing.TB, output string) fakeadb.ServiceHandler {

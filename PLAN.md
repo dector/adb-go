@@ -46,28 +46,28 @@ Milestone rules:
 
 ## Milestone 35 — Add client APK install helper
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add apk install helper`
 
 Tasks:
 
-- [ ] Add a high-level client method for installing one local APK without exposing it as a full official-`adb install` clone.
-- [ ] Implement the install flow using existing primitives: push the APK to a generated path under `/data/local/tmp`, run `pm install` through `shell:`, then best-effort remove the temporary APK.
-- [ ] Add a small options type for intentionally supported install behavior, initially including replace-existing-app support only if it can map cleanly to `pm install -r`.
-- [ ] Keep caller-controlled local paths and package manager output explicit; do not add broad official adb flag compatibility in this milestone.
-- [ ] Re-export the stable install API from the root package if it is part of the high-level API.
+- [x] Add a high-level client method for installing one local APK without exposing it as a full official-`adb install` clone.
+- [x] Implement the install flow using existing primitives: push the APK to a generated path under `/data/local/tmp`, run `pm install` through `shell:`, then best-effort remove the temporary APK.
+- [x] Add a small options type for intentionally supported install behavior, initially including replace-existing-app support only if it can map cleanly to `pm install -r`.
+- [x] Keep caller-controlled local paths and package manager output explicit; do not add broad official adb flag compatibility in this milestone.
+- [x] Re-export the stable install API from the root package if it is part of the high-level API.
 
 Tests:
 
-- [ ] Client tests cover successful push/install/cleanup service flow using `internal/fakeadb`.
-- [ ] Client tests cover package-manager failure output returning a useful error.
-- [ ] Client tests cover cleanup being attempted after install failure.
-- [ ] `go test ./...` passes
+- [x] Client tests cover successful push/install/cleanup service flow using `internal/fakeadb`.
+- [x] Client tests cover package-manager failure output returning a useful error.
+- [x] Client tests cover cleanup being attempted after install failure.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can install one APK on a connected device through adb-go's high-level client API, with clear limitations and no dependency on the official `adb` binary.
+- [x] Library callers can install one APK on a connected device through adb-go's high-level client API, with clear limitations and no dependency on the official `adb` binary.
 
 ## Milestone 36 — Add CLI install-apk command
 
