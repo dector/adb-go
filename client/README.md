@@ -3,7 +3,8 @@
 Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
-opening, shell helpers, and single-file `sync:` push/pull helpers.
+opening, shell helpers, single-file `sync:` push/pull helpers, and a small APK
+install helper.
 
 ## Contents
 
@@ -12,6 +13,7 @@ opening, shell helpers, and single-file `sync:` push/pull helpers.
 - [Authenticate with an existing ADB key](#authenticate-with-an-existing-adb-key)
 - [Shell commands](#shell-commands)
 - [File transfer](#file-transfer)
+- [Install one APK](#install-one-apk)
 - [Open a raw service](#open-a-raw-service)
 - [Target discovery helpers](#target-discovery-helpers)
 - [Linux USB permissions and troubleshooting](#linux-usb-permissions-and-troubleshooting)
@@ -165,6 +167,53 @@ err := c.PullFileWithOptions(ctx,
 Directory-aware push/pull and custom mode/mtime options are reserved for future
 APIs.
 
+## Install one APK
+
+`InstallAPK` installs exactly one local APK on the connected device. It is a
+small adb-go helper, not an attempt to mirror every `adb install` flag.
+
+```go
+err := c.InstallAPK(ctx, "./app.apk")
+if err != nil {
+    return err
+}
+```
+
+For the currently supported replace-existing-app behavior, use
+`InstallAPKWithOptions` with `InstallOptions{Replace: true}`. This maps directly
+to Android package manager's `pm install -r` option:
+
+```go
+err := c.InstallAPKWithOptions(ctx, "./app.apk", adb.InstallOptions{Replace: true})
+if err != nil {
+    return err
+}
+```
+
+The helper is built from existing ADB primitives so its behavior stays explicit:
+
+1. Push the local APK to a generated temporary path below `/data/local/tmp` using
+   `sync:` file transfer.
+2. Open `shell:` and run `pm install` against that temporary remote path. With
+   `Replace: true`, adb-go runs `pm install -r`.
+3. Ask the device to remove the temporary APK with `rm -f` in a best-effort
+   cleanup step, even when package installation fails.
+
+If the package manager does not report success, the returned error includes the
+package-manager output from the device, for example an Android failure such as
+`Failure [INSTALL_FAILED_ALREADY_EXISTS]`. Cleanup errors are intentionally not
+reported because the primary operation is the install result.
+
+Local APK paths are caller-controlled, and installing an APK changes the
+connected device. Package-manager output also comes from the device, so CLI and
+application code should display or log it with the same care as other remote
+command output.
+
+Unsupported in this helper: directory or split-APK installation, streaming
+install sessions, ABI/user/install-location/grant flags, downgrade/test-package
+flags, and broad official `adb install` flag compatibility. Those can be added
+later as explicit adb-go API options when they map cleanly to supported behavior.
+
 ## Open a raw service
 
 Advanced callers can open any supported device service directly:
@@ -216,8 +265,8 @@ authentication and no trusted explicit key completed the challenge.
 
 ## Security and trust
 
-adb-go behaves like adb: callers control commands and paths. Shell commands and
-file paths may affect the connected device. ADB private keys are sensitive: a
+adb-go behaves like adb: callers control commands and paths. Shell commands, file paths, and APK installation requests may affect the
+connected device. ADB private keys are sensitive: a
 trusted key can authorize host access to a device. The library does not add
 command or path allowlists/denylists, does not log by default, and requires
 `context.Context` for blocking public operations so callers can set deadlines or

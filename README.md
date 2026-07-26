@@ -6,8 +6,8 @@ applications, with an experimental CLI wrapper for supported workflows.
 
 > **Status:** v0 is not a full replacement for the official `adb` binary yet.
 > It currently implements explicit TCP connections, initial Linux USB support,
-> explicit-key authentication, service opening, shell execution/streaming, and
-> single-file push/pull.
+> explicit-key authentication, service opening, shell execution/streaming,
+> single-file push/pull, and one-APK installation.
 
 ## Contents
 
@@ -39,7 +39,7 @@ dependencies are required.
 
 Use the root package for the stable high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
-and pushing or pulling one file.
+pushing or pulling one file, and installing one APK.
 
 ```go
 ctx := context.Background()
@@ -57,7 +57,18 @@ if err != nil {
 fmt.Printf("%s", out)
 ```
 
-More examples: [`client/README.md`](client/README.md).
+Install one local APK with the adb-go-specific install helper:
+
+```go
+err := c.InstallAPKWithOptions(ctx, "./app.apk", adb.InstallOptions{Replace: true})
+if err != nil {
+    return err
+}
+```
+
+The install helper intentionally is not a full clone of `adb install`; it pushes
+the APK to `/data/local/tmp`, runs Android's package manager, and removes the
+temporary file on a best-effort basis. More examples: [`client/README.md`](client/README.md).
 
 ## Linux USB support
 
@@ -104,6 +115,7 @@ go install github.com/dector/adb-go/cmd/adb-go@latest
 adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
+adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
 ```
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
@@ -135,7 +147,11 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
-  and single-file push/pull are the main supported workflows.
+  single-file push/pull, and one-APK installation are the main supported
+  workflows.
+- APK installation is exposed as `install-apk`, an adb-go-specific helper rather
+  than official `adb install` compatibility. It currently supports one local APK
+  and the replace-existing-app option only.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 

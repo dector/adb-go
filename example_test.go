@@ -108,6 +108,33 @@ func ExampleClient_PullFileWithOptions() {
 	}
 }
 
+func ExampleClient_InstallAPK() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	if err := client.InstallAPK(ctx, "./app.apk"); err != nil {
+		return
+	}
+}
+
+func ExampleClient_InstallAPKWithOptions() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	err = client.InstallAPKWithOptions(ctx, "./app.apk", adb.InstallOptions{Replace: true})
+	if err != nil {
+		return
+	}
+}
+
 func ExampleClient_OpenService() {
 	ctx := context.Background()
 	client, err := adb.Connect(ctx, "127.0.0.1:5555")

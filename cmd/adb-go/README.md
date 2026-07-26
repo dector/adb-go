@@ -14,6 +14,7 @@ clone of the official `adb` command.
   - [`targets`](#targets)
   - [`shell`](#shell)
   - [`push` and `pull`](#push-and-pull)
+  - [`install-apk`](#install-apk)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -39,6 +40,7 @@ adb-go targets
 adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
+adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
 ```
 
 If the port is omitted, the library connection path defaults to the standard ADB
@@ -52,6 +54,7 @@ export ADB_GO_ADDR=127.0.0.1:5555
 adb-go shell echo hello
 adb-go push ./local.txt /data/local/tmp/local.txt
 adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
+adb-go install-apk --replace ./app.apk
 ```
 
 ## USB targets
@@ -63,6 +66,7 @@ adb-go shell --usb getprop ro.product.model
 adb-go shell --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 adb-go push --usb-bus 1 --usb-device 2 ./local.txt /data/local/tmp/local.txt
 adb-go pull --usb-vid 18d1 --usb-pid 4ee7 /data/local/tmp/remote.txt ./remote.txt
+adb-go install-apk --usb-path /dev/bus/usb/001/002 ./app.apk
 ```
 
 `--usb` requests USB discovery without narrowing selection. It succeeds only
@@ -80,6 +84,7 @@ For authenticated TCP or USB devices, provide an existing ADB private key with
 ```sh
 adb-go shell --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 getprop ro.product.model
 adb-go shell --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 getprop ro.product.model
+adb-go install-apk --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./app.apk
 ```
 
 The CLI does not create or modify key files.
@@ -136,11 +141,47 @@ adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 `pull` refuses to replace an existing local destination unless `--overwrite` is
 provided.
 
+### `install-apk`
+
+`adb-go install-apk` installs exactly one local APK on the selected device:
+
+```sh
+adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
+adb-go install-apk --usb-path /dev/bus/usb/001/002 ./app.apk
+adb-go install-apk --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./app.apk
+```
+
+Pass `--replace` to allow replacing an already-installed app. This maps to
+Android package manager's `pm install -r` behavior:
+
+```sh
+adb-go install-apk --replace --addr 127.0.0.1:5555 ./app.apk
+```
+
+The command is an adb-go-specific alternative to `adb install`, not a flag-for-
+flag clone. Internally it pushes the local APK to a generated path below
+`/data/local/tmp`, runs `pm install` through `shell:`, then asks the device to
+remove the temporary APK. If package installation fails, stderr includes the
+package-manager output returned by the device, such as
+`Failure [INSTALL_FAILED_ALREADY_EXISTS]`.
+
+Non-goals for the current command include official `adb install` flag
+compatibility, split APKs, directory installs, install sessions, streamed
+installs, user/ABI/install-location controls, granting permissions at install
+time, downgrade/test-package flags, and package discovery. Use only the options
+shown by `adb-go install-apk -h`; unknown official adb flags are not accepted.
+
+Security note: the local APK path is caller-controlled, installation changes the
+selected device, and package-manager output is device-provided remote command
+output.
+
 ## Limitations
 
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
-`devices`, `install`, `logcat` as a dedicated command, server management,
-wireless pairing, forwarding, and most official flags are not implemented.
+`devices`, official `adb install` compatibility, `logcat` as a dedicated
+command, server management, wireless pairing, forwarding, and most official
+flags are not implemented. Use `install-apk` for adb-go's limited one-APK
+installation workflow.
 
 ## Testing
 

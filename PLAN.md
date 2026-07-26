@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: Milestone 36 — Add CLI install-apk command.
-- Completed milestone range: Milestones 17–35 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, and the client APK install helper.
-- Active focus: implement an adb-go-specific alternative to `adb install` in small slices: first a library helper, then a CLI command, then documentation.
+- Current milestone: Milestone 37 — Document APK installation support and limitations.
+- Completed milestone range: Milestones 17–36 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, and the CLI `install-apk` command.
+- Active focus: document the adb-go-specific alternative to `adb install` so users understand the library helper, CLI command, supported transports/auth, temporary push behavior, cleanup behavior, and limitations.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -93,25 +93,25 @@ Done when:
 
 ## Milestone 37 — Document APK installation support and limitations
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document apk install command`
 
 Tasks:
 
-- [ ] Update README command examples and limitations to mention `install-apk` as an adb-go-specific alternative to `adb install`.
-- [ ] Update `client/README.md` with the library install helper, temporary push behavior, cleanup behavior, and supported options.
-- [ ] Update `cmd/adb-go/README.md` with CLI usage, examples for TCP/USB/auth, and a clear non-goal list for unsupported official `adb install` flags.
-- [ ] Document security considerations: local APK path is caller-controlled, install effects happen on the connected device, and package-manager output comes from the device.
+- [x] Update README command examples and limitations to mention `install-apk` as an adb-go-specific alternative to `adb install`.
+- [x] Update `client/README.md` with the library install helper, temporary push behavior, cleanup behavior, and supported options.
+- [x] Update `cmd/adb-go/README.md` with CLI usage, examples for TCP/USB/auth, and a clear non-goal list for unsupported official `adb install` flags.
+- [x] Document security considerations: local APK path is caller-controlled, install effects happen on the connected device, and package-manager output comes from the device.
 
 Tests:
 
-- [ ] Documentation examples compile where applicable.
-- [ ] `go test ./...` passes
+- [x] Documentation examples compile where applicable.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can discover how to install one APK with adb-go and understand how it differs from the official `adb install` command.
+- [x] Users can discover how to install one APK with adb-go and understand how it differs from the official `adb install` command.
 
 ## Deferred milestones
 
