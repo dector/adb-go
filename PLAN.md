@@ -414,25 +414,25 @@ Done when:
 
 ### M44.4 — Document forwarding support and limitations
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document forwarding support`
 
 Tasks:
 
-- [ ] Update README examples and limitations to mention forwarding support.
-- [ ] Update `client/README.md` with forwarding helper examples and lifecycle behavior.
-- [ ] Update `cmd/adb-go/README.md` with CLI usage and examples for TCP/USB/auth.
-- [ ] Clearly document differences from official `adb forward`, especially if adb-go runs foreground forwarding rather than registering state in an adb server.
+- [x] Update README examples and limitations to mention forwarding support.
+- [x] Update `client/README.md` with forwarding helper examples and lifecycle behavior.
+- [x] Update `cmd/adb-go/README.md` with CLI usage and examples for TCP/USB/auth.
+- [x] Clearly document differences from official `adb forward`, especially if adb-go runs foreground forwarding rather than registering state in an adb server.
 
 Tests:
 
-- [ ] Documentation examples compile where applicable.
-- [ ] `go test ./...` passes
+- [x] Documentation examples compile where applicable.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can discover forwarding support and understand how adb-go's behavior differs from official adb-server-backed forwarding.
+- [x] Users can discover forwarding support and understand how adb-go's behavior differs from official adb-server-backed forwarding.
 
 ## Deferred milestones
 

@@ -19,6 +19,7 @@ clone of the official `adb` command.
   - [`logcat`](#logcat)
   - [`screencap`](#screencap)
   - [`reboot`](#reboot)
+  - [`forward`](#forward)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -49,6 +50,7 @@ adb-go getprop --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --addr 127.0.0.1:5555
 adb-go screencap --addr 127.0.0.1:5555 ./screen.png
 adb-go reboot --addr 127.0.0.1:5555
+adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 ```
 
 If the port is omitted, the library connection path defaults to the standard ADB
@@ -68,6 +70,7 @@ adb-go getprop
 adb-go logcat --dump
 adb-go screencap ./screen.png
 adb-go reboot recovery
+adb-go forward tcp:9000 tcp:9000
 ```
 
 ## USB targets
@@ -84,6 +87,7 @@ adb-go getprop --usb-path /dev/bus/usb/001/002 ro.product.model
 adb-go logcat --usb-path /dev/bus/usb/001/002
 adb-go screencap --usb-path /dev/bus/usb/001/002 ./screen.png
 adb-go reboot --usb-path /dev/bus/usb/001/002 bootloader
+adb-go forward --usb-path /dev/bus/usb/001/002 tcp:9000 tcp:9000
 ```
 
 `--usb` requests USB discovery without narrowing selection. It succeeds only
@@ -106,6 +110,7 @@ adb-go getprop --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ro.product.mod
 adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 --dump
 adb-go screencap --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./screen.png
 adb-go reboot --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 recovery
+adb-go forward --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 ```
 
 The CLI does not create or modify key files.
@@ -331,15 +336,54 @@ connection while Android or the bootloader restarts. A successful command means
 that the ADB daemon accepted the reboot request; it does not wait for the device
 to come back online.
 
+### `forward`
+
+`adb-go forward` starts a foreground local TCP forwarding session from the host
+to a TCP port reachable from the selected device:
+
+```sh
+adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+adb-go forward --usb-path /dev/bus/usb/001/002 tcp:9000 tcp:9000
+adb-go forward --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+```
+
+The first endpoint is the local host listener and the second endpoint is the
+remote device target. The initial command supports `tcp:PORT` for both sides
+only. Local `tcp:PORT` binds to `127.0.0.1:PORT`; use `tcp:0` to ask the
+operating system for an available local port. After setup, adb-go prints the
+actual bound local address, which is especially useful with `tcp:0`:
+
+```text
+Forwarding 127.0.0.1:49321 -> tcp:9000. Press Ctrl+C to stop.
+```
+
+The command then remains running. While it is running, each local client
+connection is accepted by adb-go, adb-go opens a fresh device `tcp:PORT` ADB
+service stream, and bytes are copied in both directions. Press Ctrl-C or stop
+the process to close the local listener and any active bridged connections.
+
+This lifecycle is the main difference from official `adb forward`. Official adb
+registers mappings in the background host ADB server, so the `adb forward`
+command can exit while the server keeps listening and can later answer
+`--list`, `--remove`, and `--remove-all`. adb-go is direct-device and
+process-scoped in v0: it does not use the official server, does not create a
+persistent mapping table, and removes the forward when the command exits.
+
+Unsupported forwarding forms currently include host Unix sockets, Android local
+socket namespaces such as `localabstract:`, JDWP, vsock, reverse forwarding, raw
+advanced service targets, persistent mappings, `--list`, `--remove`, and
+`--remove-all`.
+
 ## Limitations
 
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
 `devices`, official `adb install` compatibility, full official `adb logcat`
-flag compatibility, server management, wireless pairing, forwarding, and most
-official flags are not implemented. Use `getprop` for adb-go's limited property
-inspection workflow, `screencap` for one-shot PNG screenshot capture, `reboot`
-for explicit disruptive reboot requests, and `install-apk` for adb-go's limited
-one-APK installation workflow.
+flag compatibility, server management, wireless pairing, adb-server-backed
+persistent forwarding, and most official flags are not implemented. Use
+`getprop` for adb-go's limited property inspection workflow, `screencap` for
+one-shot PNG screenshot capture, `reboot` for explicit disruptive reboot
+requests, `forward` for foreground local-TCP-to-device-TCP forwarding, and
+`install-apk` for adb-go's limited one-APK installation workflow.
 
 ## Testing
 

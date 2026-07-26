@@ -8,7 +8,8 @@ applications, with an experimental CLI wrapper for supported workflows.
 > It currently implements explicit TCP connections, initial Linux USB support,
 > explicit-key authentication, service opening, shell execution/streaming,
 > Android property lookup, logcat streaming/dump, screenshot capture, reboot,
-> single-file push/pull, and one-APK installation.
+> foreground local TCP forwarding, single-file push/pull, and one-APK
+> installation.
 
 ## Contents
 
@@ -41,8 +42,8 @@ dependencies are required.
 Use the root package for the stable high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
 reading Android system properties, streaming Android logs, capturing screenshots,
-rebooting into supported modes, pushing or pulling one file, and installing one
-APK.
+rebooting into supported modes, forwarding local TCP connections to device TCP
+ports, pushing or pulling one file, and installing one APK.
 
 ```go
 ctx := context.Background()
@@ -126,6 +127,28 @@ if err != nil {
 `Reboot` is disruptive: a successful request affects the selected device
 immediately and may close the ADB connection as the device restarts.
 
+Forward local TCP connections to a TCP endpoint on the selected device:
+
+```go
+remote, err := adb.ForwardTCP(8080)
+if err != nil {
+    return err
+}
+
+forward, err := c.ForwardLocalTCP(ctx, "127.0.0.1:0", remote)
+if err != nil {
+    return err
+}
+defer forward.Close()
+
+fmt.Println("listening on", forward.LocalAddr())
+err = forward.Wait()
+```
+
+This is process-scoped foreground forwarding. It is useful for bridging local
+clients to a service listening on the device, but it is not an adb-server-backed
+persistent `adb forward` registration.
+
 Install one local APK with the adb-go-specific install helper:
 
 ```go
@@ -192,6 +215,7 @@ adb-go logcat --dump --addr 127.0.0.1:5555
 adb-go screencap --addr 127.0.0.1:5555 ./screen.png
 adb-go reboot --addr 127.0.0.1:5555
 adb-go reboot --addr 127.0.0.1:5555 recovery
+adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 ```
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
@@ -224,8 +248,8 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
   Android property lookup, logcat streaming/dump, screenshot capture, reboot,
-  single-file push/pull, and one-APK installation are the main supported
-  workflows.
+  foreground local TCP forwarding, single-file push/pull, and one-APK
+  installation are the main supported workflows.
 - APK installation is exposed as `install-apk`, an adb-go-specific helper rather
   than official `adb install` compatibility. It currently supports one local APK
   and the replace-existing-app option only.
@@ -242,6 +266,11 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   normal, bootloader, and recovery modes through adb-go's `Reboot` helper and
   CLI `reboot` command; a successful request may close the ADB connection while
   the selected device restarts.
+- Forwarding support is foreground and process-scoped. adb-go binds its own
+  local TCP listener and opens a fresh device `tcp:PORT` service for each
+  accepted connection; it does not register persistent mappings in an adb server
+  and does not support `adb forward --list`, `--remove`, `--remove-all`, JDWP,
+  Unix sockets, reverse forwarding, or other endpoint families yet.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 

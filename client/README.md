@@ -4,8 +4,8 @@ Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
 opening, shell helpers, Android property helpers, logcat streaming, screenshot
-capture, reboot requests, single-file `sync:` push/pull helpers, and a small APK
-install helper.
+capture, reboot requests, foreground local TCP forwarding, single-file `sync:`
+push/pull helpers, and a small APK install helper.
 
 ## Contents
 
@@ -17,6 +17,7 @@ install helper.
 - [Logcat](#logcat)
 - [Screencap](#screencap)
 - [Reboot](#reboot)
+- [Forwarding](#forwarding)
 - [File transfer](#file-transfer)
 - [Install one APK](#install-one-apk)
 - [Open a raw service](#open-a-raw-service)
@@ -295,6 +296,65 @@ underlying connection as adbd and Android restart. Treat a nil error as "the
 request was accepted", not as proof that the device has already booted again or
 is ready for a new connection. Use a fresh connection after the target comes back
 online.
+
+## Forwarding
+
+`ForwardLocalTCP` starts a process-scoped local TCP forwarding session. adb-go
+binds a normal host TCP listener, accepts local connections, opens a fresh ADB
+service stream to the selected device for each accepted connection, and bridges
+bytes in both directions until either side closes:
+
+```go
+remote, err := adb.ForwardTCP(8080)
+if err != nil {
+    return err
+}
+
+forward, err := c.ForwardLocalTCP(ctx, "127.0.0.1:9000", remote)
+if err != nil {
+    return err
+}
+defer forward.Close()
+
+fmt.Println("forwarding from", forward.LocalAddr())
+err = forward.Wait()
+```
+
+Use `ForwardTCP(port)` to construct the currently supported remote target. It
+validates that `port` is in the TCP port range and maps the target to the device
+service string `tcp:PORT`. For example, local clients connecting to
+`127.0.0.1:9000` in the example above are bridged to a device-side `tcp:8080`
+ADB service, which asks `adbd` to connect to TCP port 8080 from the device side.
+
+`localAddr` is a Go TCP listen address. Pass a loopback address such as
+`127.0.0.1:9000` when the forward should be private to the host, or
+`127.0.0.1:0` when the operating system should choose an available local port.
+After setup, `LocalAddr` reports the bound address, including the chosen port for
+`:0` listeners.
+
+The returned `Forward` handle owns the forwarding lifetime:
+
+- `Close` stops accepting new local connections and closes active local
+  connections and ADB streams.
+- `Wait` blocks until the listener and active bridges have stopped. It returns
+  nil after intentional `Close` or context cancellation, and reports listener
+  errors that stop the accept loop unexpectedly.
+- Canceling the context passed to `ForwardLocalTCP`, closing the `Client`, or
+  exiting the process also ends the forwarding session.
+
+This is intentionally different from official `adb forward`. Official adb
+stores forwarding mappings in the host ADB server, so a command such as
+`adb forward tcp:9000 tcp:8080` can return while the server keeps listening in
+the background and can later answer `adb forward --list` or remove mappings. adb-go does not run an ADB
+server-compatible daemon in v0; the forward exists only while this process and
+its `Forward` handle are alive.
+
+Currently supported endpoint forms are local TCP listeners and remote device TCP
+services only. Persistent mappings, `--list`/remove operations, reverse
+forwarding, JDWP, Android local socket namespaces, host Unix sockets, vsock, and
+raw advanced endpoint strings are out of scope for the first forwarding API.
+See [`../docs/forwarding-design.md`](../docs/forwarding-design.md) for the full
+design rationale.
 
 ## File transfer
 
