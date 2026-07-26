@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M47 — Manage adb-god systemd user service lifecycle.
-- Completed milestone range: Milestones 17–45 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, and the minimal adb-god daemon foundation.
-- Active focus: complete Linux systemd user-service lifecycle controls for the existing minimal `adb-god` daemon without adding daemon-owned ADB persistence.
+- Current milestone: M48 — Report adb-god systemd user service status.
+- Completed milestone range: Milestones 17–47 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, and Linux systemd user-service install/lifecycle controls.
+- Active focus: add Linux systemd user-service status reporting for the existing minimal `adb-god` daemon without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -184,6 +184,31 @@ Tests:
 Done when:
 
 - [x] Linux users can install, start, stop, restart, and uninstall the adb-god systemd user service from the `adb-go daemon service ...` command group.
+
+## M48 — Report adb-god systemd user service status
+
+Status: Not started
+
+Commit: `feat(cli): add daemon service status command`
+
+Tasks:
+
+- [ ] Add `adb-go daemon service status` for Linux systemd user-service state reporting.
+- [ ] Query systemd user service activity with `systemctl --user is-active adb-god.service`.
+- [ ] Query systemd user service enablement with `systemctl --user is-enabled adb-god.service`.
+- [ ] Print concise, script-readable status fields such as `active: active` and `enabled: enabled`.
+- [ ] Keep `daemon service status` clearly distinct from `adb-go daemon status`, which talks to the live daemon socket protocol.
+- [ ] Document the service status command in README and CLI docs.
+
+Tests:
+
+- [ ] CLI tests cover active/enabled output using an isolated fake `systemctl` path.
+- [ ] CLI tests cover inactive or disabled systemctl responses without requiring a real systemd user manager.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] Linux users can ask systemd whether the adb-god user service is active and enabled with `adb-go daemon service status`.
 
 ## Deferred milestones
 
