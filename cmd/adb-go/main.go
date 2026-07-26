@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	adb "github.com/dector/adb-go"
 )
@@ -25,6 +26,7 @@ Commands:
   shell       Run a shell command on a connected device
   logcat      Stream Android log output from a connected device
   getprop     Read Android system properties from a connected device
+  screencap   Save a PNG screenshot from a connected device
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -43,6 +45,7 @@ type deviceClient interface {
 	Logcat(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
 	GetProp(ctx context.Context, name string) (string, error)
 	Properties(ctx context.Context) (map[string]string, error)
+	Screencap(ctx context.Context) ([]byte, error)
 	PushFile(ctx context.Context, localPath, remotePath string) error
 	PullFile(ctx context.Context, remotePath, localPath string) error
 	PullFileWithOptions(ctx context.Context, remotePath, localPath string, opts adb.PullOptions) error
@@ -79,6 +82,7 @@ var connectDevice = func(ctx context.Context, target connectionTarget) (deviceCl
 
 var listUSBDevices = adb.ListUSBDevices
 var scanTCPTargets = adb.ScanTCPTargets
+var currentTime = time.Now
 
 func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
 	return connectionOptions{
@@ -282,6 +286,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLogcat(args[1:], stdout, stderr)
 	case "getprop":
 		return runGetProp(args[1:], stdout, stderr)
+	case "screencap":
+		return runScreencap(args[1:], stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
@@ -466,6 +472,105 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "[%s]: [%s]\n", name, props[name])
 	}
 	return 0
+}
+
+const screencapUsage = `Usage:
+  adb-go screencap (--addr HOST[:PORT] | --usb [USB selection]) [--overwrite] [LOCAL_PNG]
+
+Captures one PNG screenshot from the selected ADB device. When LOCAL_PNG is
+omitted, adb-go writes to a timestamped file in the current directory named like
+screen-yyyymmdd-hhmmssmmm.png, for example screen-20260102-030405123.png. TCP
+addresses come from --addr, or from ADB_GO_ADDR when --addr is omitted. USB
+support is Linux-only initially.
+
+By default, screencap refuses to replace an existing local file. Pass
+--overwrite to replace the selected path deliberately. For example:
+
+  adb-go screencap --addr 127.0.0.1:5555
+  adb-go screencap --addr 127.0.0.1:5555 ./screen.png
+  adb-go screencap --overwrite --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 ./screen.png
+`
+
+func runScreencap(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("screencap", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	overwrite := fs.Bool("overwrite", false, "replace an existing local PNG destination")
+	fs.Usage = func() { fmt.Fprint(stderr, screencapUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go screencap: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	if fs.NArg() > 1 {
+		fmt.Fprint(stderr, "adb-go screencap: accepts at most one LOCAL_PNG argument\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	localPath := defaultScreencapPath(currentTime())
+	if fs.NArg() == 1 {
+		localPath = fs.Arg(0)
+	}
+
+	client, err := connectDevice(context.Background(), target)
+	if err != nil {
+		printConnectError(stderr, "screencap", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	png, err := client.Screencap(context.Background())
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go screencap: %v\n", err)
+		return 1
+	}
+	if err := writeScreencapFile(localPath, png, *overwrite); err != nil {
+		fmt.Fprintf(stderr, "adb-go screencap: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "%s\n", localPath)
+	return 0
+}
+
+func defaultScreencapPath(t time.Time) string {
+	return fmt.Sprintf("screen-%s%03d.png", t.Format("20060102-150405"), t.Nanosecond()/int(time.Millisecond))
+}
+
+func writeScreencapFile(localPath string, png []byte, overwrite bool) error {
+	flags := os.O_WRONLY | os.O_CREATE
+	if overwrite {
+		flags |= os.O_TRUNC
+	} else {
+		flags |= os.O_EXCL
+	}
+	file, err := os.OpenFile(localPath, flags, 0o666)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("destination %q: %w", localPath, adb.ErrDestinationExists)
+		}
+		return fmt.Errorf("destination %q: %w", localPath, err)
+	}
+	ok := false
+	defer func() {
+		if !ok && !overwrite {
+			_ = os.Remove(localPath)
+		}
+	}()
+	if _, err := file.Write(png); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write destination %q: %w", localPath, err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close destination %q: %w", localPath, err)
+	}
+	ok = true
+	return nil
 }
 
 const pushUsage = `Usage:

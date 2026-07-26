@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	adb "github.com/dector/adb-go"
 	"github.com/dector/adb-go/internal/fakeadb"
@@ -762,6 +763,238 @@ func TestRunGetPropReportsErrors(t *testing.T) {
 	}
 }
 
+func TestRunScreencapMissingAddr(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"screencap"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(screencap missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "adb-go screencap --addr") {
+		t.Fatalf("stderr = %q, want missing addr usage error", got)
+	}
+}
+
+func TestRunScreencapRejectsExtraArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", "one.png", "two.png"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("run(screencap extra args) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "accepts at most one LOCAL_PNG") || !strings.Contains(got, "adb-go screencap --addr") {
+		t.Fatalf("stderr = %q, want arg count usage error", got)
+	}
+}
+
+func TestRunScreencapUsesDefaultTimestampedPath(t *testing.T) {
+	restoreTime := replaceCurrentTime(func() time.Time {
+		return time.Date(2026, 1, 2, 3, 4, 5, 123_000_000, time.Local)
+	})
+	defer restoreTime()
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{screencap: func(ctx context.Context) ([]byte, error) {
+			return []byte("png bytes"), nil
+		}}, nil
+	})
+	defer restore()
+
+	localPath := "screen-20260102-030405123.png"
+	_ = os.Remove(localPath)
+	defer os.Remove(localPath)
+
+	code := run([]string{"screencap", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(screencap default path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != localPath+"\n" {
+		t.Fatalf("stdout = %q, want written path", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	got, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(got) != "png bytes" {
+		t.Fatalf("screencap contents = %q, want png bytes", string(got))
+	}
+}
+
+func TestRunScreencapUsesConnectionFlagsAndCustomPath(t *testing.T) {
+	keyPath := writeADBKeyFile(t)
+	localPath := filepath.Join(t.TempDir(), "custom.png")
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{screencap: func(ctx context.Context) ([]byte, error) {
+			return []byte("custom png"), nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, localPath}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(screencap custom path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != localPath+"\n" {
+		t.Fatalf("stdout = %q, want written path", stdout.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP target", gotTarget)
+	}
+	if len(gotTarget.auth) != 1 {
+		t.Fatalf("target auth credentials = %d, want 1", len(gotTarget.auth))
+	}
+	got, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(got) != "custom png" {
+		t.Fatalf("screencap contents = %q, want custom png", string(got))
+	}
+}
+
+func TestRunScreencapUsesUSBConnection(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "usb.png")
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{screencap: func(ctx context.Context) ([]byte, error) {
+			return []byte("usb png"), nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"screencap", "--usb-path", "/dev/bus/usb/001/002", localPath}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(screencap --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
+		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
+	}
+	if stdout.String() != localPath+"\n" {
+		t.Fatalf("stdout = %q, want written path", stdout.String())
+	}
+}
+
+func TestRunScreencapDoesNotOverwriteExistingDestinationByDefault(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "existing.png")
+	if err := os.WriteFile(localPath, []byte("old"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{screencap: func(ctx context.Context) ([]byte, error) {
+			return []byte("new"), nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", localPath}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(screencap existing destination) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "destination exists") {
+		t.Fatalf("stderr = %q, want destination exists", got)
+	}
+	contents, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(contents) != "old" {
+		t.Fatalf("existing contents = %q, want old", string(contents))
+	}
+}
+
+func TestRunScreencapOverwriteReplacesExistingDestination(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "existing.png")
+	if err := os.WriteFile(localPath, []byte("old"), 0o666); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{screencap: func(ctx context.Context) ([]byte, error) {
+			return []byte("new"), nil
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", "--overwrite", localPath}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(screencap --overwrite) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	contents, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(contents) != "new" {
+		t.Fatalf("overwritten contents = %q, want new", string(contents))
+	}
+}
+
+func TestRunScreencapCapturesThroughADB(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:screencap -p", writeCLIShellOutput(t, "png from device"))
+	localPath := filepath.Join(t.TempDir(), "screen.png")
+	var stdout, stderr bytes.Buffer
+
+	code := run([]string{"screencap", "--addr", server.Addr(), localPath}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(screencap) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	contents, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(contents) != "png from device" {
+		t.Fatalf("screencap contents = %q, want png from device", string(contents))
+	}
+}
+
+func TestRunScreencapReportsCaptureFailure(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{screencap: func(ctx context.Context) ([]byte, error) {
+			return nil, errors.New("capture failed")
+		}}, nil
+	})
+	defer restore()
+
+	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", filepath.Join(t.TempDir(), "screen.png")}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("run(screencap failure) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "capture failed") {
+		t.Fatalf("stderr = %q, want capture failure", got)
+	}
+}
+
 func TestRunPushMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
@@ -1207,6 +1440,7 @@ type fakeCLIClient struct {
 	logcat                func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
 	getProp               func(ctx context.Context, name string) (string, error)
 	properties            func(ctx context.Context) (map[string]string, error)
+	screencap             func(ctx context.Context) ([]byte, error)
 	installAPK            func(ctx context.Context, localPath string) error
 	installAPKWithOptions func(ctx context.Context, localPath string, opts adb.InstallOptions) error
 }
@@ -1235,6 +1469,13 @@ func (c fakeCLIClient) GetProp(ctx context.Context, name string) (string, error)
 func (c fakeCLIClient) Properties(ctx context.Context) (map[string]string, error) {
 	if c.properties != nil {
 		return c.properties(ctx)
+	}
+	return nil, nil
+}
+
+func (c fakeCLIClient) Screencap(ctx context.Context) ([]byte, error) {
+	if c.screencap != nil {
+		return c.screencap(ctx)
 	}
 	return nil, nil
 }
@@ -1277,4 +1518,10 @@ func replaceScanTCPTargets(fn func(context.Context, adb.TCPScanOptions) ([]adb.T
 	old := scanTCPTargets
 	scanTCPTargets = fn
 	return func() { scanTCPTargets = old }
+}
+
+func replaceCurrentTime(fn func() time.Time) func() {
+	old := currentTime
+	currentTime = fn
+	return func() { currentTime = old }
 }

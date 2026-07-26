@@ -218,25 +218,25 @@ Done when:
 
 ### M42.2 — Add CLI screencap command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add screencap command`
 
 Tasks:
 
-- [ ] Add an `adb-go screencap` command.
-- [ ] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
-- [ ] Accept exactly one local output path, or explicitly decide and document stdout behavior.
-- [ ] Avoid overwriting existing local files unless an explicit overwrite option is added.
+- [x] Add an `adb-go screencap` command.
+- [x] Support the same TCP, Linux USB, and `--auth-key` connection flags as other device commands.
+- [x] Accept exactly one local output path, or explicitly decide and document stdout behavior.
+- [x] Avoid overwriting existing local files unless an explicit overwrite option is added.
 
 Tests:
 
-- [ ] CLI tests cover usage, argument validation, connection flag propagation, success, destination-exists behavior, and errors.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover usage, argument validation, connection flag propagation, success, destination-exists behavior, and errors.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] CLI users can run `adb-go screencap [connection flags] LOCAL_PNG` to save a screenshot.
+- [x] CLI users can run `adb-go screencap [connection flags] LOCAL_PNG` to save a screenshot.
 
 ### M42.3 — Document screencap support
 
