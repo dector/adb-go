@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M43.3 — Document reboot support.
-- Completed milestone range: Milestones 17–40 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, and logcat library/CLI/documentation support.
+- Current milestone: M44.1 — Research direct-device forwarding design.
+- Completed milestone range: Milestones 17–43 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, and reboot library/CLI/documentation support.
 - Active focus: add missing non-USB ADB workflows in small library/CLI/docs slices. Start with shell-backed features that fit the current direct-device architecture, then investigate forwarding separately because official `adb forward` semantics usually involve host-side listener behavior.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -337,25 +337,35 @@ Goal: investigate and then implement adb-go forwarding in a way that matches the
 
 ### M44.1 — Research direct-device forwarding design
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: design adb-go forwarding support`
 
 Tasks:
 
-- [ ] Research official ADB forwarding behavior and identify which pieces are host-side listener management versus device stream opening.
-- [ ] Decide whether adb-go can support a direct-device forwarding API without running an adb-server-compatible daemon.
-- [ ] Design a small library API for local TCP to remote ADB service forwarding if feasible.
-- [ ] Document limitations and non-goals, including differences from official `adb forward`.
+- [x] Research official ADB forwarding behavior and identify which pieces are host-side listener management versus device stream opening.
+- [x] Decide whether adb-go can support a direct-device forwarding API without running an adb-server-compatible daemon.
+- [x] Design a small library API for local TCP to remote ADB service forwarding if feasible.
+- [x] Document limitations and non-goals, including differences from official `adb forward`.
+
+Design:
+
+- Official `adb forward` is adb-server-managed state. The CLI sends smart-socket host-service requests such as `<host-prefix>:forward:<local>;<remote>` to the host ADB server. The server owns local listeners, preserves mappings after the CLI exits, and serves `--list`, `--remove`, and `--remove-all` from its forwarding table.
+- adb-go should not claim that behavior while it remains a direct-device library/CLI with no adb-server-compatible daemon. Direct connections can open device services such as `tcp:<port>` but cannot register persistent host-side forwarding state inside `adbd`.
+- The follow-up implementation should provide foreground, process-scoped forwarding: bind a local TCP listener in the caller process, accept local connections, open a fresh remote device service stream for each connection, and bridge bytes in both directions until closed.
+- The first code slice should support local TCP to remote device TCP only. Proposed library shape: a typed `ForwardTarget`, `ForwardTCP(port)`, an active `Forward` handle with `LocalAddr`, `Close`, and `Wait`, and `Client.ForwardLocalTCP(ctx, localAddr, remote)`.
+- The first CLI slice should support `adb-go forward [connection flags] tcp:PORT tcp:PORT`, run in the foreground, print the actual local address for `tcp:0`, and document that stopping the process removes the forward.
+- Out of scope for the initial implementation: persistent server-like mappings, `--list`, `--remove`, `--remove-all`, reverse forwarding, host Unix sockets, device local socket namespaces, JDWP, vsock, and raw advanced remote service targets.
+- Full rationale and consequences are documented in [`docs/forwarding-design.md`](docs/forwarding-design.md).
 
 Tests:
 
-- [ ] No code tests required unless the design milestone includes small exploratory tests.
-- [ ] `go test ./...` passes
+- [x] No code tests required unless the design milestone includes small exploratory tests.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] The plan contains a concrete, reviewable design for forwarding that can be implemented in small follow-up milestones.
+- [x] The plan contains a concrete, reviewable design for forwarding that can be implemented in small follow-up milestones.
 
 ### M44.2 — Add client port forwarding helpers
 

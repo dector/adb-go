@@ -15,6 +15,8 @@ transport behavior.
 
 - [`authentication.md`](authentication.md) - ADB `AUTH` flow, supported key
   formats, and explicit credential handling.
+- [`forwarding-design.md`](forwarding-design.md) - direct-device forwarding
+  design, official `adb forward` differences, and proposed library/CLI shape.
 - [`linux-usb-transport.md`](linux-usb-transport.md) - Linux usbfs discovery,
   endpoint selection, permissions, and transport details.
 
@@ -82,3 +84,5 @@ callers can set deadlines or cancel work.
 - Authentication uses explicitly supplied credentials only.
 - Push and pull are single-file APIs; directory-aware behavior is reserved for
   future APIs.
+- Forwarding is designed as foreground, process-scoped local listener management
+  rather than official adb-server-style persistent forwarding state.
