@@ -4,6 +4,13 @@ This directory builds a small runtime image containing a standalone Linux `adbd`
 
 The image is intended for optional adb-go integration tests. It is not used by default `go test ./...`.
 
+## Contents
+
+- [Build](#build)
+- [Run manually](#run-manually)
+- [Run instrumented tests automatically](#run-instrumented-tests-automatically)
+- [Security](#security)
+
 ## Build
 
 Podman is the preferred local runtime:
