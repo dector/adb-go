@@ -349,6 +349,7 @@ only exposes daemon process controls; adb-god does not persist devices,
 transports, forwards, sessions, or authentication state yet.
 
 Commands:
+  doctor   Print read-only daemon socket and service diagnostics
   ping     Check whether adb-god responds to the control protocol
   status   Print basic adb-god process metadata
   stop     Request graceful adb-god shutdown
@@ -388,6 +389,9 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	commandArgs := fs.Args()[1:]
 	if command == "service" {
 		return runDaemonService(commandArgs, socketPath, stdout, stderr)
+	}
+	if command == "doctor" {
+		return runDaemonDoctor(commandArgs, socketPath, stdout, stderr)
 	}
 	switch command {
 	case daemon.CommandPing, daemon.CommandStatus, "stop":
@@ -439,6 +443,124 @@ func printDaemonStatus(stdout io.Writer, result map[string]any) {
 	fmt.Fprintf(stdout, "socketPath: %v\n", result["socketPath"])
 	fmt.Fprintf(stdout, "protocolVersion: %v\n", result["protocolVersion"])
 	fmt.Fprintf(stdout, "uptimeMillis: %v\n", result["uptimeMillis"])
+}
+
+const daemonDoctorUsage = `Usage:
+  adb-go daemon [--socket PATH] doctor [--systemctl PATH]
+
+Prints read-only diagnostics for the local adb-god daemon. The command reports
+which socket path adb-go resolved, whether that path exists, whether a
+compatible daemon responds to the socket protocol, and, on Linux when systemctl
+is available, adb-god.service active/enabled state.
+`
+
+func runDaemonDoctor(args []string, socketPath string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("daemon doctor", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	systemctlFlag := fs.String("systemctl", "systemctl", "systemctl binary path")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonDoctorUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon doctor: unexpected arguments %q\n\n", fs.Args())
+		fs.Usage()
+		return 2
+	}
+
+	hints := []string{}
+	fmt.Fprintf(stdout, "socketPath: %s\n", socketPath)
+	if info, err := os.Lstat(socketPath); err == nil {
+		fmt.Fprintln(stdout, "socketExists: true")
+		if info.Mode()&os.ModeSocket == 0 {
+			fmt.Fprintf(stdout, "socketType: %s\n", info.Mode().Type())
+			hints = append(hints, "The socket path exists but is not a Unix socket; inspect it before starting adb-god with this path.")
+		} else {
+			fmt.Fprintln(stdout, "socketType: unix")
+		}
+	} else if errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintln(stdout, "socketExists: false")
+		hints = append(hints, "No daemon socket exists at this path; start adb-god with a matching -socket path or run adb-go daemon service start if the service is installed.")
+	} else {
+		fmt.Fprintf(stdout, "socketExists: unknown (%v)\n", err)
+		hints = append(hints, "adb-go could not inspect the socket path; check parent directory permissions.")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resp, err := daemon.Send(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandStatus})
+	if err != nil {
+		fmt.Fprintf(stdout, "daemonProtocol: not responding (%v)\n", err)
+		hints = append(hints, "No compatible adb-god daemon answered the control protocol; verify the daemon process and socket path match.")
+	} else if !resp.OK {
+		fmt.Fprintln(stdout, "daemonProtocol: error")
+		if resp.Error != nil {
+			fmt.Fprintf(stdout, "daemonError: %s: %s\n", resp.Error.Code, resp.Error.Message)
+		}
+		hints = append(hints, "The daemon socket answered but returned an error; check that adb-go and adb-god are compatible builds.")
+	} else {
+		fmt.Fprintln(stdout, "daemonProtocol: responding")
+		fmt.Fprintf(stdout, "daemonState: %v\n", resp.Result["state"])
+		fmt.Fprintf(stdout, "daemonProtocolVersion: %v\n", resp.Result["protocolVersion"])
+	}
+
+	if runtime.GOOS == "linux" {
+		active, enabled, ok, hint := daemonDoctorSystemdStatus(strings.TrimSpace(*systemctlFlag))
+		if ok {
+			fmt.Fprintf(stdout, "systemdActive: %s\n", active)
+			fmt.Fprintf(stdout, "systemdEnabled: %s\n", enabled)
+			if active != "active" {
+				hints = append(hints, "adb-god.service is not active; run adb-go daemon service start to start the installed user service.")
+			}
+			if enabled != "enabled" {
+				hints = append(hints, "adb-god.service is not enabled; run adb-go daemon service install or systemctl --user enable adb-god.service to start it automatically.")
+			}
+		} else {
+			fmt.Fprintln(stdout, "systemdUserService: unavailable")
+			if hint != "" {
+				hints = append(hints, hint)
+			}
+		}
+	} else {
+		fmt.Fprintln(stdout, "systemdUserService: unsupported on this platform")
+	}
+
+	if len(hints) == 0 {
+		fmt.Fprintln(stdout, "hints: none")
+	} else {
+		fmt.Fprintln(stdout, "hints:")
+		for _, hint := range hints {
+			fmt.Fprintf(stdout, "  - %s\n", hint)
+		}
+	}
+	return 0
+}
+
+func daemonDoctorSystemdStatus(systemctl string) (active, enabled string, ok bool, hint string) {
+	if systemctl == "" {
+		systemctl = "systemctl"
+	}
+	if !systemctlAvailable(systemctl) {
+		return "", "", false, "systemctl is not available on PATH; install systemd tools or pass --systemctl PATH to inspect adb-god.service."
+	}
+	active, activeErr := systemctlUserOutput(systemctl, "is-active", "adb-god.service")
+	enabled, enabledErr := systemctlUserOutput(systemctl, "is-enabled", "adb-god.service")
+	if active == "" && activeErr != nil {
+		return "", "", false, fmt.Sprintf("systemctl could not read adb-god.service active state: %v", activeErr)
+	}
+	if enabled == "" && enabledErr != nil {
+		return "", "", false, fmt.Sprintf("systemctl could not read adb-god.service enabled state: %v", enabledErr)
+	}
+	return active, enabled, true, ""
+}
+
+func systemctlAvailable(systemctl string) bool {
+	if strings.ContainsRune(systemctl, os.PathSeparator) {
+		info, err := os.Stat(systemctl)
+		return err == nil && !info.IsDir()
+	}
+	_, err := exec.LookPath(systemctl)
+	return err == nil
 }
 
 const daemonServiceUsage = `Usage:

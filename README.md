@@ -240,10 +240,17 @@ adb-god
 Control it with the experimental CLI:
 
 ```sh
+adb-go daemon doctor
 adb-go daemon ping
 adb-go daemon status
 adb-go daemon stop
 ```
+
+`adb-go daemon doctor` is the read-only troubleshooting entry point. It prints
+the resolved daemon socket path, whether a compatible daemon answers the socket
+protocol, Linux systemd user-service state when `systemctl` is available, and
+hints for common states such as a missing socket, inactive service, or disabled
+service.
 
 On Linux systems with systemd user services, the CLI can also install and start
 `adb-god` for the current user:
@@ -269,7 +276,8 @@ adb-go daemon service uninstall
 `adb-go daemon service status` asks systemd about the host service and prints
 script-readable fields such as `active: active` and `enabled: enabled`. This is
 different from `adb-go daemon status`, which connects to the daemon socket and
-reports live daemon protocol metadata.
+reports live daemon protocol metadata. `adb-go daemon doctor` combines both
+views without mutating daemon or service state.
 
 The socket path is selected in this order: an explicit CLI `--socket` path where
 accepted, `ADB_GO_DAEMON_SOCKET`, `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, then a

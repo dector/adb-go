@@ -47,29 +47,29 @@ Milestone rules:
 
 ## M49 — Add daemon diagnostics command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add daemon doctor command`
 
 Tasks:
 
-- [ ] Add `adb-go daemon doctor` as a read-only diagnostics command.
-- [ ] Report the resolved daemon socket path and whether a daemon responds to the socket protocol.
-- [ ] On Linux, report systemd user-service active/enabled state when `systemctl` is available.
-- [ ] Print actionable hints for common states such as missing socket, daemon not responding, service inactive, or service disabled.
-- [ ] Keep the command diagnostic-only: do not start, stop, install, uninstall, or mutate daemon/service state.
-- [ ] Document the daemon doctor command in README and CLI docs.
+- [x] Add `adb-go daemon doctor` as a read-only diagnostics command.
+- [x] Report the resolved daemon socket path and whether a daemon responds to the socket protocol.
+- [x] On Linux, report systemd user-service active/enabled state when `systemctl` is available.
+- [x] Print actionable hints for common states such as missing socket, daemon not responding, service inactive, or service disabled.
+- [x] Keep the command diagnostic-only: do not start, stop, install, uninstall, or mutate daemon/service state.
+- [x] Document the daemon doctor command in README and CLI docs.
 
 Tests:
 
-- [ ] CLI tests cover successful daemon socket checks using an isolated test daemon.
-- [ ] CLI tests cover missing socket and non-running daemon diagnostics.
-- [ ] CLI tests cover Linux systemd status diagnostics using an isolated fake `systemctl` path.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover successful daemon socket checks using an isolated test daemon.
+- [x] CLI tests cover missing socket and non-running daemon diagnostics.
+- [x] CLI tests cover Linux systemd status diagnostics using an isolated fake `systemctl` path.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can run one command to understand whether `adb-god` is reachable, what socket path is being used, and what systemd reports for the user service.
+- [x] Users can run one command to understand whether `adb-god` is reachable, what socket path is being used, and what systemd reports for the user service.
 
 ## M50 — Add daemon service logs command
 

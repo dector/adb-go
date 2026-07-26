@@ -394,6 +394,7 @@ advanced service targets, persistent mappings, `--list`, `--remove`, and
 socket control protocol:
 
 ```sh
+adb-go daemon doctor
 adb-go daemon ping
 adb-go daemon status
 adb-go daemon stop
@@ -403,6 +404,33 @@ adb-go daemon service stop
 adb-go daemon service restart
 adb-go daemon service status
 adb-go daemon service uninstall
+```
+
+`doctor` is a read-only diagnostics command. It prints the socket path resolved
+by the same rules as the other daemon commands, whether that path exists,
+whether a compatible daemon responds to the daemon socket protocol, and Linux
+systemd user-service active/enabled state when `systemctl` is available:
+
+```text
+socketPath: /run/user/1000/adb-go/adb-god.sock
+socketExists: true
+socketType: unix
+daemonProtocol: responding
+daemonState: running
+daemonProtocolVersion: 1
+systemdActive: active
+systemdEnabled: enabled
+hints: none
+```
+
+When something looks wrong, `doctor` keeps diagnosing instead of starting,
+stopping, installing, or uninstalling anything. For example, a missing socket or
+inactive systemd service produces actionable hints such as starting the service
+or checking that `adb-go` and `adb-god` agree on the socket path. Pass
+`--systemctl PATH` after `doctor` to test or use a non-default systemctl binary:
+
+```sh
+adb-go daemon doctor --systemctl /usr/bin/systemctl
 ```
 
 `ping` is a liveness check. It sends a protocol `ping` request and prints

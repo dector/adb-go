@@ -113,6 +113,61 @@ func TestRunDaemonUsesConfiguredEnvironmentSocketPath(t *testing.T) {
 	}
 }
 
+func TestRunDaemonDoctorReportsRespondingDaemon(t *testing.T) {
+	_, socketPath, wait := startDaemonCommandTestServer(t)
+	defer wait()
+	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "active", "enabled", 0, 0)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon doctor) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"socketPath: " + socketPath, "socketExists: true", "socketType: unix", "daemonProtocol: responding", "daemonState: running", "daemonProtocolVersion: 1", "systemdActive: active", "systemdEnabled: enabled", "hints: none"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunDaemonDoctorReportsMissingSocket(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "missing.sock")
+	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "inactive", "disabled", 3, 1)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon doctor missing socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"socketPath: " + socketPath, "socketExists: false", "daemonProtocol: not responding", "systemdActive: inactive", "systemdEnabled: disabled", "No daemon socket exists", "service start", "service install"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunDaemonDoctorReportsNonDaemonSocket(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "adb-god.sock")
+	if err := os.WriteFile(socketPath, []byte("not a socket"), 0o644); err != nil {
+		t.Fatalf("write fake socket path: %v", err)
+	}
+	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "active", "enabled", 0, 0)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon doctor non-daemon socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"socketExists: true", "daemonProtocol: not responding", "exists but is not a Unix socket"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
 func TestRunDaemonInstallWritesSystemdUserUnit(t *testing.T) {
 	adbGodPath := filepath.Join(t.TempDir(), "adb-god")
 	if err := os.WriteFile(adbGodPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
