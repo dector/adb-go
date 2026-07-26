@@ -20,6 +20,7 @@ clone of the official `adb` command.
   - [`screencap`](#screencap)
   - [`reboot`](#reboot)
   - [`forward`](#forward)
+  - [`daemon`](#daemon)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -29,7 +30,14 @@ clone of the official `adb` command.
 go install github.com/dector/adb-go/cmd/adb-go@latest
 ```
 
-From a local checkout, run it without installing:
+The optional daemon control commands talk to the separate foreground `adb-god`
+binary. Install it when you want to try the daemon foundation:
+
+```sh
+go install github.com/dector/adb-go/cmd/adb-god@latest
+```
+
+From a local checkout, run the CLI without installing:
 
 ```sh
 go run ./cmd/adb-go help
@@ -116,6 +124,12 @@ adb-go forward --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:9000 tcp:9
 The CLI does not create or modify key files.
 
 ## Commands
+
+Device workflow commands such as `shell`, `push`, `pull`, `install-apk`,
+`getprop`, `logcat`, `screencap`, `reboot`, and `forward` connect directly to an
+explicit TCP or Linux USB target. The `daemon` command is different: it talks to
+the local `adb-god` control socket and does not select or operate on an Android
+device.
 
 ### `targets`
 
@@ -374,6 +388,67 @@ socket namespaces such as `localabstract:`, JDWP, vsock, reverse forwarding, raw
 advanced service targets, persistent mappings, `--list`, `--remove`, and
 `--remove-all`.
 
+### `daemon`
+
+`adb-go daemon` controls the local `adb-god` process over adb-go's Unix domain
+socket control protocol:
+
+```sh
+adb-go daemon ping
+adb-go daemon status
+adb-go daemon stop
+```
+
+`ping` is a liveness check. It sends a protocol `ping` request and prints
+`pong` when a compatible daemon responds.
+
+`status` prints basic process metadata only:
+
+```text
+state: running
+pid: 12345
+socketPath: /run/user/1000/adb-go/adb-god.sock
+protocolVersion: 1
+uptimeMillis: 2500
+```
+
+These fields describe the daemon process and protocol endpoint. They are not a
+device list and do not include transport state, sessions, forwarding mappings,
+authentication state, or any persistent ADB feature state.
+
+`stop` sends the protocol `shutdown` request. A successful response means the
+daemon accepted graceful shutdown; the daemon then stops accepting new control
+connections, closes its listener, and removes its socket file on the normal
+shutdown path.
+
+By default, `adb-go daemon ...` and `adb-god` use the same socket path selection
+rules:
+
+1. `ADB_GO_DAEMON_SOCKET`, when set to an absolute path.
+2. `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, when `XDG_RUNTIME_DIR` is absolute.
+3. `$TMPDIR/adb-go-$UID/adb-god.sock`, using Go's `os.TempDir()` and the current
+   Unix user ID.
+
+For tests, development, or non-default installations, pass an explicit absolute
+socket path to the CLI:
+
+```sh
+adb-go daemon --socket /tmp/adb-go-demo/adb-god.sock status
+```
+
+Start the daemon itself separately with the matching path:
+
+```sh
+adb-god --socket /tmp/adb-go-demo/adb-god.sock
+```
+
+The initial daemon is deliberately minimal. It is not the official adb server,
+it does not auto-start from `adb-go daemon`, and it does not keep ADB devices,
+USB/TCP transports, foreground forwards, shell sessions, install state, logcat
+streams, screenshots, reboots, or authentication keys alive after a CLI command
+exits. Those are future design areas built on this process and socket
+foundation.
+
 ## Limitations
 
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
@@ -382,8 +457,9 @@ flag compatibility, server management, wireless pairing, adb-server-backed
 persistent forwarding, and most official flags are not implemented. Use
 `getprop` for adb-go's limited property inspection workflow, `screencap` for
 one-shot PNG screenshot capture, `reboot` for explicit disruptive reboot
-requests, `forward` for foreground local-TCP-to-device-TCP forwarding, and
-`install-apk` for adb-go's limited one-APK installation workflow.
+requests, `forward` for foreground local-TCP-to-device-TCP forwarding,
+`daemon` for minimal local `adb-god` process control, and `install-apk` for
+adb-go's limited one-APK installation workflow.
 
 ## Testing
 

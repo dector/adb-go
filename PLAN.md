@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M45.4 — Document daemon foundation.
-- Completed milestone range: Milestones 17–44 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, and foreground port forwarding support.
-- Active focus: add the minimal daemon foundation for future persistence: an `adb-god` daemon process, a Unix domain socket control channel, and `adb-go daemon` CLI controls. Do not add persistent device/session functionality yet.
+- Current milestone: None. Promote the next concrete milestone from Deferred milestones before implementing more work.
+- Completed milestone range: Milestones 17–45 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, and the minimal adb-god daemon foundation.
+- Active focus: no active milestone. The minimal daemon foundation now includes an `adb-god` daemon process, a Unix domain socket control channel, and `adb-go daemon` CLI controls. Persistent device/session functionality remains future work.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -120,25 +120,25 @@ Done when:
 
 ### M45.4 — Document daemon foundation
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document adb-god daemon foundation`
 
 Tasks:
 
-- [ ] Update README documentation to mention `adb-god` and the limited initial daemon scope.
-- [ ] Update `cmd/adb-go/README.md` with `adb-go daemon` usage.
-- [ ] Document Unix socket path configuration and lifecycle behavior.
-- [ ] Document explicitly that no persistent ADB functionality is implemented in the daemon yet.
+- [x] Update README documentation to mention `adb-god` and the limited initial daemon scope.
+- [x] Update `cmd/adb-go/README.md` with `adb-go daemon` usage.
+- [x] Document Unix socket path configuration and lifecycle behavior.
+- [x] Document explicitly that no persistent ADB functionality is implemented in the daemon yet.
 
 Tests:
 
-- [ ] Documentation examples compile where applicable.
-- [ ] `go test ./...` passes
+- [x] Documentation examples compile where applicable.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can discover how to start/control the daemon foundation and understand that feature persistence is future work.
+- [x] Users can discover how to start/control the daemon foundation and understand that feature persistence is future work.
 
 ## Deferred milestones
 

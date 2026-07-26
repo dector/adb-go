@@ -18,6 +18,7 @@ applications, with an experimental CLI wrapper for supported workflows.
 - [Linux USB support](#linux-usb-support)
 - [Authentication helpers](#authentication-helpers)
 - [Experimental CLI](#experimental-cli)
+- [adb-god daemon foundation](#adb-god-daemon-foundation)
 - [Low-level protocol package](#low-level-protocol-package)
 - [Implementation notes](#implementation-notes)
 - [Current limitations](#current-limitations)
@@ -220,6 +221,40 @@ adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
 
+## adb-god daemon foundation
+
+`adb-god` is the first adb-go daemon process. In this initial slice it is only a
+foreground, local control daemon for future adb-go persistence work. It listens
+on a Unix domain socket and supports a small versioned control protocol for
+`ping`, `status`, and graceful `shutdown`; it does not own devices, transports,
+forwards, shell sessions, authentication state, or any other persistent ADB
+workflow yet.
+
+Install or run the daemon binary separately from the CLI:
+
+```sh
+go install github.com/dector/adb-go/cmd/adb-god@latest
+adb-god
+```
+
+Control it with the experimental CLI:
+
+```sh
+adb-go daemon ping
+adb-go daemon status
+adb-go daemon stop
+```
+
+The socket path is selected in this order: an explicit CLI `--socket` path where
+accepted, `ADB_GO_DAEMON_SOCKET`, `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, then a
+per-user path below Go's temporary directory such as
+`$TMPDIR/adb-go-$UID/adb-god.sock`. The override path must be absolute. On
+startup, `adb-god` removes stale Unix socket files only when they are sockets
+with no live daemon listener; it refuses to delete regular files at the socket
+path. On graceful shutdown it closes the listener and removes its socket file.
+
+Design details: [`docs/daemon-foundation.md`](docs/daemon-foundation.md).
+
 ## Low-level protocol package
 
 Advanced callers can use `protocol` for direct ADB packet, handshake, and stream
@@ -246,6 +281,9 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - ADB authentication requires explicit existing RSA key files.
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
+- The initial `adb-god` daemon is only a local process-control foundation. It
+  does not persist or own devices, transports, forwards, sessions, or
+  authentication state yet.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
   Android property lookup, logcat streaming/dump, screenshot capture, reboot,
   foreground local TCP forwarding, single-file push/pull, and one-APK
