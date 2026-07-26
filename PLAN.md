@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M45.2 — Add adb-god daemon server.
+- Current milestone: M45.3 — Add adb-go daemon control subcommand.
 - Completed milestone range: Milestones 17–44 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, and foreground port forwarding support.
 - Active focus: add the minimal daemon foundation for future persistence: an `adb-god` daemon process, a Unix domain socket control channel, and `adb-go daemon` CLI controls. Do not add persistent device/session functionality yet.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -73,27 +73,27 @@ Done when:
 
 ### M45.2 — Add adb-god daemon server
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(daemon): add adb-god unix socket server`
 
 Tasks:
 
-- [ ] Add a new `adb-god` command binary that starts a foreground daemon server.
-- [ ] Bind a Unix domain socket at the designed path, handling stale socket files safely.
-- [ ] Implement only the minimal control protocol from M45.1.
-- [ ] Handle graceful shutdown and cleanup of the socket file.
-- [ ] Keep all future persistence/device functionality out of this milestone.
+- [x] Add a new `adb-god` command binary that starts a foreground daemon server.
+- [x] Bind a Unix domain socket at the designed path, handling stale socket files safely.
+- [x] Implement only the minimal control protocol from M45.1.
+- [x] Handle graceful shutdown and cleanup of the socket file.
+- [x] Keep all future persistence/device functionality out of this milestone.
 
 Tests:
 
-- [ ] Unit or integration tests cover socket startup, ping/status behavior, shutdown, and socket cleanup.
-- [ ] Tests use isolated temporary socket paths.
-- [ ] `go test ./...` passes
+- [x] Unit or integration tests cover socket startup, ping/status behavior, shutdown, and socket cleanup.
+- [x] Tests use isolated temporary socket paths.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] `adb-god` can run as a minimal Unix socket server and respond to daemon control requests.
+- [x] `adb-god` can run as a minimal Unix socket server and respond to daemon control requests.
 
 ### M45.3 — Add adb-go daemon control subcommand
 
