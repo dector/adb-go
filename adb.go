@@ -1,4 +1,15 @@
-// Package adb provides the public adb-go API.
+// Package adb provides the stable, high-level adb-go API.
+//
+// adb-go is a pure-Go implementation of the Android Debug Bridge (ADB)
+// protocol for applications that need to talk to Android devices directly. The
+// root package re-exports the high-level client API so most callers can import
+// github.com/dector/adb-go and avoid depending on lower-level package layout.
+//
+// The v0 API focuses on explicit TCP or Linux USB connections to a selected
+// device. After connecting, a Client can open raw ADB services and perform
+// common operations such as shell commands, file push/pull, APK installation,
+// logcat capture, property reads, screencaps, reboots, and process-scoped local
+// TCP forwarding.
 package adb
 
 import (

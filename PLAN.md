@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M53 — Improve CLI error messages.
+- Current milestone: M55 — Audit exported package documentation and examples.
 - Completed milestone range: Milestones 17–52 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, and CLI version reporting.
 - Active focus: improve observability and supportability around the existing minimal `adb-god` daemon and CLI without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -190,25 +190,25 @@ Done when:
 
 ## M55 — Audit exported package documentation and examples
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: audit package examples`
 
 Tasks:
 
-- [ ] Review exported API docs in the root, `client`, and `protocol` packages.
-- [ ] Add or update examples for newer features such as logcat, screencap, reboot, APK install, and foreground forwarding where compile-tested examples are practical.
-- [ ] Ensure `protocol` documentation continues to communicate that it is lower-level and less stable than root/client APIs during v0.
-- [ ] Avoid changing runtime behavior unless a documentation example exposes an API bug that is explicitly fixed in this milestone.
+- [x] Review exported API docs in the root, `client`, and `protocol` packages.
+- [x] Add or update examples for newer features such as logcat, screencap, reboot, APK install, and foreground forwarding where compile-tested examples are practical.
+- [x] Ensure `protocol` documentation continues to communicate that it is lower-level and less stable than root/client APIs during v0.
+- [x] Avoid changing runtime behavior unless a documentation example exposes an API bug that is explicitly fixed in this milestone.
 
 Tests:
 
-- [ ] Compile-tested examples pass.
-- [ ] `go test ./...` passes
+- [x] Compile-tested examples pass.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Public API documentation reflects the current feature set and protects basic examples against API drift.
+- [x] Public API documentation reflects the current feature set and protects basic examples against API drift.
 
 ## M56 — Design daemon-backed persistent forwarding
 

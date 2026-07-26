@@ -77,6 +77,36 @@ func ExampleClient_Logcat() {
 	}
 }
 
+func ExampleClient_GetProp() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	sdk, err := client.GetProp(ctx, "ro.build.version.sdk")
+	if err != nil {
+		return
+	}
+	fmt.Println(sdk)
+}
+
+func ExampleClient_Properties() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	props, err := client.Properties(ctx)
+	if err != nil {
+		return
+	}
+	fmt.Println(props["ro.product.model"])
+}
+
 func ExampleClient_PushFile() {
 	ctx := context.Background()
 	client, err := adb.Connect(ctx, "127.0.0.1:5555")
@@ -146,6 +176,69 @@ func ExampleClient_InstallAPKWithOptions() {
 	if err != nil {
 		return
 	}
+}
+
+func ExampleClient_Screencap() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	png, err := client.Screencap(ctx)
+	if err != nil {
+		return
+	}
+	fmt.Printf("captured %d bytes\n", len(png))
+}
+
+func ExampleClient_ScreencapFile() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	if err := client.ScreencapFile(ctx, "./screen.png"); err != nil {
+		return
+	}
+}
+
+func ExampleClient_Reboot() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	if err := client.Reboot(ctx, adb.RebootRecovery); err != nil {
+		return
+	}
+}
+
+func ExampleClient_ForwardLocalTCP() {
+	ctx := context.Background()
+	client, err := adb.Connect(ctx, "127.0.0.1:5555")
+	if err != nil {
+		return
+	}
+	defer client.Close()
+
+	remote, err := adb.ForwardTCP(8080)
+	if err != nil {
+		return
+	}
+	forward, err := client.ForwardLocalTCP(ctx, "127.0.0.1:0", remote)
+	if err != nil {
+		return
+	}
+	defer forward.Close()
+	go func() { _ = forward.Wait() }()
+
+	fmt.Println("listening on", forward.LocalAddr())
 }
 
 func ExampleClient_OpenService() {
