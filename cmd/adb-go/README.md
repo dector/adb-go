@@ -403,6 +403,7 @@ adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
 adb-go daemon service status
+adb-go daemon service logs
 adb-go daemon service uninstall
 ```
 
@@ -499,6 +500,7 @@ adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
 adb-go daemon service status
+adb-go daemon service logs
 adb-go daemon service uninstall
 ```
 
@@ -514,6 +516,22 @@ Inactive or disabled services are reported the same way, for example
 `active: inactive` or `enabled: disabled`. This command reports systemd's host
 service-manager view. It is intentionally separate from `adb-go daemon status`,
 which talks to a running daemon through the adb-go daemon socket protocol.
+
+`service logs` reads recent host-service output through the current user's
+systemd journal:
+
+```sh
+adb-go daemon service logs
+adb-go daemon service logs --lines 25
+adb-go daemon service logs --follow
+adb-go daemon service logs --journalctl /usr/bin/journalctl
+```
+
+The default invocation is intentionally small and predictable:
+`journalctl --user -u adb-god.service -n 100 --no-pager`. `--lines N` changes
+the `-n` value, `--follow` adds journalctl's follow mode, and `--journalctl PATH`
+is available for tests or installations where the binary is not found as plain
+`journalctl`.
 
 `service uninstall` runs `systemctl --user disable --now adb-god.service`,
 removes the user unit file, then runs `systemctl --user daemon-reload`. These

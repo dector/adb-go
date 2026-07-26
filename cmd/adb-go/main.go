@@ -573,6 +573,7 @@ Manages adb-god's host service-manager integration. Currently implemented:
   stop       Stop adb-god.service with systemd --user
   restart    Restart adb-god.service with systemd --user
   status     Report adb-god.service active/enabled state with systemd --user
+  logs       Show recent adb-god.service logs with journalctl --user
   uninstall  Disable, stop, and remove the systemd user service
 
 These host service commands are separate from daemon protocol commands like
@@ -602,6 +603,15 @@ const daemonServiceStatusUsage = `Usage:
 
 Reports adb-god.service state from the current user's systemd manager. This is
 host service-manager state, not the live daemon socket protocol status.
+`
+
+const daemonServiceLogsUsage = `Usage:
+  adb-go daemon service logs [--journalctl PATH] [--lines N] [--follow]
+
+Shows adb-god.service logs from the current user's systemd journal. By default,
+it prints the most recent 100 entries without opening a pager. Pass --lines N to
+choose a different number of recent entries, or --follow to keep streaming new
+entries after the initial output.
 `
 
 const daemonServiceUninstallUsage = `Usage:
@@ -634,6 +644,8 @@ func runDaemonService(args []string, socketPath string, stdout, stderr io.Writer
 		return runDaemonServiceLifecycle(command, commandArgs, stdout, stderr)
 	case "status":
 		return runDaemonServiceStatus(commandArgs, stdout, stderr)
+	case "logs":
+		return runDaemonServiceLogs(commandArgs, stdout, stderr)
 	case "uninstall":
 		return runDaemonServiceUninstall(commandArgs, stdout, stderr)
 	default:
@@ -770,6 +782,44 @@ func runDaemonServiceStatus(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "active: %s\n", active)
 	fmt.Fprintf(stdout, "enabled: %s\n", enabled)
+	return 0
+}
+
+func runDaemonServiceLogs(args []string, stdout, stderr io.Writer) int {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintln(stderr, "adb-go daemon service logs: systemd user service logs are supported on Linux only")
+		return 1
+	}
+	fs := flag.NewFlagSet("daemon service logs", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	journalctlFlag := fs.String("journalctl", "journalctl", "journalctl binary path")
+	linesFlag := fs.Int("lines", 100, "number of recent journal entries to print before following")
+	followFlag := fs.Bool("follow", false, "keep streaming new journal entries")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonServiceLogsUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon service logs: unexpected arguments %q\n\n", fs.Args())
+		fs.Usage()
+		return 2
+	}
+	if *linesFlag < 0 {
+		fmt.Fprintln(stderr, "adb-go daemon service logs: --lines must be zero or greater")
+		return 2
+	}
+
+	cmdArgs := []string{"--user", "-u", "adb-god.service", "-n", strconv.Itoa(*linesFlag), "--no-pager"}
+	if *followFlag {
+		cmdArgs = append(cmdArgs, "-f")
+	}
+	cmd := exec.Command(strings.TrimSpace(*journalctlFlag), cmdArgs...)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service logs: %s %s failed: %v\n", *journalctlFlag, strings.Join(cmdArgs, " "), err)
+		return 1
+	}
 	return 0
 }
 

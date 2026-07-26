@@ -303,6 +303,64 @@ func TestRunDaemonServiceStatusReportsInactiveAndDisabled(t *testing.T) {
 	}
 }
 
+func TestRunDaemonServiceLogsInvokesJournalctlWithDefaultShape(t *testing.T) {
+	journalctlLog := filepath.Join(t.TempDir(), "journalctl.log")
+	journalctlPath := writeFakeJournalctl(t, journalctlLog, "recent daemon log\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "service", "logs", "--journalctl", journalctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon service logs) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	logBytes, err := os.ReadFile(journalctlLog)
+	if err != nil {
+		t.Fatalf("read journalctl log: %v", err)
+	}
+	wantLog := "--user -u adb-god.service -n 100 --no-pager\n"
+	if string(logBytes) != wantLog {
+		t.Fatalf("journalctl log = %q, want %q", string(logBytes), wantLog)
+	}
+	if stdout.String() != "recent daemon log\n" {
+		t.Fatalf("stdout = %q, want fake journal output", stdout.String())
+	}
+}
+
+func TestRunDaemonServiceLogsHonorsLinesAndFollow(t *testing.T) {
+	journalctlLog := filepath.Join(t.TempDir(), "journalctl.log")
+	journalctlPath := writeFakeJournalctl(t, journalctlLog, "follow log\n")
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "service", "logs", "--journalctl", journalctlPath, "--lines", "25", "--follow"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon service logs --lines --follow) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	logBytes, err := os.ReadFile(journalctlLog)
+	if err != nil {
+		t.Fatalf("read journalctl log: %v", err)
+	}
+	wantLog := "--user -u adb-god.service -n 25 --no-pager -f\n"
+	if string(logBytes) != wantLog {
+		t.Fatalf("journalctl log = %q, want %q", string(logBytes), wantLog)
+	}
+	if stdout.String() != "follow log\n" {
+		t.Fatalf("stdout = %q, want fake journal output", stdout.String())
+	}
+}
+
+func TestRunDaemonServiceLogsRejectsNegativeLines(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "service", "logs", "--lines", "-1"}, &stdout, &stderr)
+	if code != 2 {
+		t.Fatalf("run(daemon service logs --lines -1) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "--lines must be zero or greater") {
+		t.Fatalf("stderr = %q, want lines validation error", got)
+	}
+}
+
 func TestRunDaemonServiceUninstallDisablesStopsRemovesUnitAndReloads(t *testing.T) {
 	unitDir := filepath.Join(t.TempDir(), "units")
 	if err := os.MkdirAll(unitDir, 0o755); err != nil {
@@ -334,6 +392,16 @@ func TestRunDaemonServiceUninstallDisablesStopsRemovesUnitAndReloads(t *testing.
 	if !strings.Contains(stdout.String(), "disabled and stopped") || !strings.Contains(stdout.String(), "removed "+unitPath) {
 		t.Fatalf("stdout = %q, want uninstall message", stdout.String())
 	}
+}
+
+func writeFakeJournalctl(t *testing.T, logPath, output string) string {
+	t.Helper()
+	journalctlPath := filepath.Join(t.TempDir(), "journalctl")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + strconv.Quote(logPath) + "\ncat <<'ADB_GO_FAKE_JOURNALCTL_OUTPUT'\n" + output + "ADB_GO_FAKE_JOURNALCTL_OUTPUT\n"
+	if err := os.WriteFile(journalctlPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake journalctl: %v", err)
+	}
+	return journalctlPath
 }
 
 func writeFakeSystemctl(t *testing.T, logPath string) string {

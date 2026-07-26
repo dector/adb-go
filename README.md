@@ -270,6 +270,7 @@ adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
 adb-go daemon service status
+adb-go daemon service logs
 adb-go daemon service uninstall
 ```
 
@@ -278,6 +279,13 @@ script-readable fields such as `active: active` and `enabled: enabled`. This is
 different from `adb-go daemon status`, which connects to the daemon socket and
 reports live daemon protocol metadata. `adb-go daemon doctor` combines both
 views without mutating daemon or service state.
+
+Use `adb-go daemon service logs` on Linux to inspect recent `adb-god.service`
+output without remembering the underlying journal command. By default it runs a
+small, predictable `journalctl --user -u adb-god.service -n 100 --no-pager`
+query. Pass `--lines N` to choose how many recent entries to print, `--follow`
+to continue streaming new entries, or `--journalctl PATH` for tests and
+non-default installations.
 
 The socket path is selected in this order: an explicit CLI `--socket` path where
 accepted, `ADB_GO_DAEMON_SOCKET`, `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, then a

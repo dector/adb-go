@@ -73,27 +73,27 @@ Done when:
 
 ## M50 — Add daemon service logs command
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add daemon service logs command`
 
 Tasks:
 
-- [ ] Add `adb-go daemon service logs` for Linux systemd user-service log viewing.
-- [ ] Invoke `journalctl --user -u adb-god.service` with a small, predictable default output shape.
-- [ ] Support a `--journalctl PATH` override for tests and non-default installations.
-- [ ] Consider minimal flags such as `--follow` and `--lines N` without trying to mirror all `journalctl` options.
-- [ ] Document the service logs command in README and CLI docs.
+- [x] Add `adb-go daemon service logs` for Linux systemd user-service log viewing.
+- [x] Invoke `journalctl --user -u adb-god.service` with a small, predictable default output shape.
+- [x] Support a `--journalctl PATH` override for tests and non-default installations.
+- [x] Consider minimal flags such as `--follow` and `--lines N` without trying to mirror all `journalctl` options.
+- [x] Document the service logs command in README and CLI docs.
 
 Tests:
 
-- [ ] CLI tests cover `journalctl` invocation using an isolated fake binary path.
-- [ ] CLI tests cover flags selected for the milestone, such as `--follow` or `--lines` if added.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover `journalctl` invocation using an isolated fake binary path.
+- [x] CLI tests cover flags selected for the milestone, such as `--follow` or `--lines` if added.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Linux users can inspect recent `adb-god.service` logs from the adb-go CLI without remembering the exact `journalctl` command.
+- [x] Linux users can inspect recent `adb-god.service` logs from the adb-go CLI without remembering the exact `journalctl` command.
 
 ## M51 — Add daemon service reinstall command
 
