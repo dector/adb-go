@@ -4,7 +4,8 @@ Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
 opening, shell helpers, Android property helpers, logcat streaming, screenshot
-capture, single-file `sync:` push/pull helpers, and a small APK install helper.
+capture, reboot requests, single-file `sync:` push/pull helpers, and a small APK
+install helper.
 
 ## Contents
 
@@ -15,6 +16,7 @@ capture, single-file `sync:` push/pull helpers, and a small APK install helper.
 - [Device properties](#device-properties)
 - [Logcat](#logcat)
 - [Screencap](#screencap)
+- [Reboot](#reboot)
 - [File transfer](#file-transfer)
 - [Install one APK](#install-one-apk)
 - [Open a raw service](#open-a-raw-service)
@@ -261,6 +263,38 @@ Screenshots are remote device data. They may contain sensitive content from the
 selected device's display, and the exact pixels depend on device state at capture
 time. Use context deadlines or cancellation if the device-side command should not
 be allowed to block indefinitely.
+
+## Reboot
+
+`Reboot` requests an immediate device reboot through Android's ADB daemon. The
+mode is explicit so applications cannot accidentally smuggle arbitrary service
+names through the high-level API:
+
+```go
+err := c.Reboot(ctx, adb.RebootNormal)
+if err != nil {
+    return err
+}
+```
+
+Supported modes are:
+
+- `adb.RebootNormal` for a normal Android reboot.
+- `adb.RebootBootloader` to reboot into the bootloader.
+- `adb.RebootRecovery` to reboot into recovery.
+
+adb-go implements this helper with the ADB `reboot:` service rather than a shell
+command. A normal reboot opens `reboot:`, while the named modes open
+`reboot:bootloader` or `reboot:recovery`. That service path matches the direct
+ADB daemon operation used by adb-style clients and avoids depending on a device
+shell being available after the request is accepted.
+
+Reboot is disruptive. A successful call affects the selected device immediately,
+interrupts running work on that device, and may close the ADB stream or the
+underlying connection as adbd and Android restart. Treat a nil error as "the
+request was accepted", not as proof that the device has already booted again or
+is ready for a new connection. Use a fresh connection after the target comes back
+online.
 
 ## File transfer
 

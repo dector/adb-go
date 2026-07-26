@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M42.3 — Document screencap support.
+- Current milestone: M43.3 — Document reboot support.
 - Completed milestone range: Milestones 17–40 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, and logcat library/CLI/documentation support.
 - Active focus: add missing non-USB ADB workflows in small library/CLI/docs slices. Start with shell-backed features that fit the current direct-device architecture, then investigate forwarding separately because official `adb forward` semantics usually involve host-side listener behavior.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -311,25 +311,25 @@ Done when:
 
 ### M43.3 — Document reboot support and safety
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: document reboot support`
 
 Tasks:
 
-- [ ] Update README examples and limitations to mention reboot support.
-- [ ] Update `client/README.md` with reboot helper examples.
-- [ ] Update `cmd/adb-go/README.md` with CLI usage and examples for TCP/USB/auth.
-- [ ] Document that reboot is disruptive, may close the ADB connection, and affects the selected device immediately.
+- [x] Update README examples and limitations to mention reboot support.
+- [x] Update `client/README.md` with reboot helper examples.
+- [x] Update `cmd/adb-go/README.md` with CLI usage and examples for TCP/USB/auth.
+- [x] Document that reboot is disruptive, may close the ADB connection, and affects the selected device immediately.
 
 Tests:
 
-- [ ] Documentation examples compile where applicable.
-- [ ] `go test ./...` passes
+- [x] Documentation examples compile where applicable.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can discover reboot support and understand its safety implications.
+- [x] Users can discover reboot support and understand its safety implications.
 
 ## M44 — Port forwarding support
 

@@ -18,6 +18,7 @@ clone of the official `adb` command.
   - [`getprop`](#getprop)
   - [`logcat`](#logcat)
   - [`screencap`](#screencap)
+  - [`reboot`](#reboot)
 - [Limitations](#limitations)
 - [Testing](#testing)
 
@@ -47,6 +48,7 @@ adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
 adb-go getprop --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --addr 127.0.0.1:5555
 adb-go screencap --addr 127.0.0.1:5555 ./screen.png
+adb-go reboot --addr 127.0.0.1:5555
 ```
 
 If the port is omitted, the library connection path defaults to the standard ADB
@@ -65,6 +67,7 @@ adb-go getprop ro.product.model
 adb-go getprop
 adb-go logcat --dump
 adb-go screencap ./screen.png
+adb-go reboot recovery
 ```
 
 ## USB targets
@@ -80,6 +83,7 @@ adb-go install-apk --usb-path /dev/bus/usb/001/002 ./app.apk
 adb-go getprop --usb-path /dev/bus/usb/001/002 ro.product.model
 adb-go logcat --usb-path /dev/bus/usb/001/002
 adb-go screencap --usb-path /dev/bus/usb/001/002 ./screen.png
+adb-go reboot --usb-path /dev/bus/usb/001/002 bootloader
 ```
 
 `--usb` requests USB discovery without narrowing selection. It succeeds only
@@ -101,6 +105,7 @@ adb-go install-apk --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./app.apk
 adb-go getprop --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 --dump
 adb-go screencap --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./screen.png
+adb-go reboot --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 recovery
 ```
 
 The CLI does not create or modify key files.
@@ -296,14 +301,45 @@ Screenshots come from the connected device and may contain sensitive on-screen
 information. Treat the output file as remote device data captured at the moment
 the command runs.
 
+### `reboot`
+
+`adb-go reboot` requests an immediate reboot of the selected device:
+
+```sh
+adb-go reboot --addr 127.0.0.1:5555
+adb-go reboot --usb-path /dev/bus/usb/001/002
+adb-go reboot --auth-key ~/.android/adbkey --addr 127.0.0.1:5555
+```
+
+With no mode argument, adb-go requests a normal Android reboot. The command also
+accepts the supported explicit modes `bootloader` and `recovery`:
+
+```sh
+adb-go reboot --addr 127.0.0.1:5555 bootloader
+adb-go reboot --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 recovery
+```
+
+The command accepts the same target-selection flags as other device operations:
+TCP with `--addr` or `ADB_GO_ADDR`, Linux USB with `--usb`/`--usb-path`/USB ID
+selectors, and explicit authentication with `--auth-key`. Unsupported modes are
+rejected before adb-go connects to the device; use `normal`, `bootloader`, or
+`recovery` only.
+
+Reboot is intentionally disruptive. It affects the selected device immediately,
+can interrupt apps and tests running on that device, and commonly closes the ADB
+connection while Android or the bootloader restarts. A successful command means
+that the ADB daemon accepted the reboot request; it does not wait for the device
+to come back online.
+
 ## Limitations
 
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
 `devices`, official `adb install` compatibility, full official `adb logcat`
 flag compatibility, server management, wireless pairing, forwarding, and most
 official flags are not implemented. Use `getprop` for adb-go's limited property
-inspection workflow, `screencap` for one-shot PNG screenshot capture, and
-`install-apk` for adb-go's limited one-APK installation workflow.
+inspection workflow, `screencap` for one-shot PNG screenshot capture, `reboot`
+for explicit disruptive reboot requests, and `install-apk` for adb-go's limited
+one-APK installation workflow.
 
 ## Testing
 

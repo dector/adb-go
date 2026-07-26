@@ -7,8 +7,8 @@ applications, with an experimental CLI wrapper for supported workflows.
 > **Status:** v0 is not a full replacement for the official `adb` binary yet.
 > It currently implements explicit TCP connections, initial Linux USB support,
 > explicit-key authentication, service opening, shell execution/streaming,
-> Android property lookup, logcat streaming/dump, screenshot capture, single-file
-> push/pull, and one-APK installation.
+> Android property lookup, logcat streaming/dump, screenshot capture, reboot,
+> single-file push/pull, and one-APK installation.
 
 ## Contents
 
@@ -41,7 +41,8 @@ dependencies are required.
 Use the root package for the stable high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
 reading Android system properties, streaming Android logs, capturing screenshots,
-pushing or pulling one file, and installing one APK.
+rebooting into supported modes, pushing or pulling one file, and installing one
+APK.
 
 ```go
 ctx := context.Background()
@@ -113,6 +114,18 @@ if err != nil {
 }
 ```
 
+Request a supported reboot mode explicitly:
+
+```go
+err := c.Reboot(ctx, adb.RebootNormal)
+if err != nil {
+    return err
+}
+```
+
+`Reboot` is disruptive: a successful request affects the selected device
+immediately and may close the ADB connection as the device restarts.
+
 Install one local APK with the adb-go-specific install helper:
 
 ```go
@@ -177,6 +190,8 @@ adb-go getprop --addr 127.0.0.1:5555
 adb-go logcat --addr 127.0.0.1:5555
 adb-go logcat --dump --addr 127.0.0.1:5555
 adb-go screencap --addr 127.0.0.1:5555 ./screen.png
+adb-go reboot --addr 127.0.0.1:5555
+adb-go reboot --addr 127.0.0.1:5555 recovery
 ```
 
 CLI docs: [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
@@ -208,7 +223,7 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
-  Android property lookup, logcat streaming/dump, screenshot capture,
+  Android property lookup, logcat streaming/dump, screenshot capture, reboot,
   single-file push/pull, and one-APK installation are the main supported
   workflows.
 - APK installation is exposed as `install-apk`, an adb-go-specific helper rather
@@ -223,6 +238,10 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - Screencap support captures one PNG image through Android's `screencap -p`
   shell command. The CLI writes to a local PNG file and refuses to overwrite an
   existing path unless `--overwrite` is passed.
+- Reboot support is intentionally explicit and disruptive. It currently supports
+  normal, bootloader, and recovery modes through adb-go's `Reboot` helper and
+  CLI `reboot` command; a successful request may close the ADB connection while
+  the selected device restarts.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 
