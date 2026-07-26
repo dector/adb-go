@@ -249,7 +249,7 @@ On Linux systems with systemd user services, the CLI can also install and start
 `adb-god` for the current user:
 
 ```sh
-adb-go daemon install
+adb-go daemon service install
 ```
 
 This writes `~/.config/systemd/user/adb-god.service`, reloads the user systemd

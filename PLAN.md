@@ -148,11 +148,11 @@ Commit: `feat(cli): install daemon systemd user service`
 
 Tasks:
 
-- [x] Add `adb-go daemon install` for Linux systemd user-service installation.
+- [x] Add `adb-go daemon service install` for Linux systemd user-service installation.
 - [x] Generate an `adb-god.service` user unit that starts `adb-god` with the selected control socket path.
 - [x] Reload the user systemd manager and enable/start the unit by default.
 - [x] Support explicit daemon binary and unit-directory overrides for non-default installations and tests.
-- [x] Document the install command in README and CLI docs.
+- [x] Document the `daemon service install` command in README and CLI docs.
 
 Tests:
 
@@ -161,7 +161,7 @@ Tests:
 
 Done when:
 
-- [x] Linux users can install and start the minimal adb-god daemon as a current-user systemd service with `adb-go daemon install`.
+- [x] Linux users can install and start the minimal adb-god daemon as a current-user systemd service with `adb-go daemon service install`.
 
 ## Deferred milestones
 

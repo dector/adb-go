@@ -122,9 +122,9 @@ func TestRunDaemonInstallWritesSystemdUserUnit(t *testing.T) {
 	unitDir := filepath.Join(t.TempDir(), "systemd", "user")
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "install", "--adb-god", adbGodPath, "--unit-dir", unitDir, "--no-enable"}, &stdout, &stderr)
+	code := run([]string{"daemon", "--socket", socketPath, "service", "install", "--adb-god", adbGodPath, "--unit-dir", unitDir, "--no-enable"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon install) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("run(daemon service install) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	unitPath := filepath.Join(unitDir, "adb-god.service")
 	unit, err := os.ReadFile(unitPath)
@@ -161,9 +161,9 @@ func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", filepath.Join(t.TempDir(), "adb-god.sock"), "install", "--adb-god", adbGodPath, "--unit-dir", filepath.Join(t.TempDir(), "units"), "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := run([]string{"daemon", "--socket", filepath.Join(t.TempDir(), "adb-god.sock"), "service", "install", "--adb-god", adbGodPath, "--unit-dir", filepath.Join(t.TempDir(), "units"), "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon install) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("run(daemon service install) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	logBytes, err := os.ReadFile(systemctlLog)
 	if err != nil {
