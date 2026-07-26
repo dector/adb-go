@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vMAJOR.MINOR.PATCH tag to build and publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build release assets (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive_ext: tar.gz
+            exe_ext: ''
+          - goos: linux
+            goarch: arm64
+            archive_ext: tar.gz
+            exe_ext: ''
+          - goos: darwin
+            goarch: amd64
+            archive_ext: tar.gz
+            exe_ext: ''
+          - goos: darwin
+            goarch: arm64
+            archive_ext: tar.gz
+            exe_ext: ''
+          - goos: windows
+            goarch: amd64
+            archive_ext: zip
+            exe_ext: .exe
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Determine version
+        run: |
+          set -euo pipefail
+          version="$(./tools/git-version.sh)"
+          expected_tag="${MANUAL_TAG:-}"
+          if [ -z "${expected_tag}" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            expected_tag="${GITHUB_REF_NAME}"
+          fi
+          if [ -n "${expected_tag}" ] && [ "${version}" != "${expected_tag}" ]; then
+            echo "Git-derived version ${version} does not match tag ${expected_tag}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_ENV"
+        env:
+          MANUAL_TAG: ${{ inputs.tag }}
+
+      - name: Build binaries
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w -X main.version=${version}" -o "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/adb-go${{ matrix.exe_ext }}" ./cmd/adb-go
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/adb-god${{ matrix.exe_ext }}" ./cmd/adb-god
+          cp README.md "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/"
+
+      - name: Package tar.gz asset
+        if: matrix.archive_ext == 'tar.gz'
+        run: |
+          set -euo pipefail
+          tar -C dist -czf "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}"
+
+      - name: Package zip asset
+        if: matrix.archive_ext == 'zip'
+        run: |
+          set -euo pipefail
+          cd dist
+          zip -r "adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: adb-go-${{ env.version }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/adb-go-${{ env.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.archive_ext }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MANUAL_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          release_tag="${MANUAL_TAG:-${GITHUB_REF_NAME}}"
+          gh release create "${release_tag}" dist/* \
+            --title "${release_tag}" \
+            --notes "Release ${release_tag}" \
+            --verify-tag
