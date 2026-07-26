@@ -211,6 +211,43 @@ func TestRunDaemonServiceLifecycleCommands(t *testing.T) {
 	}
 }
 
+func TestRunDaemonServiceStatusReportsActiveAndEnabled(t *testing.T) {
+	systemctlLog := filepath.Join(t.TempDir(), "systemctl.log")
+	systemctlPath := writeFakeSystemctlStatus(t, systemctlLog, "active", "enabled", 0, 0)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "service", "status", "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon service status) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	logBytes, err := os.ReadFile(systemctlLog)
+	if err != nil {
+		t.Fatalf("read systemctl log: %v", err)
+	}
+	wantLog := "--user is-active adb-god.service\n--user is-enabled adb-god.service\n"
+	if string(logBytes) != wantLog {
+		t.Fatalf("systemctl log = %q, want %q", string(logBytes), wantLog)
+	}
+	wantOut := "active: active\nenabled: enabled\n"
+	if stdout.String() != wantOut {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), wantOut)
+	}
+}
+
+func TestRunDaemonServiceStatusReportsInactiveAndDisabled(t *testing.T) {
+	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "inactive", "disabled", 3, 1)
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "service", "status", "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon service status) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	wantOut := "active: inactive\nenabled: disabled\n"
+	if stdout.String() != wantOut {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), wantOut)
+	}
+}
+
 func TestRunDaemonServiceUninstallDisablesStopsRemovesUnitAndReloads(t *testing.T) {
 	unitDir := filepath.Join(t.TempDir(), "units")
 	if err := os.MkdirAll(unitDir, 0o755); err != nil {
@@ -250,6 +287,25 @@ func writeFakeSystemctl(t *testing.T, logPath string) string {
 	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + strconv.Quote(logPath) + "\n"
 	if err := os.WriteFile(systemctlPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write fake systemctl: %v", err)
+	}
+	return systemctlPath
+}
+
+func writeFakeSystemctlStatus(t *testing.T, logPath, active, enabled string, activeCode, enabledCode int) string {
+	t.Helper()
+	systemctlPath := filepath.Join(t.TempDir(), "systemctl")
+	script := strings.Join([]string{
+		"#!/bin/sh",
+		"printf '%s\\n' \"$*\" >> " + strconv.Quote(logPath),
+		"case \"$*\" in",
+		"  '--user is-active adb-god.service') printf '%s\\n' " + strconv.Quote(active) + "; exit " + strconv.Itoa(activeCode) + " ;;",
+		"  '--user is-enabled adb-god.service') printf '%s\\n' " + strconv.Quote(enabled) + "; exit " + strconv.Itoa(enabledCode) + " ;;",
+		"  *) exit 99 ;;",
+		"esac",
+		"",
+	}, "\n")
+	if err := os.WriteFile(systemctlPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake systemctl status: %v", err)
 	}
 	return systemctlPath
 }

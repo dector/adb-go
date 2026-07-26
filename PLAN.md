@@ -187,28 +187,28 @@ Done when:
 
 ## M48 — Report adb-god systemd user service status
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add daemon service status command`
 
 Tasks:
 
-- [ ] Add `adb-go daemon service status` for Linux systemd user-service state reporting.
-- [ ] Query systemd user service activity with `systemctl --user is-active adb-god.service`.
-- [ ] Query systemd user service enablement with `systemctl --user is-enabled adb-god.service`.
-- [ ] Print concise, script-readable status fields such as `active: active` and `enabled: enabled`.
-- [ ] Keep `daemon service status` clearly distinct from `adb-go daemon status`, which talks to the live daemon socket protocol.
-- [ ] Document the service status command in README and CLI docs.
+- [x] Add `adb-go daemon service status` for Linux systemd user-service state reporting.
+- [x] Query systemd user service activity with `systemctl --user is-active adb-god.service`.
+- [x] Query systemd user service enablement with `systemctl --user is-enabled adb-god.service`.
+- [x] Print concise, script-readable status fields such as `active: active` and `enabled: enabled`.
+- [x] Keep `daemon service status` clearly distinct from `adb-go daemon status`, which talks to the live daemon socket protocol.
+- [x] Document the service status command in README and CLI docs.
 
 Tests:
 
-- [ ] CLI tests cover active/enabled output using an isolated fake `systemctl` path.
-- [ ] CLI tests cover inactive or disabled systemctl responses without requiring a real systemd user manager.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover active/enabled output using an isolated fake `systemctl` path.
+- [x] CLI tests cover inactive or disabled systemctl responses without requiring a real systemd user manager.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Linux users can ask systemd whether the adb-god user service is active and enabled with `adb-go daemon service status`.
+- [x] Linux users can ask systemd whether the adb-god user service is active and enabled with `adb-go daemon service status`.
 
 ## Deferred milestones
 

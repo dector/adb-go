@@ -450,6 +450,7 @@ Manages adb-god's host service-manager integration. Currently implemented:
   start      Start adb-god.service with systemd --user
   stop       Stop adb-god.service with systemd --user
   restart    Restart adb-god.service with systemd --user
+  status     Report adb-god.service active/enabled state with systemd --user
   uninstall  Disable, stop, and remove the systemd user service
 
 These host service commands are separate from daemon protocol commands like
@@ -472,6 +473,13 @@ const daemonServiceLifecycleUsage = `Usage:
 
 Starts, stops, or restarts adb-god.service using systemd --user. COMMAND must be
 start, stop, or restart.
+`
+
+const daemonServiceStatusUsage = `Usage:
+  adb-go daemon service status [--systemctl PATH]
+
+Reports adb-god.service state from the current user's systemd manager. This is
+host service-manager state, not the live daemon socket protocol status.
 `
 
 const daemonServiceUninstallUsage = `Usage:
@@ -502,6 +510,8 @@ func runDaemonService(args []string, socketPath string, stdout, stderr io.Writer
 		return runDaemonServiceInstall(commandArgs, socketPath, stdout, stderr)
 	case "start", "stop", "restart":
 		return runDaemonServiceLifecycle(command, commandArgs, stdout, stderr)
+	case "status":
+		return runDaemonServiceStatus(commandArgs, stdout, stderr)
 	case "uninstall":
 		return runDaemonServiceUninstall(commandArgs, stdout, stderr)
 	default:
@@ -606,6 +616,39 @@ func serviceLifecyclePastTense(command string) string {
 	default:
 		return command
 	}
+}
+
+func runDaemonServiceStatus(args []string, stdout, stderr io.Writer) int {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintln(stderr, "adb-go daemon service status: systemd user services are supported on Linux only")
+		return 1
+	}
+	fs := flag.NewFlagSet("daemon service status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	systemctlFlag := fs.String("systemctl", "systemctl", "systemctl binary path")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonServiceStatusUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon service status: unexpected arguments %q\n\n", fs.Args())
+		fs.Usage()
+		return 2
+	}
+
+	active, err := systemctlUserOutput(*systemctlFlag, "is-active", "adb-god.service")
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service status: %v\n", err)
+		return 1
+	}
+	enabled, err := systemctlUserOutput(*systemctlFlag, "is-enabled", "adb-god.service")
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon service status: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "active: %s\n", active)
+	fmt.Fprintf(stdout, "enabled: %s\n", enabled)
+	return 0
 }
 
 func runDaemonServiceUninstall(args []string, stdout, stderr io.Writer) int {
@@ -726,6 +769,20 @@ func runSystemctlUser(stderr io.Writer, systemctl string, args ...string) int {
 		return 1
 	}
 	return 0
+}
+
+func systemctlUserOutput(systemctl string, args ...string) (string, error) {
+	cmdArgs := append([]string{"--user"}, args...)
+	cmd := exec.Command(systemctl, cmdArgs...)
+	out, err := cmd.CombinedOutput()
+	status := strings.TrimSpace(string(out))
+	if status != "" {
+		return status, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("%s %s failed: %w", systemctl, strings.Join(cmdArgs, " "), err)
+	}
+	return "", nil
 }
 
 const shellUsage = `Usage:

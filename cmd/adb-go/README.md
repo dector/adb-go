@@ -401,6 +401,7 @@ adb-go daemon service install
 adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
+adb-go daemon service status
 adb-go daemon service uninstall
 ```
 
@@ -469,8 +470,22 @@ The service group also wraps common systemd user lifecycle operations:
 adb-go daemon service start
 adb-go daemon service stop
 adb-go daemon service restart
+adb-go daemon service status
 adb-go daemon service uninstall
 ```
+
+`service status` runs `systemctl --user is-active adb-god.service` and
+`systemctl --user is-enabled adb-god.service`, then prints concise fields:
+
+```text
+active: active
+enabled: enabled
+```
+
+Inactive or disabled services are reported the same way, for example
+`active: inactive` or `enabled: disabled`. This command reports systemd's host
+service-manager view. It is intentionally separate from `adb-go daemon status`,
+which talks to a running daemon through the adb-go daemon socket protocol.
 
 `service uninstall` runs `systemctl --user disable --now adb-god.service`,
 removes the user unit file, then runs `systemctl --user daemon-reload`. These
