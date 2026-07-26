@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M48 — Report adb-god systemd user service status.
-- Completed milestone range: Milestones 17–47 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, and Linux systemd user-service install/lifecycle controls.
-- Active focus: add Linux systemd user-service status reporting for the existing minimal `adb-god` daemon without adding daemon-owned ADB persistence.
+- Current milestone: M49 — Add daemon diagnostics command.
+- Completed milestone range: Milestones 17–48 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, and Linux systemd user-service status reporting.
+- Active focus: improve observability and supportability around the existing minimal `adb-god` daemon and CLI without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -45,170 +45,193 @@ Milestone rules:
 - Use grouped numbering such as `M40.1`, `M40.2`, and `M41.1` for related slices of one feature area.
 - Do not keep fully implemented milestone bodies in this file long term; summarize completed ranges in `Progress` instead.
 
-## M45 — adb-god daemon foundation
+## M49 — Add daemon diagnostics command
 
-Goal: introduce the `adb-god` daemon process and a Unix domain socket control path for future persistent adb-go state, without implementing any persistent device/session functionality yet.
+Status: Not started
 
-### M45.1 — Define adb-god daemon socket protocol and paths
-
-Status: Implemented
-
-Commit: `docs(daemon): design adb-god socket foundation`
+Commit: `feat(cli): add daemon doctor command`
 
 Tasks:
 
-- [x] Decide default Unix socket path behavior, including an override for tests and non-default installations.
-- [x] Define the minimal request/response protocol needed only for daemon control, such as ping/status/shutdown.
-- [x] Define daemon lifecycle semantics and explicit non-goals for the first daemon slice.
-- [x] Document that the daemon does not yet own devices, transports, forwards, or other persistent adb-go functionality.
+- [ ] Add `adb-go daemon doctor` as a read-only diagnostics command.
+- [ ] Report the resolved daemon socket path and whether a daemon responds to the socket protocol.
+- [ ] On Linux, report systemd user-service active/enabled state when `systemctl` is available.
+- [ ] Print actionable hints for common states such as missing socket, daemon not responding, service inactive, or service disabled.
+- [ ] Keep the command diagnostic-only: do not start, stop, install, uninstall, or mutate daemon/service state.
+- [ ] Document the daemon doctor command in README and CLI docs.
 
 Tests:
 
-- [x] No code tests required unless the design milestone includes small exploratory tests.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover successful daemon socket checks using an isolated test daemon.
+- [ ] CLI tests cover missing socket and non-running daemon diagnostics.
+- [ ] CLI tests cover Linux systemd status diagnostics using an isolated fake `systemctl` path.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] The daemon foundation has a concrete, reviewable design that can be implemented without adding feature persistence.
+- [ ] Users can run one command to understand whether `adb-god` is reachable, what socket path is being used, and what systemd reports for the user service.
 
-### M45.2 — Add adb-god daemon server
+## M50 — Add daemon service logs command
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(daemon): add adb-god unix socket server`
+Commit: `feat(cli): add daemon service logs command`
 
 Tasks:
 
-- [x] Add a new `adb-god` command binary that starts a foreground daemon server.
-- [x] Bind a Unix domain socket at the designed path, handling stale socket files safely.
-- [x] Implement only the minimal control protocol from M45.1.
-- [x] Handle graceful shutdown and cleanup of the socket file.
-- [x] Keep all future persistence/device functionality out of this milestone.
+- [ ] Add `adb-go daemon service logs` for Linux systemd user-service log viewing.
+- [ ] Invoke `journalctl --user -u adb-god.service` with a small, predictable default output shape.
+- [ ] Support a `--journalctl PATH` override for tests and non-default installations.
+- [ ] Consider minimal flags such as `--follow` and `--lines N` without trying to mirror all `journalctl` options.
+- [ ] Document the service logs command in README and CLI docs.
 
 Tests:
 
-- [x] Unit or integration tests cover socket startup, ping/status behavior, shutdown, and socket cleanup.
-- [x] Tests use isolated temporary socket paths.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover `journalctl` invocation using an isolated fake binary path.
+- [ ] CLI tests cover flags selected for the milestone, such as `--follow` or `--lines` if added.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] `adb-god` can run as a minimal Unix socket server and respond to daemon control requests.
+- [ ] Linux users can inspect recent `adb-god.service` logs from the adb-go CLI without remembering the exact `journalctl` command.
 
-### M45.3 — Add adb-go daemon control subcommand
+## M51 — Add daemon service reinstall command
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add daemon control command`
+Commit: `feat(cli): add daemon service reinstall command`
 
 Tasks:
 
-- [x] Add an `adb-go daemon` command group for controlling `adb-god`.
-- [x] Implement minimal controls that map to the daemon protocol, such as `status`, `start`, and `stop` if supported by the M45.1 design.
-- [x] Connect to the daemon over the configured Unix socket path.
-- [x] Print clear errors when the daemon is not running or the socket is unavailable.
-- [x] Avoid exposing any device/session persistence commands yet.
+- [ ] Add `adb-go daemon service reinstall` for rewriting the systemd user unit and restarting it.
+- [ ] Reuse the install path resolution, socket selection, unit rendering, and systemctl override behavior.
+- [ ] Run the systemd operations needed to reload units and restart/enable the service after rewriting the unit.
+- [ ] Preserve `install`, `uninstall`, and lifecycle command semantics.
+- [ ] Document when to use reinstall, such as after changing the daemon binary path or socket path.
 
 Tests:
 
-- [x] CLI tests cover usage, socket path configuration, status success/failure, and stop/start behavior if implemented.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover unit rewriting and systemctl invocation order using isolated test paths.
+- [ ] CLI tests cover daemon binary, unit-directory, socket, and systemctl overrides.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] CLI users can control the minimal `adb-god` daemon through `adb-go daemon ...` commands.
+- [ ] Users can update the installed `adb-god.service` unit from the CLI without manually uninstalling and reinstalling.
 
-### M45.4 — Document daemon foundation
+## M52 — Add CLI version reporting
 
-Status: Implemented
+Status: Not started
 
-Commit: `docs: document adb-god daemon foundation`
+Commit: `feat(cli): add version command`
 
 Tasks:
 
-- [x] Update README documentation to mention `adb-god` and the limited initial daemon scope.
-- [x] Update `cmd/adb-go/README.md` with `adb-go daemon` usage.
-- [x] Document Unix socket path configuration and lifecycle behavior.
-- [x] Document explicitly that no persistent ADB functionality is implemented in the daemon yet.
+- [ ] Add `adb-go version`.
+- [ ] Print the adb-go version value, Go runtime version, target OS, and target architecture.
+- [ ] Provide build-time version injection through standard Go linker variables while keeping a useful development fallback.
+- [ ] Document the version command in README and CLI docs.
 
 Tests:
 
-- [x] Documentation examples compile where applicable.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover the default development version output shape.
+- [ ] Unit tests cover version formatting if implemented outside the command dispatcher.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Users can discover how to start/control the daemon foundation and understand that feature persistence is future work.
+- [ ] Users can collect concise adb-go build/runtime information for support requests and bug reports.
 
-## M46 — Install adb-god as a systemd user service
+## M53 — Improve CLI error messages
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): install daemon systemd user service`
+Commit: `fix(cli): improve common error messages`
 
 Tasks:
 
-- [x] Add `adb-go daemon service install` for Linux systemd user-service installation.
-- [x] Generate an `adb-god.service` user unit that starts `adb-god` with the selected control socket path.
-- [x] Reload the user systemd manager and enable/start the unit by default.
-- [x] Support explicit daemon binary and unit-directory overrides for non-default installations and tests.
-- [x] Document the `daemon service install` command in README and CLI docs.
+- [ ] Audit current CLI error output for common failures: connection refused, timeout, auth required, unsupported USB platform, destination exists, and missing local files.
+- [ ] Add small formatting helpers where they make errors clearer without hiding wrapped sentinel errors in library code.
+- [ ] Keep errors concise and actionable, with examples where useful.
+- [ ] Avoid changing public library error semantics unless a specific bug is found and scoped.
+- [ ] Document any user-visible behavior changes in CLI docs if needed.
 
 Tests:
 
-- [x] CLI tests cover generated unit content and systemctl invocation using isolated test paths.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover at least the most important improved error messages.
+- [ ] Existing library tests continue to validate sentinel error behavior.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Linux users can install and start the minimal adb-god daemon as a current-user systemd service with `adb-go daemon service install`.
+- [ ] Common CLI failures point users toward the likely fix without changing the underlying adb-go library contract.
 
-## M47 — Manage adb-god systemd user service lifecycle
+## M54 — Expand integration test documentation
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): manage daemon systemd user service`
+Commit: `docs: expand integration test guidance`
 
 Tasks:
 
-- [x] Add `adb-go daemon service start`, `stop`, and `restart` wrappers for systemd user services.
-- [x] Add `adb-go daemon service uninstall` to disable/stop the user service, remove the unit file, and reload systemd.
-- [x] Keep host service lifecycle commands separate from daemon socket protocol commands.
-- [x] Document the service lifecycle commands in README and CLI docs.
+- [ ] Document `ADB_GO_INTEGRATION_ADDR` usage with emulator TCP examples.
+- [ ] Document expected prerequisites and limitations for real-device TCP tests.
+- [ ] Document the existing Linux adbd container workflow if it is stable enough for contributors.
+- [ ] Add troubleshooting notes for skipped tests, refused TCP connections, and auth-required devices.
 
 Tests:
 
-- [x] CLI tests cover systemctl invocations for start, stop, restart, and uninstall using isolated fake systemctl paths.
-- [x] `go test ./...` passes
+- [ ] Documentation examples are command-line examples only; no new code tests required unless examples are compile-tested.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Linux users can install, start, stop, restart, and uninstall the adb-god systemd user service from the `adb-go daemon service ...` command group.
+- [ ] Contributors can discover and run the optional integration tests without reading test source first.
 
-## M48 — Report adb-god systemd user service status
+## M55 — Audit exported package documentation and examples
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add daemon service status command`
+Commit: `docs: audit package examples`
 
 Tasks:
 
-- [x] Add `adb-go daemon service status` for Linux systemd user-service state reporting.
-- [x] Query systemd user service activity with `systemctl --user is-active adb-god.service`.
-- [x] Query systemd user service enablement with `systemctl --user is-enabled adb-god.service`.
-- [x] Print concise, script-readable status fields such as `active: active` and `enabled: enabled`.
-- [x] Keep `daemon service status` clearly distinct from `adb-go daemon status`, which talks to the live daemon socket protocol.
-- [x] Document the service status command in README and CLI docs.
+- [ ] Review exported API docs in the root, `client`, and `protocol` packages.
+- [ ] Add or update examples for newer features such as logcat, screencap, reboot, APK install, and foreground forwarding where compile-tested examples are practical.
+- [ ] Ensure `protocol` documentation continues to communicate that it is lower-level and less stable than root/client APIs during v0.
+- [ ] Avoid changing runtime behavior unless a documentation example exposes an API bug that is explicitly fixed in this milestone.
 
 Tests:
 
-- [x] CLI tests cover active/enabled output using an isolated fake `systemctl` path.
-- [x] CLI tests cover inactive or disabled systemctl responses without requiring a real systemd user manager.
-- [x] `go test ./...` passes
+- [ ] Compile-tested examples pass.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Linux users can ask systemd whether the adb-god user service is active and enabled with `adb-go daemon service status`.
+- [ ] Public API documentation reflects the current feature set and protects basic examples against API drift.
+
+## M56 — Design daemon-backed persistent forwarding
+
+Status: Not started
+
+Commit: `docs(daemon): design persistent forwarding`
+
+Tasks:
+
+- [ ] Design how future daemon-owned foreground/background forwards should be represented, listed, and removed.
+- [ ] Define CLI command shapes for persistent forwards, including possible `forward --background`, `forward --list`, `forward --remove`, and `forward --remove-all` behavior.
+- [ ] Define daemon protocol additions needed to manage forwarding state.
+- [ ] Specify lifecycle semantics for daemon shutdown, systemd restart, target disconnects, and port conflicts.
+- [ ] Keep this milestone documentation-only; do not implement daemon-owned forwarding yet.
+
+Tests:
+
+- [ ] No code tests required for the design milestone.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] Persistent forwarding has a concrete, reviewable design that can be sliced into future implementation milestones.
 
 ## Deferred milestones
 
