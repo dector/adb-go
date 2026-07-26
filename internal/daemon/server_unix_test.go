@@ -118,7 +118,7 @@ func TestServerReturnsStructuredProtocolErrors(t *testing.T) {
 }
 
 func TestServerStartupHandlesStaleSocketAndRefusesFilesOrRunningDaemon(t *testing.T) {
-	dir := t.TempDir()
+	dir := shortSocketTempDir(t)
 	stalePath := filepath.Join(dir, "stale.sock")
 	ln, err := net.Listen("unix", stalePath)
 	if err != nil {
@@ -162,7 +162,7 @@ func TestServerStartupHandlesStaleSocketAndRefusesFilesOrRunningDaemon(t *testin
 
 func startTestServer(t *testing.T) (*Server, string, func()) {
 	t.Helper()
-	socketPath := filepath.Join(t.TempDir(), "adb-god.sock")
+	socketPath := filepath.Join(shortSocketTempDir(t), "d.sock")
 	server, err := NewServer(Options{SocketPath: socketPath})
 	if err != nil {
 		t.Fatalf("NewServer() error = %v", err)
@@ -184,4 +184,14 @@ func startTestServer(t *testing.T) (*Server, string, func()) {
 		}
 	}
 	return server, socketPath, wait
+}
+
+func shortSocketTempDir(t testing.TB) string {
+	t.Helper()
+	dir, err := os.MkdirTemp(os.TempDir(), "adbgo-")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }
