@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M55 — Audit exported package documentation and examples.
+- Current milestone: M56 — Design daemon-backed persistent forwarding.
 - Completed milestone range: Milestones 17–52 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, and CLI version reporting.
-- Active focus: improve observability and supportability around the existing minimal `adb-god` daemon and CLI without adding daemon-owned ADB persistence.
+- Active focus: design future daemon-owned persistent forwarding while preserving the existing foreground forwarding behavior until implementation milestones are promoted.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -212,26 +212,26 @@ Done when:
 
 ## M56 — Design daemon-backed persistent forwarding
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs(daemon): design persistent forwarding`
 
 Tasks:
 
-- [ ] Design how future daemon-owned foreground/background forwards should be represented, listed, and removed.
-- [ ] Define CLI command shapes for persistent forwards, including possible `forward --background`, `forward --list`, `forward --remove`, and `forward --remove-all` behavior.
-- [ ] Define daemon protocol additions needed to manage forwarding state.
-- [ ] Specify lifecycle semantics for daemon shutdown, systemd restart, target disconnects, and port conflicts.
-- [ ] Keep this milestone documentation-only; do not implement daemon-owned forwarding yet.
+- [x] Design how future daemon-owned foreground/background forwards should be represented, listed, and removed.
+- [x] Define CLI command shapes for persistent forwards, including possible `forward --background`, `forward --list`, `forward --remove`, and `forward --remove-all` behavior.
+- [x] Define daemon protocol additions needed to manage forwarding state.
+- [x] Specify lifecycle semantics for daemon shutdown, systemd restart, target disconnects, and port conflicts.
+- [x] Keep this milestone documentation-only; do not implement daemon-owned forwarding yet.
 
 Tests:
 
-- [ ] No code tests required for the design milestone.
-- [ ] `go test ./...` passes
+- [x] No code tests required for the design milestone.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Persistent forwarding has a concrete, reviewable design that can be sliced into future implementation milestones.
+- [x] Persistent forwarding has a concrete, reviewable design that can be sliced into future implementation milestones.
 
 ## Deferred milestones
 

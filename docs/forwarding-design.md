@@ -1,9 +1,10 @@
 # adb-go forwarding design
 
-This document records the M44.1 forwarding design. It explains what official
-`adb forward` does, why adb-go cannot implement it as a background server-side
-registration in the current architecture, and the small direct-device forwarding
-shape that should be implemented in follow-up milestones.
+This document records the M44.1 foreground forwarding design. It explains what
+official `adb forward` does, why adb-go initially implemented forwarding as a
+foreground direct-device bridge, and the small direct-device forwarding shape
+used by the current library and CLI. Future daemon-backed persistent forwarding
+is designed separately in [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
 
 ## Official adb behavior
 
@@ -139,8 +140,9 @@ Potential later extensions, explicitly out of scope for the first code slice:
   `localfilesystem:`.
 - JDWP, vsock, `dev:`, `dev-raw:`, or raw advanced service targets.
 - Host Unix socket listeners.
-- Server-compatible `--list`, `--remove`, `--remove-all`, or persistent mappings
-  after process exit.
+- Daemon-backed `--list`, `--remove`, `--remove-all`, or persistent mappings
+  after process exit. The persistent variant has a separate design in
+  [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
 - Reverse forwarding.
 
 ## Proposed CLI behavior

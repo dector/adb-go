@@ -265,6 +265,8 @@ adb-go daemon service logs
 
 Daemon design, socket selection, control protocol, troubleshooting, and service
 management details: [`docs/daemon-foundation.md`](docs/daemon-foundation.md).
+Future daemon-backed persistent forwarding is designed separately in
+[`docs/persistent-forwarding-design.md`](docs/persistent-forwarding-design.md).
 
 ## Low-level protocol package
 

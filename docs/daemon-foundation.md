@@ -151,6 +151,11 @@ The host service-manager commands are CLI conveniences around the same local
 control socket. They do not change the foundation daemon's protocol semantics or
 add persistent ADB device/session ownership.
 
+Future daemon-owned forwarding is designed in
+[`persistent-forwarding-design.md`](persistent-forwarding-design.md). That design
+adds explicit forwarding commands to the daemon protocol, but it is not part of
+the foundation daemon described here.
+
 ## Control protocol v1
 
 The control channel uses newline-delimited JSON over the Unix domain socket.

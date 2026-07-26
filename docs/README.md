@@ -23,6 +23,9 @@ transport behavior.
   Linux `adbd`, and Linux USB integration test workflows and troubleshooting.
 - [`linux-usb-transport.md`](linux-usb-transport.md) - Linux usbfs discovery,
   endpoint selection, permissions, and transport details.
+- [`persistent-forwarding-design.md`](persistent-forwarding-design.md) - future
+  daemon-owned forwarding representation, daemon protocol additions, CLI shape,
+  and lifecycle semantics.
 
 ## Architecture
 
@@ -92,8 +95,10 @@ callers can set deadlines or cancel work.
 - Authentication uses explicitly supplied credentials only.
 - Push and pull are single-file APIs; directory-aware behavior is reserved for
   future APIs.
-- Forwarding is designed as foreground, process-scoped local listener management
-  rather than official adb-server-style persistent forwarding state.
+- Forwarding is currently foreground, process-scoped local listener management
+  rather than official adb-server-style persistent forwarding state. Future
+  daemon-owned forwarding is designed in
+  [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
 - The planned `adb-god` daemon foundation defines only a Unix socket control
   channel for ping, status, and shutdown. It does not yet provide persistent ADB
   functionality.

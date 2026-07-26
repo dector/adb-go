@@ -417,7 +417,9 @@ persistent mapping table, and removes the forward when the command exits.
 Unsupported forwarding forms currently include host Unix sockets, Android local
 socket namespaces such as `localabstract:`, JDWP, vsock, reverse forwarding, raw
 advanced service targets, persistent mappings, `--list`, `--remove`, and
-`--remove-all`.
+`--remove-all`. Future daemon-backed persistent forwarding is designed in
+[`../../docs/persistent-forwarding-design.md`](../../docs/persistent-forwarding-design.md),
+but it is not implemented yet.
 
 ### `daemon`
 
