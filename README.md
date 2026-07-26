@@ -325,10 +325,20 @@ More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 
 ## Testing
 
+Run the default unit and example suite with:
+
 ```sh
 go test ./...
 ```
 
-Optional integration tests are skipped by default. See
-[`client/README.md`](client/README.md#testing-and-integration) and
-[`cmd/adb-go/README.md`](cmd/adb-go/README.md#testing).
+Optional integration tests are skipped by default. Set
+`ADB_GO_INTEGRATION_ADDR` to run TCP tests against an already-running emulator,
+TCP-enabled device, or manually started test daemon:
+
+```sh
+ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...
+```
+
+The repository also includes opt-in workflows for the containerized Linux
+`adbd` fixture and Linux USB transport tests. Full setup, prerequisites, and
+troubleshooting notes are in [`docs/integration-testing.md`](docs/integration-testing.md).

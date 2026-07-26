@@ -628,4 +628,6 @@ go test ./cmd/adb-go ./...
 ```
 
 Optional end-to-end workflows are covered by the repository integration tests;
-see [`../../client/README.md`](../../client/README.md#testing-and-integration).
+see [`../../docs/integration-testing.md`](../../docs/integration-testing.md) for
+TCP emulator/device examples, the containerized Linux `adbd` workflow, Linux USB
+requirements, and troubleshooting.

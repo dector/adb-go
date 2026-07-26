@@ -168,25 +168,25 @@ Done when:
 
 ## M54 — Expand integration test documentation
 
-Status: Not started
+Status: Implemented
 
 Commit: `docs: expand integration test guidance`
 
 Tasks:
 
-- [ ] Document `ADB_GO_INTEGRATION_ADDR` usage with emulator TCP examples.
-- [ ] Document expected prerequisites and limitations for real-device TCP tests.
-- [ ] Document the existing Linux adbd container workflow if it is stable enough for contributors.
-- [ ] Add troubleshooting notes for skipped tests, refused TCP connections, and auth-required devices.
+- [x] Document `ADB_GO_INTEGRATION_ADDR` usage with emulator TCP examples.
+- [x] Document expected prerequisites and limitations for real-device TCP tests.
+- [x] Document the existing Linux adbd container workflow if it is stable enough for contributors.
+- [x] Add troubleshooting notes for skipped tests, refused TCP connections, and auth-required devices.
 
 Tests:
 
-- [ ] Documentation examples are command-line examples only; no new code tests required unless examples are compile-tested.
-- [ ] `go test ./...` passes
+- [x] Documentation examples are command-line examples only; no new code tests required unless examples are compile-tested.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Contributors can discover and run the optional integration tests without reading test source first.
+- [x] Contributors can discover and run the optional integration tests without reading test source first.
 
 ## M55 — Audit exported package documentation and examples
 

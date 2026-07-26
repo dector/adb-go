@@ -19,6 +19,8 @@ transport behavior.
   control protocol, lifecycle semantics, and initial non-goals.
 - [`forwarding-design.md`](forwarding-design.md) - direct-device forwarding
   design, official `adb forward` differences, and proposed library/CLI shape.
+- [`integration-testing.md`](integration-testing.md) - optional TCP, containerized
+  Linux `adbd`, and Linux USB integration test workflows and troubleshooting.
 - [`linux-usb-transport.md`](linux-usb-transport.md) - Linux usbfs discovery,
   endpoint selection, permissions, and transport details.
 

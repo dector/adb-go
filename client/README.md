@@ -508,17 +508,11 @@ ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...
 
 There is also an optional instrumented integration test that starts the
 project's containerized Linux `adbd` and exercises connect, shell, shell
-streaming, raw service opening, single-file push, and single-file pull. The test
-prefers Podman and falls back to Docker; set `ADB_GO_CONTAINER_RUNTIME` to choose
-explicitly.
+streaming, raw service opening, single-file push, and single-file pull:
 
 ```sh
 ADB_GO_CONTAINER_INTEGRATION=1 ADB_GO_CONTAINER_BUILD=1 go test -timeout 30m ./...
-ADB_GO_CONTAINER_INTEGRATION=1 go test ./...
 ```
-
-The default container image name is `adb-go-linux-adbd`; override it with
-`ADB_GO_CONTAINER_IMAGE` when needed.
 
 Linux USB integration testing is opt-in and requires Linux plus a connected
 ADB-capable USB device that your user can open through `/dev/bus/usb`:
@@ -526,3 +520,7 @@ ADB-capable USB device that your user can open through `/dev/bus/usb`:
 ```sh
 ADB_GO_USB_INTEGRATION=1 go test ./...
 ```
+
+Detailed prerequisites, emulator TCP examples, container runtime options, and
+troubleshooting notes are in
+[`../docs/integration-testing.md`](../docs/integration-testing.md).
