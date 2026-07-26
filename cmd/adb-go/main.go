@@ -96,7 +96,7 @@ var scanTCPTargets = adb.ScanTCPTargets
 var currentTime = time.Now
 
 // version is intentionally a package variable so release builds can inject a
-// concrete value with Go's standard linker flag. scripts/git-version.sh derives
+// concrete value with Go's standard linker flag. tools/git-version.sh derives
 // the project convention from Git tags for release/snapshot builds.
 var version = "dev"
 
@@ -368,7 +368,7 @@ Prints concise adb-go build and Go runtime information for support requests.
 Release builds can set the adb-go version at build time with the Git-derived
 project convention:
 
-  version=$(./scripts/git-version.sh)
+  version=$(./tools/git-version.sh)
   go build -ldflags "-X main.version=${version}" ./cmd/adb-go
 `
 

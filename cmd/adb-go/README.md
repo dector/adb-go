@@ -150,7 +150,7 @@ inject the project's Git-derived version with Go's standard linker variable
 support:
 
 ```sh
-version=$(./scripts/git-version.sh)
+version=$(./tools/git-version.sh)
 go build -ldflags "-X main.version=${version}" ./cmd/adb-go
 ```
 
