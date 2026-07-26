@@ -397,6 +397,7 @@ socket control protocol:
 adb-go daemon ping
 adb-go daemon status
 adb-go daemon stop
+adb-go daemon install
 ```
 
 `ping` is a liveness check. It sends a protocol `ping` request and prints
@@ -442,8 +443,24 @@ Start the daemon itself separately with the matching path:
 adb-god --socket /tmp/adb-go-demo/adb-god.sock
 ```
 
+On Linux systems that use systemd user services, `install` writes
+`~/.config/systemd/user/adb-god.service`, runs `systemctl --user daemon-reload`,
+and enables/starts the service with `systemctl --user enable --now
+adb-god.service`:
+
+```sh
+adb-go daemon install
+```
+
+Use `--adb-god PATH` when `adb-god` is not on `PATH`, and use `--socket PATH` to
+bake a non-default socket path into the unit:
+
+```sh
+adb-go daemon --socket /tmp/adb-go-demo/adb-god.sock install --adb-god /usr/local/bin/adb-god
+```
+
 The initial daemon is deliberately minimal. It is not the official adb server,
-it does not auto-start from `adb-go daemon`, and it does not keep ADB devices,
+it does not keep ADB devices,
 USB/TCP transports, foreground forwards, shell sessions, install state, logcat
 streams, screenshots, reboots, or authentication keys alive after a CLI command
 exits. Those are future design areas built on this process and socket

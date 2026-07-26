@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: None. Promote the next concrete milestone from Deferred milestones before implementing more work.
+- Current milestone: M46 — Install adb-god as a systemd user service.
 - Completed milestone range: Milestones 17–45 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, and the minimal adb-god daemon foundation.
-- Active focus: no active milestone. The minimal daemon foundation now includes an `adb-god` daemon process, a Unix domain socket control channel, and `adb-go daemon` CLI controls. Persistent device/session functionality remains future work.
+- Active focus: add a Linux systemd user-service installer for the existing minimal `adb-god` daemon without adding daemon-owned ADB persistence.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -139,6 +139,29 @@ Tests:
 Done when:
 
 - [x] Users can discover how to start/control the daemon foundation and understand that feature persistence is future work.
+
+## M46 — Install adb-god as a systemd user service
+
+Status: Implemented
+
+Commit: `feat(cli): install daemon systemd user service`
+
+Tasks:
+
+- [x] Add `adb-go daemon install` for Linux systemd user-service installation.
+- [x] Generate an `adb-god.service` user unit that starts `adb-god` with the selected control socket path.
+- [x] Reload the user systemd manager and enable/start the unit by default.
+- [x] Support explicit daemon binary and unit-directory overrides for non-default installations and tests.
+- [x] Document the install command in README and CLI docs.
+
+Tests:
+
+- [x] CLI tests cover generated unit content and systemctl invocation using isolated test paths.
+- [x] `go test ./...` passes
+
+Done when:
+
+- [x] Linux users can install and start the minimal adb-god daemon as a current-user systemd service with `adb-go daemon install`.
 
 ## Deferred milestones
 

@@ -8,7 +8,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -346,12 +349,15 @@ only exposes daemon process controls; adb-god does not persist devices,
 transports, forwards, sessions, or authentication state yet.
 
 Commands:
-  ping    Check whether adb-god responds to the control protocol
-  status  Print basic adb-god process metadata
-  stop    Request graceful adb-god shutdown
+  ping     Check whether adb-god responds to the control protocol
+  status   Print basic adb-god process metadata
+  stop     Request graceful adb-god shutdown
+  install  Install and start adb-god as a systemd user service on Linux
 
 Socket path selection uses --socket when provided, otherwise ADB_GO_DAEMON_SOCKET,
-then XDG_RUNTIME_DIR, then a per-user temporary directory.
+then XDG_RUNTIME_DIR, then a per-user temporary directory. The install command
+writes ~/.config/systemd/user/adb-god.service by default and runs
+systemctl --user daemon-reload followed by systemctl --user enable --now.
 `
 
 func runDaemon(args []string, stdout, stderr io.Writer) int {
@@ -362,8 +368,8 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() != 1 {
-		fmt.Fprint(stderr, "adb-go daemon: requires exactly one COMMAND\n\n")
+	if fs.NArg() == 0 {
+		fmt.Fprint(stderr, "adb-go daemon: requires COMMAND\n\n")
 		fs.Usage()
 		return 2
 	}
@@ -379,8 +385,17 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	}
 
 	command := fs.Arg(0)
+	commandArgs := fs.Args()[1:]
+	if command == "install" {
+		return runDaemonInstall(commandArgs, socketPath, stdout, stderr)
+	}
 	switch command {
 	case daemon.CommandPing, daemon.CommandStatus, "stop":
+		if len(commandArgs) != 0 {
+			fmt.Fprintf(stderr, "adb-go daemon %s: unexpected arguments %q\n\n", command, commandArgs)
+			fs.Usage()
+			return 2
+		}
 	default:
 		fmt.Fprintf(stderr, "adb-go daemon: unknown daemon command %q\n\n", command)
 		fs.Usage()
@@ -424,6 +439,151 @@ func printDaemonStatus(stdout io.Writer, result map[string]any) {
 	fmt.Fprintf(stdout, "socketPath: %v\n", result["socketPath"])
 	fmt.Fprintf(stdout, "protocolVersion: %v\n", result["protocolVersion"])
 	fmt.Fprintf(stdout, "uptimeMillis: %v\n", result["uptimeMillis"])
+}
+
+const daemonInstallUsage = `Usage:
+  adb-go daemon [--socket PATH] install [--adb-god PATH] [--unit-dir DIR] [--systemctl PATH] [--no-enable]
+
+Installs adb-god as a systemd user service on Linux. The command writes an
+adb-god.service unit for the current user. Unless --no-enable is set, it then
+reloads the user systemd manager and enables/starts the service with:
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now adb-god.service
+`
+
+func runDaemonInstall(args []string, socketPath string, stdout, stderr io.Writer) int {
+	if runtime.GOOS != "linux" {
+		fmt.Fprintln(stderr, "adb-go daemon install: systemd user services are supported on Linux only")
+		return 1
+	}
+	fs := flag.NewFlagSet("daemon install", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	adbGodPathFlag := fs.String("adb-god", "", "absolute path to the adb-god binary")
+	unitDirFlag := fs.String("unit-dir", "", "systemd user unit directory")
+	systemctlFlag := fs.String("systemctl", "systemctl", "systemctl binary path")
+	noEnableFlag := fs.Bool("no-enable", false, "write the unit but do not run systemctl")
+	fs.Usage = func() { fmt.Fprint(stderr, daemonInstallUsage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(stderr, "adb-go daemon install: unexpected arguments %q\n\n", fs.Args())
+		fs.Usage()
+		return 2
+	}
+
+	adbGodPath, err := resolveADBGodPath(strings.TrimSpace(*adbGodPathFlag))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon install: %v\n", err)
+		return 1
+	}
+	unitDir, err := systemdUserUnitDir(strings.TrimSpace(*unitDirFlag))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon install: %v\n", err)
+		return 1
+	}
+	unitPath := filepath.Join(unitDir, "adb-god.service")
+	unit := adbGodSystemdUnit(adbGodPath, socketPath)
+	if err := os.MkdirAll(unitDir, 0o755); err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon install: create systemd user unit directory: %v\n", err)
+		return 1
+	}
+	if err := os.WriteFile(unitPath, []byte(unit), 0o644); err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon install: write %s: %v\n", unitPath, err)
+		return 1
+	}
+
+	if !*noEnableFlag {
+		if code := runSystemctlUser(stderr, *systemctlFlag, "daemon-reload"); code != 0 {
+			return code
+		}
+		if code := runSystemctlUser(stderr, *systemctlFlag, "enable", "--now", "adb-god.service"); code != 0 {
+			return code
+		}
+	}
+
+	fmt.Fprintf(stdout, "installed %s\n", unitPath)
+	if *noEnableFlag {
+		fmt.Fprintln(stdout, "systemctl enable/start skipped")
+	} else {
+		fmt.Fprintln(stdout, "adb-god.service enabled and started for the current user")
+	}
+	return 0
+}
+
+func resolveADBGodPath(configured string) (string, error) {
+	if configured != "" {
+		abs, err := filepath.Abs(configured)
+		if err != nil {
+			return "", fmt.Errorf("resolve adb-god path: %w", err)
+		}
+		return abs, nil
+	}
+	if found, err := exec.LookPath("adb-god"); err == nil {
+		return filepath.Abs(found)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("locate adb-god: adb-god is not on PATH and current executable path is unavailable")
+	}
+	candidate := filepath.Join(filepath.Dir(exe), "adb-god")
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, nil
+	}
+	return "", fmt.Errorf("locate adb-god: pass --adb-god PATH or install adb-god next to adb-go")
+}
+
+func systemdUserUnitDir(configured string) (string, error) {
+	if configured != "" {
+		return filepath.Abs(configured)
+	}
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	if configHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("locate systemd user unit directory: %w", err)
+		}
+		configHome = filepath.Join(home, ".config")
+	}
+	return filepath.Join(configHome, "systemd", "user"), nil
+}
+
+func adbGodSystemdUnit(adbGodPath, socketPath string) string {
+	return strings.Join([]string{
+		"[Unit]",
+		"Description=adb-go daemon",
+		"Documentation=https://github.com/dector/adb-go",
+		"",
+		"[Service]",
+		"Type=simple",
+		"ExecStart=" + systemdQuote(adbGodPath) + " -socket " + systemdQuote(socketPath),
+		"Restart=on-failure",
+		"RestartSec=2s",
+		"",
+		"[Install]",
+		"WantedBy=default.target",
+		"",
+	}, "\n")
+}
+
+func systemdQuote(s string) string {
+	return strconv.Quote(s)
+}
+
+func runSystemctlUser(stderr io.Writer, systemctl string, args ...string) int {
+	cmdArgs := append([]string{"--user"}, args...)
+	cmd := exec.Command(systemctl, cmdArgs...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go daemon install: %s %s failed: %v", systemctl, strings.Join(cmdArgs, " "), err)
+		if len(out) > 0 {
+			fmt.Fprintf(stderr, ": %s", strings.TrimSpace(string(out)))
+		}
+		fmt.Fprintln(stderr)
+		return 1
+	}
+	return 0
 }
 
 const shellUsage = `Usage:

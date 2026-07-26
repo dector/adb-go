@@ -245,6 +245,18 @@ adb-go daemon status
 adb-go daemon stop
 ```
 
+On Linux systems with systemd user services, the CLI can also install and start
+`adb-god` for the current user:
+
+```sh
+adb-go daemon install
+```
+
+This writes `~/.config/systemd/user/adb-god.service`, reloads the user systemd
+manager, and runs `systemctl --user enable --now adb-god.service`. Pass
+`--adb-god PATH` if the daemon binary is not on `PATH`, and pass `--socket PATH`
+when the service should use a non-default control socket.
+
 The socket path is selected in this order: an explicit CLI `--socket` path where
 accepted, `ADB_GO_DAEMON_SOCKET`, `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, then a
 per-user path below Go's temporary directory such as

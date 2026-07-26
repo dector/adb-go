@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestRunDaemonRequiresCommand(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if got := stderr.String(); !strings.Contains(got, "requires exactly one COMMAND") || !strings.Contains(got, "Usage:") {
+	if got := stderr.String(); !strings.Contains(got, "requires COMMAND") || !strings.Contains(got, "Usage:") {
 		t.Fatalf("stderr = %q, want usage error", got)
 	}
 }
@@ -109,6 +110,71 @@ func TestRunDaemonUsesConfiguredEnvironmentSocketPath(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "pong" {
 		t.Fatalf("stdout = %q, want pong", stdout.String())
+	}
+}
+
+func TestRunDaemonInstallWritesSystemdUserUnit(t *testing.T) {
+	adbGodPath := filepath.Join(t.TempDir(), "adb-god")
+	if err := os.WriteFile(adbGodPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write fake adb-god: %v", err)
+	}
+	socketPath := filepath.Join(t.TempDir(), "adb-god.sock")
+	unitDir := filepath.Join(t.TempDir(), "systemd", "user")
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", socketPath, "install", "--adb-god", adbGodPath, "--unit-dir", unitDir, "--no-enable"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon install) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	unitPath := filepath.Join(unitDir, "adb-god.service")
+	unit, err := os.ReadFile(unitPath)
+	if err != nil {
+		t.Fatalf("read unit: %v", err)
+	}
+	gotUnit := string(unit)
+	for _, want := range []string{
+		"[Unit]",
+		"Description=adb-go daemon",
+		"ExecStart=\"" + adbGodPath + "\" -socket \"" + socketPath + "\"",
+		"Restart=on-failure",
+		"WantedBy=default.target",
+	} {
+		if !strings.Contains(gotUnit, want) {
+			t.Fatalf("unit = %q, want substring %q", gotUnit, want)
+		}
+	}
+	if !strings.Contains(stdout.String(), "installed "+unitPath) || !strings.Contains(stdout.String(), "systemctl enable/start skipped") {
+		t.Fatalf("stdout = %q, want install and skipped messages", stdout.String())
+	}
+}
+
+func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
+	adbGodPath := filepath.Join(t.TempDir(), "adb-god")
+	if err := os.WriteFile(adbGodPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write fake adb-god: %v", err)
+	}
+	systemctlLog := filepath.Join(t.TempDir(), "systemctl.log")
+	systemctlPath := filepath.Join(t.TempDir(), "systemctl")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + strconv.Quote(systemctlLog) + "\n"
+	if err := os.WriteFile(systemctlPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake systemctl: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", filepath.Join(t.TempDir(), "adb-god.sock"), "install", "--adb-god", adbGodPath, "--unit-dir", filepath.Join(t.TempDir(), "units"), "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon install) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	logBytes, err := os.ReadFile(systemctlLog)
+	if err != nil {
+		t.Fatalf("read systemctl log: %v", err)
+	}
+	got := string(logBytes)
+	if !strings.Contains(got, "--user daemon-reload\n") || !strings.Contains(got, "--user enable --now adb-god.service\n") {
+		t.Fatalf("systemctl log = %q, want daemon-reload and enable --now", got)
+	}
+	if !strings.Contains(stdout.String(), "adb-god.service enabled and started") {
+		t.Fatalf("stdout = %q, want enabled message", stdout.String())
 	}
 }
 
