@@ -122,27 +122,27 @@ Goal: make common `getprop` workflows available as small high-level helpers and 
 
 ### M41.1 — Add client device property helpers
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add device property helpers`
 
 Tasks:
 
-- [ ] Add a high-level helper for reading one property, for example `Client.GetProp(ctx, name string) (string, error)`.
-- [ ] Add a helper for reading all properties, for example `Client.Properties(ctx) (map[string]string, error)`.
-- [ ] Parse standard `getprop` output carefully and return useful errors for malformed lines where appropriate.
-- [ ] Re-export stable property APIs from the root package if they are part of the high-level API.
+- [x] Add a high-level helper for reading one property, for example `Client.GetProp(ctx, name string) (string, error)`.
+- [x] Add a helper for reading all properties, for example `Client.Properties(ctx) (map[string]string, error)`.
+- [x] Parse standard `getprop` output carefully and return useful errors for malformed lines where appropriate.
+- [x] Re-export stable property APIs from the root package if they are part of the high-level API.
 
 Tests:
 
-- [ ] Client tests cover one-property lookup through `internal/fakeadb`.
-- [ ] Client tests cover parsing all-properties output.
-- [ ] Client tests cover empty and malformed output behavior.
-- [ ] `go test ./...` passes
+- [x] Client tests cover one-property lookup through `internal/fakeadb`.
+- [x] Client tests cover parsing all-properties output.
+- [x] Client tests cover empty and malformed output behavior.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can read Android system properties without manually building and parsing `getprop` shell commands.
+- [x] Library callers can read Android system properties without manually building and parsing `getprop` shell commands.
 
 ### M41.2 — Add CLI getprop command
 
