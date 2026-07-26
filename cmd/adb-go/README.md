@@ -15,6 +15,7 @@ clone of the official `adb` command.
   - [`shell`](#shell)
   - [`push` and `pull`](#push-and-pull)
   - [`install-apk`](#install-apk)
+  - [`getprop`](#getprop)
   - [`logcat`](#logcat)
 - [Limitations](#limitations)
 - [Testing](#testing)
@@ -42,6 +43,7 @@ adb-go shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
+adb-go getprop --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --addr 127.0.0.1:5555
 ```
 
@@ -57,6 +59,8 @@ adb-go shell echo hello
 adb-go push ./local.txt /data/local/tmp/local.txt
 adb-go pull --overwrite /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --replace ./app.apk
+adb-go getprop ro.product.model
+adb-go getprop
 adb-go logcat --dump
 ```
 
@@ -70,6 +74,7 @@ adb-go shell --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 adb-go push --usb-bus 1 --usb-device 2 ./local.txt /data/local/tmp/local.txt
 adb-go pull --usb-vid 18d1 --usb-pid 4ee7 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --usb-path /dev/bus/usb/001/002 ./app.apk
+adb-go getprop --usb-path /dev/bus/usb/001/002 ro.product.model
 adb-go logcat --usb-path /dev/bus/usb/001/002
 ```
 
@@ -89,6 +94,7 @@ For authenticated TCP or USB devices, provide an existing ADB private key with
 adb-go shell --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 getprop ro.product.model
 adb-go shell --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 getprop ro.product.model
 adb-go install-apk --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./app.apk
+adb-go getprop --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ro.product.model
 adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 --dump
 ```
 
@@ -180,6 +186,41 @@ Security note: the local APK path is caller-controlled, installation changes the
 selected device, and package-manager output is device-provided remote command
 output.
 
+### `getprop`
+
+`adb-go getprop` reads Android system properties from the selected device. With
+one property argument, it prints only that property's value:
+
+```sh
+adb-go getprop --addr 127.0.0.1:5555 ro.product.model
+adb-go getprop --usb-path /dev/bus/usb/001/002 ro.build.version.sdk
+adb-go getprop --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ro.product.name
+```
+
+With no property argument, it prints all properties in stable name order using
+Android `getprop`'s standard readable format:
+
+```sh
+adb-go getprop --addr 127.0.0.1:5555
+```
+
+Example output:
+
+```text
+[ro.build.version.sdk]: [35]
+[ro.product.model]: [Pixel Fixture]
+```
+
+The command accepts the same target-selection flags as other device operations:
+TCP with `--addr` or `ADB_GO_ADDR`, Linux USB with `--usb`/`--usb-path`/USB ID
+selectors, and explicit authentication with `--auth-key`. It accepts at most one
+property name; use `adb-go shell ...` if you need unsupported device-side
+`getprop` behavior.
+
+Property names and values come from the connected device. Treat them as remote
+data that can differ across devices, Android releases, vendor builds, and test
+fixtures.
+
 ### `logcat`
 
 `adb-go logcat` streams Android log output from the selected device to stdout:
@@ -219,8 +260,9 @@ stdout/process behavior.
 The CLI is not a complete `adb` replacement. Broad command compatibility such as
 `devices`, official `adb install` compatibility, full official `adb logcat`
 flag compatibility, server management, wireless pairing, forwarding, and most
-official flags are not implemented. Use `install-apk` for adb-go's limited
-one-APK installation workflow.
+official flags are not implemented. Use `getprop` for adb-go's limited property
+inspection workflow and `install-apk` for adb-go's limited one-APK installation
+workflow.
 
 ## Testing
 

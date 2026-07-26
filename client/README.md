@@ -3,8 +3,8 @@
 Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
-opening, shell helpers, logcat streaming, single-file `sync:` push/pull helpers,
-and a small APK install helper.
+opening, shell helpers, Android property helpers, logcat streaming, single-file
+`sync:` push/pull helpers, and a small APK install helper.
 
 ## Contents
 
@@ -12,6 +12,7 @@ and a small APK install helper.
 - [Connect over Linux USB](#connect-over-linux-usb)
 - [Authenticate with an existing ADB key](#authenticate-with-an-existing-adb-key)
 - [Shell commands](#shell-commands)
+- [Device properties](#device-properties)
 - [Logcat](#logcat)
 - [File transfer](#file-transfer)
 - [Install one APK](#install-one-apk)
@@ -138,6 +139,47 @@ if err != nil {
     return err
 }
 ```
+
+## Device properties
+
+Android exposes many device and build settings as system properties, commonly
+inspected with the device-side `getprop` command. adb-go provides small helpers
+for the two common read-only workflows so callers do not have to assemble shell
+commands or parse `getprop` output themselves.
+
+Read one property by name with `GetProp`:
+
+```go
+model, err := c.GetProp(ctx, "ro.product.model")
+if err != nil {
+    return err
+}
+fmt.Println(model)
+```
+
+If the property is not set, Android's `getprop NAME` normally prints an empty
+line, so `GetProp` returns an empty string and a nil error. Errors are reserved
+for ADB transport failures or unexpected multi-line output from the device.
+
+Read all properties with `Properties`:
+
+```go
+props, err := c.Properties(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(props["ro.build.version.sdk"])
+```
+
+`Properties` runs plain `getprop` and parses the standard `[name]: [value]`
+format into a `map[string]string`. Empty output returns an empty map. Malformed
+non-empty lines produce an error that includes the line number, which helps
+callers distinguish a bad device response from a missing property.
+
+Property names and values are remote device data. They may vary by Android
+version, vendor image, user build, emulator configuration, and connected target;
+do not treat them as trusted local constants unless your application controls the
+device image.
 
 ## Logcat
 
