@@ -223,9 +223,11 @@ adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 `adb-go version` prints the adb-go build version, Go runtime version, target OS,
 and target architecture. Development builds report `dev`; release builds can
 inject a Git-derived value with Go's standard linker flags. The helper
-`./tools/git-version.sh` prints the latest `v*` tag as-is, appends `-00` when
-clean commits exist after that tag, and appends `-000` when the worktree is
-dirty:
+`./tools/git-version.sh` prints the latest semantic `vMAJOR.MINOR.PATCH` tag
+as-is when `HEAD` is exactly on that tag and the worktree is clean. For clean
+commits after the tag, it bumps the patch component and appends the zero-padded
+commit distance, for example `v0.1.1-001`. Dirty worktrees append `-snapshot` to
+that calculated version, for example `v0.1.1-001-snapshot`:
 
 ```sh
 version=$(./tools/git-version.sh)

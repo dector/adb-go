@@ -154,10 +154,12 @@ version=$(./tools/git-version.sh)
 go build -ldflags "-X main.version=${version}" ./cmd/adb-go
 ```
 
-The helper looks for the latest `v*` Git tag. It prints the tag unchanged when
-`HEAD` is exactly on that tag and the worktree is clean, appends `-00` when
-there are clean commits after the tag, and appends `-000` when the worktree is
-dirty.
+The helper looks for the latest semantic `vMAJOR.MINOR.PATCH` Git tag. It
+prints the tag unchanged when `HEAD` is exactly on that tag and the worktree is
+clean. When there are clean commits after the tag, it bumps the patch component
+and appends the zero-padded commit distance, such as `v0.1.1-001` for one commit
+after `v0.1.0`. Dirty worktrees append `-snapshot` to the calculated version,
+such as `v0.1.1-001-snapshot`.
 
 ### `targets`
 
