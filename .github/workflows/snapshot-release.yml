@@ -29,8 +29,9 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA::7}"
+          version="$(./scripts/git-version.sh)"
           mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o "dist/adbgo-${short_sha}" ./cmd/adb-go
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${version}" -o "dist/adbgo-${short_sha}" ./cmd/adb-go
           chmod +x "dist/adbgo-${short_sha}"
           echo "binary=dist/adbgo-${short_sha}" >> "$GITHUB_ENV"
 

@@ -96,9 +96,8 @@ var scanTCPTargets = adb.ScanTCPTargets
 var currentTime = time.Now
 
 // version is intentionally a package variable so release builds can inject a
-// concrete value with Go's standard linker flag, for example:
-//
-//	go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go
+// concrete value with Go's standard linker flag. scripts/git-version.sh derives
+// the project convention from Git tags for release/snapshot builds.
 var version = "dev"
 
 type forwardSession interface {
@@ -366,9 +365,11 @@ const versionUsage = `Usage:
   adb-go version
 
 Prints concise adb-go build and Go runtime information for support requests.
-Release builds can set the adb-go version at build time with:
+Release builds can set the adb-go version at build time with the Git-derived
+project convention:
 
-  go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go
+  version=$(./scripts/git-version.sh)
+  go build -ldflags "-X main.version=${version}" ./cmd/adb-go
 `
 
 func runVersion(args []string, stdout, stderr io.Writer) int {

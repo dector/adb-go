@@ -146,11 +146,18 @@ arch: amd64
 ```
 
 Development builds use `dev` as the adb-go version fallback. Release builds can
-inject a concrete version with Go's standard linker variable support:
+inject the project's Git-derived version with Go's standard linker variable
+support:
 
 ```sh
-go build -ldflags "-X main.version=v0.1.0" ./cmd/adb-go
+version=$(./scripts/git-version.sh)
+go build -ldflags "-X main.version=${version}" ./cmd/adb-go
 ```
+
+The helper looks for the latest `v*` Git tag. It prints the tag unchanged when
+`HEAD` is exactly on that tag and the worktree is clean, appends `-00` when
+there are clean commits after the tag, and appends `-000` when the worktree is
+dirty.
 
 ### `targets`
 
