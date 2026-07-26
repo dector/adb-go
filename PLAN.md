@@ -369,26 +369,26 @@ Done when:
 
 ### M44.2 — Add client port forwarding helpers
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add port forwarding helpers`
 
 Tasks:
 
-- [ ] Implement the forwarding design from M44.1 as a small high-level client API.
-- [ ] Support local TCP listener forwarding to an explicitly supported remote target form.
-- [ ] Provide a clear close/shutdown mechanism for active forwards.
-- [ ] Avoid claiming full official `adb forward` compatibility unless the design proves it.
+- [x] Implement the forwarding design from M44.1 as a small high-level client API.
+- [x] Support local TCP listener forwarding to an explicitly supported remote target form.
+- [x] Provide a clear close/shutdown mechanism for active forwards.
+- [x] Avoid claiming full official `adb forward` compatibility unless the design proves it.
 
 Tests:
 
-- [ ] Client tests cover local listener lifecycle and stream bridging through `internal/fakeadb` or focused in-memory tests.
-- [ ] Client tests cover close/shutdown behavior.
-- [ ] `go test ./...` passes
+- [x] Client tests cover local listener lifecycle and stream bridging through `internal/fakeadb` or focused in-memory tests.
+- [x] Client tests cover close/shutdown behavior.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can forward local TCP connections to a supported remote device endpoint through adb-go.
+- [x] Library callers can forward local TCP connections to a supported remote device endpoint through adb-go.
 
 ### M44.3 — Add CLI forward command
 

@@ -24,6 +24,12 @@ type LogcatOptions = client.LogcatOptions
 // RebootMode selects a device reboot target supported by Client.Reboot.
 type RebootMode = client.RebootMode
 
+// ForwardTarget describes the device-side endpoint opened by forwarding.
+type ForwardTarget = client.ForwardTarget
+
+// Forward is an active local forwarding session.
+type Forward = client.Forward
+
 // ConnectOptions controls optional high-level connection behavior.
 type ConnectOptions = client.ConnectOptions
 
@@ -95,6 +101,11 @@ func ConnectTCPWithOptions(ctx context.Context, addr string, opts ConnectOptions
 // LoadPrivateKey loads an explicit ADB RSA private key from path.
 func LoadPrivateKey(path string) (*Credential, error) {
 	return auth.LoadPrivateKey(path)
+}
+
+// ForwardTCP returns a device TCP forwarding target for port.
+func ForwardTCP(port int) (ForwardTarget, error) {
+	return client.ForwardTCP(port)
 }
 
 // ConnectUSB connects to an ADB device over USB and performs the initial ADB
