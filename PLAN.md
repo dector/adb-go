@@ -194,27 +194,27 @@ Goal: add a simple screenshot workflow using existing shell streaming support.
 
 ### M42.1 — Add client screencap helper
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(client): add screencap helper`
 
 Tasks:
 
-- [ ] Add a high-level helper for capturing PNG screenshot bytes, for example `Client.Screencap(ctx) ([]byte, error)`.
-- [ ] Add a helper for writing a screenshot directly to a local file if it keeps the API small and clear.
-- [ ] Implement using `shell:screencap -p` or another device-supported service/command.
-- [ ] Handle or document Android shell newline behavior if it affects PNG output.
-- [ ] Re-export stable screencap APIs from the root package if they are part of the high-level API.
+- [x] Add a high-level helper for capturing PNG screenshot bytes, for example `Client.Screencap(ctx) ([]byte, error)`.
+- [x] Add a helper for writing a screenshot directly to a local file if it keeps the API small and clear.
+- [x] Implement using `shell:screencap -p` or another device-supported service/command.
+- [x] Handle or document Android shell newline behavior if it affects PNG output.
+- [x] Re-export stable screencap APIs from the root package if they are part of the high-level API.
 
 Tests:
 
-- [ ] Client tests cover screenshot byte capture through `internal/fakeadb`.
-- [ ] Client tests cover local file output behavior if implemented.
-- [ ] `go test ./...` passes
+- [x] Client tests cover screenshot byte capture through `internal/fakeadb`.
+- [x] Client tests cover local file output behavior if implemented.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can capture one screenshot from a connected device without manually invoking shell commands.
+- [x] Library callers can capture one screenshot from a connected device without manually invoking shell commands.
 
 ### M42.2 — Add CLI screencap command
 
