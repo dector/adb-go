@@ -5,6 +5,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -74,7 +76,7 @@ func TestRunDaemonPingStatusAndStopWithSocketFlag(t *testing.T) {
 		t.Fatalf("run(daemon status) exit code = %d, want 0; stderr = %q", code, statusErr.String())
 	}
 	gotStatus := statusOut.String()
-	for _, want := range []string{"state: running", "pid:", "socketPath: " + socketPath, "protocolVersion: 1", "uptimeMillis:"} {
+	for _, want := range []string{"state: running", "pid:", "socketPath: " + socketPath, "protocolVersion: 1", "uptimeMillis:", "forwardTotal: 0", "forwardListening: 0", "forwardDegraded: 0", "forwardActiveConnections: 0"} {
 		if !strings.Contains(gotStatus, want) {
 			t.Fatalf("status stdout = %q, want substring %q", gotStatus, want)
 		}
@@ -124,7 +126,50 @@ func TestRunDaemonDoctorReportsRespondingDaemon(t *testing.T) {
 		t.Fatalf("run(daemon doctor) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
-	for _, want := range []string{"socketPath: " + socketPath, "socketExists: true", "socketType: unix", "daemonProtocol: responding", "daemonState: running", "daemonProtocolVersion: 1", "systemdActive: active", "systemdEnabled: enabled", "hints: none"} {
+	for _, want := range []string{"socketPath: " + socketPath, "socketExists: true", "socketType: unix", "daemonProtocol: responding", "daemonState: running", "daemonProtocolVersion: 1", "forwardTotal: 0", "forwardDegraded: 0", "systemdActive: active", "systemdEnabled: enabled", "hints: none"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunDaemonDoctorHintsDegradedForwardingState(t *testing.T) {
+	_, socketPath, wait := startDaemonCommandTestServer(t)
+	defer wait()
+	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "active", "enabled", 0, 0)
+
+	created, err := daemon.Send(context.Background(), socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandForwardCreate, Params: mustDaemonCommandJSON(t, daemon.ForwardCreateParams{
+		Local:  daemon.ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: daemon.ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: daemon.ForwardTarget{Transport: "tcp", Address: freeLoopbackAddress(t)},
+	})})
+	if err != nil || !created.OK {
+		t.Fatalf("create degraded-test forward response = %#v, err = %v", created, err)
+	}
+	var createResult daemon.ForwardCreateResult
+	decodeDaemonCommandResult(t, created.Result, &createResult)
+	local := createResult.Forward.Local.Address
+	conn, err := net.DialTimeout("tcp", local, time.Second)
+	if err != nil {
+		t.Fatalf("dial forward listener: %v", err)
+	}
+	_ = conn.Close()
+	waitUntil(t, func() bool {
+		status, err := daemon.Send(context.Background(), socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandStatus})
+		if err != nil || !status.OK {
+			return false
+		}
+		diagnostics, ok := daemonForwardDiagnostics(status.Result)
+		return ok && diagnostics.Total == 1 && diagnostics.Degraded == 1
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(daemon doctor degraded) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"forwardTotal: 1", "forwardDegraded: 1", "forward --list", "last setup errors"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
 		}
@@ -485,6 +530,51 @@ func writeFakeSystemctlStatus(t *testing.T, logPath, active, enabled string, act
 		t.Fatalf("write fake systemctl status: %v", err)
 	}
 	return systemctlPath
+}
+
+func waitUntil(t *testing.T, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if ok() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition was not met before timeout")
+}
+
+func freeLoopbackAddress(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on free loopback port: %v", err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close free loopback listener: %v", err)
+	}
+	return addr
+}
+
+func mustDaemonCommandJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	body, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal JSON: %v", err)
+	}
+	return body
+}
+
+func decodeDaemonCommandResult(t *testing.T, result map[string]any, v any) {
+	t.Helper()
+	body, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal daemon result: %v", err)
+	}
+	if err := json.Unmarshal(body, v); err != nil {
+		t.Fatalf("decode daemon result: %v", err)
+	}
 }
 
 func startDaemonCommandTestServer(t *testing.T) (*daemon.Server, string, func()) {

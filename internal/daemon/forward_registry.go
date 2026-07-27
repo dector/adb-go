@@ -108,6 +108,22 @@ func (r *forwardRegistry) list() []Forward {
 	return forwards
 }
 
+func (r *forwardRegistry) diagnostics() ForwardDiagnostics {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	diagnostics := ForwardDiagnostics{Total: len(r.byID)}
+	for _, entry := range r.byID {
+		switch entry.forward.State {
+		case ForwardStateListening:
+			diagnostics.Listening++
+		case ForwardStateDegraded:
+			diagnostics.Degraded++
+		}
+		diagnostics.ActiveConnections += entry.forward.ActiveConnections
+	}
+	return diagnostics
+}
+
 func (r *forwardRegistry) remove(params ForwardRemoveParams) (int, *Error) {
 	if params.ID == "" && params.Local == nil || params.ID != "" && params.Local != nil {
 		return 0, &Error{Code: ErrorBadRequest, Message: "forward_remove requires exactly one of id or local"}

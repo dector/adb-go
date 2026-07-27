@@ -147,26 +147,26 @@ Done when:
 
 ## M61 — Surface persistent forwarding diagnostics
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): show daemon forwarding diagnostics`
 
 Tasks:
 
-- [ ] Add concise forwarding counts to daemon diagnostics without turning `daemon status` into a full forwarding table.
-- [ ] Include forwarding state hints in `adb-go daemon doctor` when daemon-owned forwards are degraded.
-- [ ] Ensure detailed mappings remain available through `adb-go forward --list`.
-- [ ] Update daemon and CLI documentation with troubleshooting examples for degraded forwards, target disconnects, and lost forwards after daemon restart.
+- [x] Add concise forwarding counts to daemon diagnostics without turning `daemon status` into a full forwarding table.
+- [x] Include forwarding state hints in `adb-go daemon doctor` when daemon-owned forwards are degraded.
+- [x] Ensure detailed mappings remain available through `adb-go forward --list`.
+- [x] Update daemon and CLI documentation with troubleshooting examples for degraded forwards, target disconnects, and lost forwards after daemon restart.
 
 Tests:
 
-- [ ] CLI/daemon tests cover forwarding counts in diagnostics.
-- [ ] CLI tests cover doctor hints for degraded forwarding state.
-- [ ] `go test ./...` passes
+- [x] CLI/daemon tests cover forwarding counts in diagnostics.
+- [x] CLI tests cover doctor hints for degraded forwarding state.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Support requests can distinguish daemon reachability problems from persistent-forward target/listener problems without exposing payload data.
+- [x] Support requests can distinguish daemon reachability problems from persistent-forward target/listener problems without exposing payload data.
 
 ## Deferred milestones
 

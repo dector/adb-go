@@ -499,8 +499,30 @@ hints: none
 When something looks wrong, `doctor` keeps diagnosing instead of starting,
 stopping, installing, or uninstalling anything. For example, a missing socket or
 inactive systemd service produces actionable hints such as starting the service
-or checking that `adb-go` and `adb-god` agree on the socket path. Pass
-`--systemctl PATH` after `doctor` to test or use a non-default systemctl binary:
+or checking that `adb-go` and `adb-god` agree on the socket path. It also prints
+concise daemon-owned forwarding counts. If any forward is degraded, `doctor`
+points you to `adb-go forward --list`, which is where detailed mappings and last
+setup errors live:
+
+```text
+forwardTotal: 2
+forwardListening: 1
+forwardDegraded: 1
+forwardActiveConnections: 0
+hints:
+  - One or more daemon-owned forwards are degraded; run adb-go forward --list to see the mapping IDs, targets, and last setup errors.
+```
+
+A degraded forward means the daemon still owns the local listener, but the most
+recent host connection could not be bridged to the target device or remote TCP
+service. Common causes are a disconnected TCP ADB target, a rebooted emulator, a
+device-side service that stopped listening, or an authentication requirement
+that background forwards do not support yet. If `forward --list` shows a
+`lastError` such as `connect target 127.0.0.1:5555: connection refused`, restart
+or reconnect that target, then retry a client connection to the forwarded local
+port. A successful later bridge clears the degraded state.
+
+Pass `--systemctl PATH` after `doctor` to test or use a non-default systemctl binary:
 
 ```sh
 adb-go daemon doctor --systemctl /usr/bin/systemctl
@@ -509,7 +531,7 @@ adb-go daemon doctor --systemctl /usr/bin/systemctl
 `ping` is a liveness check. It sends a protocol `ping` request and prints
 `pong` when a compatible daemon responds.
 
-`status` prints basic process metadata only:
+`status` prints basic process metadata plus concise forwarding counters only:
 
 ```text
 state: running
@@ -517,11 +539,18 @@ pid: 12345
 socketPath: /run/user/1000/adb-go/adb-god.sock
 protocolVersion: 1
 uptimeMillis: 2500
+forwardTotal: 2
+forwardListening: 1
+forwardDegraded: 1
+forwardActiveConnections: 0
 ```
 
-These fields describe the daemon process and protocol endpoint. They are not a
-device list and do not include transport state, sessions, forwarding mappings,
-authentication state, or any persistent ADB feature state.
+These fields describe the daemon process, protocol endpoint, and aggregate
+forwarding health. They are not a device list and do not include transport
+state, sessions, full forwarding mappings, authentication state, or payload data.
+Use `adb-go forward --list` for the detailed forward table. Because mappings are
+in-memory, `forwardTotal: 0` after an `adb-god` restart usually means old
+persistent forwards were lost with the daemon process and need to be recreated.
 
 `stop` sends the protocol `shutdown` request. A successful response means the
 daemon accepted graceful shutdown; the daemon then stops accepting new control

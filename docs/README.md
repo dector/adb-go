@@ -95,10 +95,10 @@ callers can set deadlines or cancel work.
 - Authentication uses explicitly supplied credentials only.
 - Push and pull are single-file APIs; directory-aware behavior is reserved for
   future APIs.
-- Forwarding is currently foreground, process-scoped local listener management
-  rather than official adb-server-style persistent forwarding state. Future
-  daemon-owned forwarding is designed in
+- Forwarding supports foreground process-scoped local listeners and in-memory
+  daemon-owned TCP listeners. Daemon-owned forwards are not durable across
+  `adb-god` restarts and are described in
   [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
-- The planned `adb-god` daemon foundation defines only a Unix socket control
-  channel for ping, status, and shutdown. It does not yet provide persistent ADB
-  functionality.
+- The `adb-god` daemon defines a Unix socket control channel for ping, status,
+  shutdown, diagnostics, service management, and in-memory TCP forwarding. It
+  does not yet persist ADB device/session/authentication state.

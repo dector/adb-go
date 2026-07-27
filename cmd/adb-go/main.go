@@ -532,6 +532,28 @@ func printDaemonStatus(stdout io.Writer, result map[string]any) {
 	fmt.Fprintf(stdout, "socketPath: %v\n", result["socketPath"])
 	fmt.Fprintf(stdout, "protocolVersion: %v\n", result["protocolVersion"])
 	fmt.Fprintf(stdout, "uptimeMillis: %v\n", result["uptimeMillis"])
+	if diagnostics, ok := daemonForwardDiagnostics(result); ok {
+		fmt.Fprintf(stdout, "forwardTotal: %d\n", diagnostics.Total)
+		fmt.Fprintf(stdout, "forwardListening: %d\n", diagnostics.Listening)
+		fmt.Fprintf(stdout, "forwardDegraded: %d\n", diagnostics.Degraded)
+		fmt.Fprintf(stdout, "forwardActiveConnections: %d\n", diagnostics.ActiveConnections)
+	}
+}
+
+func daemonForwardDiagnostics(result map[string]any) (daemon.ForwardDiagnostics, bool) {
+	raw, ok := result["forwardDiagnostics"]
+	if !ok || raw == nil {
+		return daemon.ForwardDiagnostics{}, false
+	}
+	body, err := json.Marshal(raw)
+	if err != nil {
+		return daemon.ForwardDiagnostics{}, false
+	}
+	var diagnostics daemon.ForwardDiagnostics
+	if err := json.Unmarshal(body, &diagnostics); err != nil {
+		return daemon.ForwardDiagnostics{}, false
+	}
+	return diagnostics, true
 }
 
 const daemonDoctorUsage = `Usage:
@@ -591,6 +613,15 @@ func runDaemonDoctor(args []string, socketPath string, stdout, stderr io.Writer)
 		fmt.Fprintln(stdout, "daemonProtocol: responding")
 		fmt.Fprintf(stdout, "daemonState: %v\n", resp.Result["state"])
 		fmt.Fprintf(stdout, "daemonProtocolVersion: %v\n", resp.Result["protocolVersion"])
+		if diagnostics, ok := daemonForwardDiagnostics(resp.Result); ok {
+			fmt.Fprintf(stdout, "forwardTotal: %d\n", diagnostics.Total)
+			fmt.Fprintf(stdout, "forwardListening: %d\n", diagnostics.Listening)
+			fmt.Fprintf(stdout, "forwardDegraded: %d\n", diagnostics.Degraded)
+			fmt.Fprintf(stdout, "forwardActiveConnections: %d\n", diagnostics.ActiveConnections)
+			if diagnostics.Degraded > 0 {
+				hints = append(hints, "One or more daemon-owned forwards are degraded; run adb-go forward --list to see the mapping IDs, targets, and last setup errors.")
+			}
+		}
 	}
 
 	if runtime.GOOS == "linux" {

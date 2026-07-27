@@ -240,11 +240,11 @@ unsupported-platform, overwrite, and local-path errors:
 
 ## adb-god daemon foundation
 
-`adb-god` is the first adb-go daemon process. In this initial slice it is only a
-local control daemon for future persistence work. It listens on a Unix domain
-socket and supports `ping`, `status`, and graceful `shutdown`; it does not own
-devices, transports, forwards, shell sessions, authentication state, or other
-ADB workflow state yet.
+`adb-god` is the first adb-go daemon process. It listens on a Unix domain socket
+and supports `ping`, `status`, graceful `shutdown`, service diagnostics, and
+in-memory daemon-owned TCP forwarding registrations. It does not persist devices,
+transports, forwards, shell sessions, authentication state, or other ADB workflow
+state across daemon restarts yet.
 
 ```sh
 go install github.com/dector/adb-go/cmd/adb-god@latest
@@ -263,9 +263,10 @@ adb-go daemon service status
 adb-go daemon service logs
 ```
 
-Daemon design, socket selection, control protocol, troubleshooting, and service
-management details: [`docs/daemon-foundation.md`](docs/daemon-foundation.md).
-Future daemon-backed persistent forwarding is designed separately in
+Daemon design, socket selection, control protocol, troubleshooting, forwarding
+health counters, and service management details:
+[`docs/daemon-foundation.md`](docs/daemon-foundation.md). Daemon-backed
+persistent forwarding behavior is described in
 [`docs/persistent-forwarding-design.md`](docs/persistent-forwarding-design.md).
 
 ## Low-level protocol package
@@ -294,9 +295,9 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 - ADB authentication requires explicit existing RSA key files.
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
-- The initial `adb-god` daemon is only a local process-control foundation. It
-  does not persist or own devices, transports, forwards, sessions, or
-  authentication state yet.
+- `adb-god` can own in-memory TCP forwarding listeners, but it does not persist
+  devices, transports, forwards, sessions, or authentication state across daemon
+  restarts yet.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
   Android property lookup, logcat streaming/dump, screenshot capture, reboot,
   foreground local TCP forwarding, single-file push/pull, and one-APK
@@ -317,11 +318,11 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   normal, bootloader, and recovery modes through adb-go's `Reboot` helper and
   CLI `reboot` command; a successful request may close the ADB connection while
   the selected device restarts.
-- Forwarding support is foreground and process-scoped. adb-go binds its own
-  local TCP listener and opens a fresh device `tcp:PORT` service for each
-  accepted connection; it does not register persistent mappings in an adb server
-  and does not support `adb forward --list`, `--remove`, `--remove-all`, JDWP,
-  Unix sockets, reverse forwarding, or other endpoint families yet.
+- Forwarding support covers foreground process-scoped TCP forwards and
+  daemon-owned in-memory TCP forwards through `adb-go forward --background`,
+  `--list`, `--remove`, and `--remove-all`. It does not emulate the official adb
+  server's durable mapping store and does not support JDWP, Unix sockets,
+  reverse forwarding, or other endpoint families yet.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 

@@ -231,9 +231,10 @@ Successful response:
 
 #### `status`
 
-Returns process metadata that is useful for humans and tests. It must not return
-device lists, transport state, forwards, sessions, or authentication state in
-this slice.
+Returns process metadata and aggregate forwarding health that are useful for
+humans and tests. It must not return device lists, transport state, full forward
+mappings, sessions, authentication state, or payload data. Detailed forwarding
+mappings remain available through `forward_list` / `adb-go forward --list`.
 
 Successful response shape:
 
@@ -247,7 +248,13 @@ Successful response shape:
     "pid": 12345,
     "socketPath": "/run/user/1000/adb-go/adb-god.sock",
     "protocolVersion": 1,
-    "uptimeMillis": 2500
+    "uptimeMillis": 2500,
+    "forwardDiagnostics": {
+      "total": 2,
+      "listening": 1,
+      "degraded": 1,
+      "activeConnections": 0
+    }
   }
 }
 ```
@@ -269,8 +276,9 @@ Successful response:
 
 - Keep protocol version `1` while adding optional request fields or optional
   response result fields that older clients can ignore.
-- Add new daemon behavior as new commands rather than overloading `status`.
-- Do not add persistent device/session state to the `status` response until a
-  milestone explicitly designs daemon-owned ADB state.
+- Add new detailed daemon behavior as new commands rather than overloading
+  `status`; keep `status` concise enough for support requests.
+- Do not add persistent device/session state or full forwarding mappings to the
+  `status` response until a milestone explicitly designs daemon-owned ADB state.
 - Preserve `ADB_GO_DAEMON_SOCKET` as the test and non-default installation
   override even if later CLIs add a `--socket` flag.

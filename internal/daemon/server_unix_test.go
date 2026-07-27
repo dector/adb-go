@@ -57,13 +57,20 @@ func TestServerPingStatusShutdownAndCleanup(t *testing.T) {
 	if !status.OK || status.ID != "s1" {
 		t.Fatalf("status response = %#v, want ok with echoed id", status)
 	}
-	for _, key := range []string{"state", "pid", "socketPath", "protocolVersion", "uptimeMillis"} {
+	for _, key := range []string{"state", "pid", "socketPath", "protocolVersion", "uptimeMillis", "forwardDiagnostics"} {
 		if _, ok := status.Result[key]; !ok {
 			t.Fatalf("status result missing %q: %#v", key, status.Result)
 		}
 	}
 	if status.Result["state"] != "running" || status.Result["socketPath"] != socketPath {
 		t.Fatalf("status result = %#v, want running status for socket", status.Result)
+	}
+	forwardDiagnostics, ok := status.Result["forwardDiagnostics"].(map[string]any)
+	if !ok {
+		t.Fatalf("forwardDiagnostics = %#v, want object", status.Result["forwardDiagnostics"])
+	}
+	if forwardDiagnostics["total"] != float64(0) || forwardDiagnostics["degraded"] != float64(0) || forwardDiagnostics["activeConnections"] != float64(0) {
+		t.Fatalf("forwardDiagnostics = %#v, want zero counts", forwardDiagnostics)
 	}
 
 	shutdown, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "q1", Command: CommandShutdown})

@@ -309,8 +309,8 @@ The daemon must not remove or alter listeners it does not own.
   add allowlists beyond the endpoint families supported by the specific
   milestone.
 - Do not log forwarded payload bytes.
-- Include forwarding counts in future daemon diagnostics, but keep detailed
-  mappings in `forward --list` so `daemon status` remains concise.
+- Include forwarding counts in daemon diagnostics, but keep detailed mappings
+  and last setup errors in `forward --list` so `daemon status` remains concise.
 - Keep errors actionable and stable enough for CLI handling: unsupported
   endpoint, daemon too old, daemon unavailable, address in use, rebind
   disallowed, forward not found, and target connection failed.
@@ -325,5 +325,7 @@ The daemon must not remove or alter listeners it does not own.
    services.
 4. Add CLI `forward --background`, `--list`, `--remove`, `--remove-id`, and
    `--remove-all` wired to the daemon protocol.
-5. Revisit USB target persistence, broader endpoint families, and optional
+5. Surface concise forwarding diagnostics in `daemon status` and `daemon doctor`
+   while keeping the detailed table in `forward --list`.
+6. Revisit USB target persistence, broader endpoint families, and optional
    durable forward restoration as separate designs.

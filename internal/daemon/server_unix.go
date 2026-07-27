@@ -162,12 +162,14 @@ func (s *Server) handleRequest(req Request) Response {
 		resp.Result = map[string]any{"message": "pong"}
 	case CommandStatus:
 		resp.OK = true
+		forwardDiagnostics := s.forwards.diagnostics()
 		resp.Result = map[string]any{
-			"state":           "running",
-			"pid":             os.Getpid(),
-			"socketPath":      s.socketPath,
-			"protocolVersion": ProtocolVersion,
-			"uptimeMillis":    time.Since(s.start).Milliseconds(),
+			"state":              "running",
+			"pid":                os.Getpid(),
+			"socketPath":         s.socketPath,
+			"protocolVersion":    ProtocolVersion,
+			"uptimeMillis":       time.Since(s.start).Milliseconds(),
+			"forwardDiagnostics": forwardDiagnostics,
 		}
 	case CommandShutdown:
 		resp.OK = true

@@ -85,6 +85,16 @@ type ForwardRemoveAllResult struct {
 	Removed int `json:"removed"`
 }
 
+// ForwardDiagnostics is the concise daemon-wide forwarding summary exposed by
+// daemon status and doctor. Detailed mappings intentionally remain behind the
+// forward_list command so status stays safe and compact for support requests.
+type ForwardDiagnostics struct {
+	Total             int `json:"total"`
+	Listening         int `json:"listening"`
+	Degraded          int `json:"degraded"`
+	ActiveConnections int `json:"activeConnections"`
+}
+
 func decodeForwardCreateParams(raw json.RawMessage) (ForwardCreateParams, *Error) {
 	if len(raw) == 0 {
 		return ForwardCreateParams{}, &Error{Code: ErrorBadRequest, Message: "missing forward_create params"}
