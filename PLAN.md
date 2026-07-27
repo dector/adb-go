@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M56 — Design daemon-backed persistent forwarding.
-- Completed milestone range: Milestones 17–52 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, and CLI version reporting.
-- Active focus: design future daemon-owned persistent forwarding while preserving the existing foreground forwarding behavior until implementation milestones are promoted.
+- Current milestone: M57 — Add daemon forwarding protocol model.
+- Completed milestone range: Milestones 17–56 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, and the daemon-backed persistent forwarding design.
+- Active focus: implement daemon-owned persistent TCP forwarding in small slices while preserving the existing foreground forwarding behavior and avoiding durable daemon-owned ADB state until explicitly designed.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -45,193 +45,128 @@ Milestone rules:
 - Use grouped numbering such as `M40.1`, `M40.2`, and `M41.1` for related slices of one feature area.
 - Do not keep fully implemented milestone bodies in this file long term; summarize completed ranges in `Progress` instead.
 
-## M49 — Add daemon diagnostics command
+## M57 — Add daemon forwarding protocol model
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add daemon doctor command`
-
-Tasks:
-
-- [x] Add `adb-go daemon doctor` as a read-only diagnostics command.
-- [x] Report the resolved daemon socket path and whether a daemon responds to the socket protocol.
-- [x] On Linux, report systemd user-service active/enabled state when `systemctl` is available.
-- [x] Print actionable hints for common states such as missing socket, daemon not responding, service inactive, or service disabled.
-- [x] Keep the command diagnostic-only: do not start, stop, install, uninstall, or mutate daemon/service state.
-- [x] Document the daemon doctor command in README and CLI docs.
-
-Tests:
-
-- [x] CLI tests cover successful daemon socket checks using an isolated test daemon.
-- [x] CLI tests cover missing socket and non-running daemon diagnostics.
-- [x] CLI tests cover Linux systemd status diagnostics using an isolated fake `systemctl` path.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] Users can run one command to understand whether `adb-god` is reachable, what socket path is being used, and what systemd reports for the user service.
-
-## M50 — Add daemon service logs command
-
-Status: Implemented
-
-Commit: `feat(cli): add daemon service logs command`
+Commit: `feat(daemon): add forwarding protocol model`
 
 Tasks:
 
-- [x] Add `adb-go daemon service logs` for Linux systemd user-service log viewing.
-- [x] Invoke `journalctl --user -u adb-god.service` with a small, predictable default output shape.
-- [x] Support a `--journalctl PATH` override for tests and non-default installations.
-- [x] Consider minimal flags such as `--follow` and `--lines N` without trying to mirror all `journalctl` options.
-- [x] Document the service logs command in README and CLI docs.
+- [ ] Add daemon request/response types for `forward_create`, `forward_list`, `forward_remove`, and `forward_remove_all`.
+- [ ] Define stable forwarding error codes such as `address_in_use`, `unsupported_endpoint`, `bad_target`, `rebind_disallowed`, and `forward_not_found`.
+- [ ] Add validation for the first supported endpoint families without opening listeners or ADB device connections.
+- [ ] Keep the protocol backward-compatible with existing `ping`, `status`, and `shutdown` commands.
 
 Tests:
 
-- [x] CLI tests cover `journalctl` invocation using an isolated fake binary path.
-- [x] CLI tests cover flags selected for the milestone, such as `--follow` or `--lines` if added.
-- [x] `go test ./...` passes
+- [ ] Unit tests cover JSON request/response handling for forwarding commands.
+- [ ] Unit tests cover validation and stable daemon error codes.
+- [ ] Existing daemon protocol tests continue to pass.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Linux users can inspect recent `adb-god.service` logs from the adb-go CLI without remembering the exact `journalctl` command.
+- [ ] The daemon protocol can parse, validate, and report forwarding commands without yet owning real listeners.
 
-## M51 — Add daemon service reinstall command
+## M58 — Add daemon forwarding registry and TCP listener ownership
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add daemon service reinstall command`
+Commit: `feat(daemon): add forwarding listener registry`
 
 Tasks:
 
-- [x] Add `adb-go daemon service reinstall` for rewriting the systemd user unit and restarting it.
-- [x] Reuse the install path resolution, socket selection, unit rendering, and systemctl override behavior.
-- [x] Run the systemd operations needed to reload units and restart/enable the service after rewriting the unit.
-- [x] Preserve `install`, `uninstall`, and lifecycle command semantics.
-- [x] Document when to use reinstall, such as after changing the daemon binary path or socket path.
+- [ ] Add an in-memory daemon forwarding registry keyed by generated ID and local endpoint.
+- [ ] Implement daemon-owned loopback TCP listener creation for supported local `tcp:PORT` endpoints.
+- [ ] Implement list, remove-by-ID, remove-by-local, and remove-all behavior against daemon-owned listeners.
+- [ ] Implement rebind and `norebind` semantics for daemon-owned forwards only.
+- [ ] Ensure daemon shutdown closes forwarding listeners and active registry entries.
 
 Tests:
 
-- [x] CLI tests cover unit rewriting and systemctl invocation order using isolated test paths.
-- [x] CLI tests cover daemon binary, unit-directory, socket, and systemctl overrides.
-- [x] `go test ./...` passes
+- [ ] Daemon tests cover create/list/remove/remove-all with isolated local TCP ports.
+- [ ] Daemon tests cover ephemeral `tcp:0`, address-in-use, and rebind-disallowed behavior.
+- [ ] Daemon shutdown tests cover listener cleanup.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Users can update the installed `adb-god.service` unit from the CLI without manually uninstalling and reinstalling.
+- [ ] `adb-god` can own and manage persistent local TCP listener registrations through the daemon protocol, without bridging ADB traffic yet.
 
-## M52 — Add CLI version reporting
+## M59 — Bridge daemon forwards to TCP ADB targets
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add version command`
+Commit: `feat(daemon): bridge persistent forwards`
 
 Tasks:
 
-- [x] Add `adb-go version`.
-- [x] Print the adb-go version value, Go runtime version, target OS, and target architecture.
-- [x] Provide build-time version injection through standard Go linker variables while keeping a useful development fallback.
-- [x] Document the version command in README and CLI docs.
+- [ ] For each accepted daemon-owned local TCP connection, connect to the explicit TCP ADB target from the forwarding registration.
+- [ ] Open the configured remote `tcp:PORT` ADB service for each accepted host connection.
+- [ ] Copy bytes in both directions and close both sides when either side finishes.
+- [ ] Track active connection counts and last connection/setup errors for list diagnostics.
+- [ ] Keep USB target persistence out of scope for this first bridge slice.
 
 Tests:
 
-- [x] CLI tests cover the default development version output shape.
-- [x] Unit tests cover version formatting if implemented outside the command dispatcher.
-- [x] `go test ./...` passes
+- [ ] Tests use fake ADB and local TCP clients to verify bidirectional forwarding through the daemon.
+- [ ] Tests cover failed target dial/service-open behavior without dropping the local listener.
+- [ ] Tests cover remove/shutdown closing active bridged connections.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Users can collect concise adb-go build/runtime information for support requests and bug reports.
+- [ ] A daemon-owned background forward can carry TCP traffic from a host client to a device `tcp:PORT` service through an explicit TCP ADB target.
 
-## M53 — Improve CLI error messages
+## M60 — Add CLI persistent forwarding controls
 
-Status: Implemented
+Status: Not started
 
-Commit: `fix(cli): improve common error messages`
+Commit: `feat(cli): add persistent forward controls`
 
 Tasks:
 
-- [x] Audit current CLI error output for common failures: connection refused, timeout, auth required, unsupported USB platform, destination exists, and missing local files.
-- [x] Add small formatting helpers where they make errors clearer without hiding wrapped sentinel errors in library code.
-- [x] Keep errors concise and actionable, with examples where useful.
-- [x] Avoid changing public library error semantics unless a specific bug is found and scoped.
-- [x] Document any user-visible behavior changes in CLI docs if needed.
+- [ ] Add `adb-go forward --background` to create daemon-owned persistent forwards.
+- [ ] Add `adb-go forward --list`, `--remove LOCAL`, `--remove-id ID`, and `--remove-all` wired to the daemon protocol.
+- [ ] Keep existing foreground `adb-go forward LOCAL REMOTE` behavior unchanged when daemon flags are absent.
+- [ ] Print clear setup/list/remove output, including actual bound local address for `tcp:0`.
+- [ ] Return actionable daemon-unavailable or daemon-too-old hints, such as running `adb-go daemon doctor`.
+- [ ] Document the new CLI behavior and the non-durable in-memory daemon lifecycle.
 
 Tests:
 
-- [x] CLI tests cover at least the most important improved error messages.
-- [x] Existing library tests continue to validate sentinel error behavior.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover argument parsing and daemon requests for background/list/remove/remove-all.
+- [ ] CLI tests cover foreground forwarding still using the existing process-scoped path.
+- [ ] CLI tests cover daemon-unavailable or unknown-command error messages.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Common CLI failures point users toward the likely fix without changing the underlying adb-go library contract.
+- [ ] Users can create, inspect, and remove daemon-owned persistent TCP forwards from the CLI while existing foreground forwarding remains compatible.
 
-## M54 — Expand integration test documentation
+## M61 — Surface persistent forwarding diagnostics
 
-Status: Implemented
+Status: Not started
 
-Commit: `docs: expand integration test guidance`
+Commit: `feat(cli): show daemon forwarding diagnostics`
 
 Tasks:
 
-- [x] Document `ADB_GO_INTEGRATION_ADDR` usage with emulator TCP examples.
-- [x] Document expected prerequisites and limitations for real-device TCP tests.
-- [x] Document the existing Linux adbd container workflow if it is stable enough for contributors.
-- [x] Add troubleshooting notes for skipped tests, refused TCP connections, and auth-required devices.
+- [ ] Add concise forwarding counts to daemon diagnostics without turning `daemon status` into a full forwarding table.
+- [ ] Include forwarding state hints in `adb-go daemon doctor` when daemon-owned forwards are degraded.
+- [ ] Ensure detailed mappings remain available through `adb-go forward --list`.
+- [ ] Update daemon and CLI documentation with troubleshooting examples for degraded forwards, target disconnects, and lost forwards after daemon restart.
 
 Tests:
 
-- [x] Documentation examples are command-line examples only; no new code tests required unless examples are compile-tested.
-- [x] `go test ./...` passes
+- [ ] CLI/daemon tests cover forwarding counts in diagnostics.
+- [ ] CLI tests cover doctor hints for degraded forwarding state.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Contributors can discover and run the optional integration tests without reading test source first.
-
-## M55 — Audit exported package documentation and examples
-
-Status: Implemented
-
-Commit: `docs: audit package examples`
-
-Tasks:
-
-- [x] Review exported API docs in the root, `client`, and `protocol` packages.
-- [x] Add or update examples for newer features such as logcat, screencap, reboot, APK install, and foreground forwarding where compile-tested examples are practical.
-- [x] Ensure `protocol` documentation continues to communicate that it is lower-level and less stable than root/client APIs during v0.
-- [x] Avoid changing runtime behavior unless a documentation example exposes an API bug that is explicitly fixed in this milestone.
-
-Tests:
-
-- [x] Compile-tested examples pass.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] Public API documentation reflects the current feature set and protects basic examples against API drift.
-
-## M56 — Design daemon-backed persistent forwarding
-
-Status: Implemented
-
-Commit: `docs(daemon): design persistent forwarding`
-
-Tasks:
-
-- [x] Design how future daemon-owned foreground/background forwards should be represented, listed, and removed.
-- [x] Define CLI command shapes for persistent forwards, including possible `forward --background`, `forward --list`, `forward --remove`, and `forward --remove-all` behavior.
-- [x] Define daemon protocol additions needed to manage forwarding state.
-- [x] Specify lifecycle semantics for daemon shutdown, systemd restart, target disconnects, and port conflicts.
-- [x] Keep this milestone documentation-only; do not implement daemon-owned forwarding yet.
-
-Tests:
-
-- [x] No code tests required for the design milestone.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] Persistent forwarding has a concrete, reviewable design that can be sliced into future implementation milestones.
+- [ ] Support requests can distinguish daemon reachability problems from persistent-forward target/listener problems without exposing payload data.
 
 ## Deferred milestones
 
