@@ -1,5 +1,7 @@
 package daemon
 
+import "encoding/json"
+
 const (
 	// ProtocolVersion is the version of the initial adb-god control protocol.
 	ProtocolVersion = 1
@@ -15,9 +17,10 @@ const (
 )
 
 type Request struct {
-	Version int    `json:"version"`
-	ID      string `json:"id,omitempty"`
-	Command string `json:"command"`
+	Version int             `json:"version"`
+	ID      string          `json:"id,omitempty"`
+	Command string          `json:"command"`
+	Params  json.RawMessage `json:"params,omitempty"`
 }
 
 type Response struct {

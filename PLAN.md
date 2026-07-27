@@ -47,27 +47,27 @@ Milestone rules:
 
 ## M57 — Add daemon forwarding protocol model
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(daemon): add forwarding protocol model`
 
 Tasks:
 
-- [ ] Add daemon request/response types for `forward_create`, `forward_list`, `forward_remove`, and `forward_remove_all`.
-- [ ] Define stable forwarding error codes such as `address_in_use`, `unsupported_endpoint`, `bad_target`, `rebind_disallowed`, and `forward_not_found`.
-- [ ] Add validation for the first supported endpoint families without opening listeners or ADB device connections.
-- [ ] Keep the protocol backward-compatible with existing `ping`, `status`, and `shutdown` commands.
+- [x] Add daemon request/response types for `forward_create`, `forward_list`, `forward_remove`, and `forward_remove_all`.
+- [x] Define stable forwarding error codes such as `address_in_use`, `unsupported_endpoint`, `bad_target`, `rebind_disallowed`, and `forward_not_found`.
+- [x] Add validation for the first supported endpoint families without opening listeners or ADB device connections.
+- [x] Keep the protocol backward-compatible with existing `ping`, `status`, and `shutdown` commands.
 
 Tests:
 
-- [ ] Unit tests cover JSON request/response handling for forwarding commands.
-- [ ] Unit tests cover validation and stable daemon error codes.
-- [ ] Existing daemon protocol tests continue to pass.
-- [ ] `go test ./...` passes
+- [x] Unit tests cover JSON request/response handling for forwarding commands.
+- [x] Unit tests cover validation and stable daemon error codes.
+- [x] Existing daemon protocol tests continue to pass.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] The daemon protocol can parse, validate, and report forwarding commands without yet owning real listeners.
+- [x] The daemon protocol can parse, validate, and report forwarding commands without yet owning real listeners.
 
 ## M58 — Add daemon forwarding registry and TCP listener ownership
 

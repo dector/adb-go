@@ -78,6 +78,102 @@ func TestServerPingStatusShutdownAndCleanup(t *testing.T) {
 	}
 }
 
+func TestServerHandlesForwardingProtocolModel(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	createParams := mustJSON(t, ForwardCreateParams{
+		Local:    ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:9000"},
+		Remote:   ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target:   ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
+		Norebind: true,
+	})
+	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "c1", Command: CommandForwardCreate, Params: createParams})
+	if err != nil {
+		t.Fatalf("forward_create daemon: %v", err)
+	}
+	if !created.OK || created.ID != "c1" {
+		t.Fatalf("forward_create response = %#v, want ok with echoed id", created)
+	}
+	forward, ok := created.Result["forward"].(map[string]any)
+	if !ok {
+		t.Fatalf("forward_create result = %#v, want forward object", created.Result)
+	}
+	if forward["state"] != ForwardStateStopped || forward["lastError"] == "" {
+		t.Fatalf("forward_create forward = %#v, want validated non-owned forward model", forward)
+	}
+
+	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "l1", Command: CommandForwardList})
+	if err != nil {
+		t.Fatalf("forward_list daemon: %v", err)
+	}
+	if !list.OK || list.ID != "l1" {
+		t.Fatalf("forward_list response = %#v, want ok with echoed id", list)
+	}
+	if _, ok := list.Result["forwards"].([]any); !ok {
+		t.Fatalf("forward_list result = %#v, want forwards array", list.Result)
+	}
+
+	remove, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "r1", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{ID: "fwd_missing"})})
+	if err != nil {
+		t.Fatalf("forward_remove daemon: %v", err)
+	}
+	if remove.OK || remove.Error == nil || remove.Error.Code != ErrorForwardNotFound {
+		t.Fatalf("forward_remove response = %#v, want forward_not_found", remove)
+	}
+
+	removeAll, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "ra1", Command: CommandForwardRemoveAll})
+	if err != nil {
+		t.Fatalf("forward_remove_all daemon: %v", err)
+	}
+	if !removeAll.OK || removeAll.Result["removed"] != float64(0) {
+		t.Fatalf("forward_remove_all response = %#v, want removed 0", removeAll)
+	}
+}
+
+func TestServerForwardingProtocolValidationErrors(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	badLocal := mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "192.0.2.1:9000"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
+	})
+	resp, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "bad-local", Command: CommandForwardCreate, Params: badLocal})
+	if err != nil {
+		t.Fatalf("forward_create bad local daemon: %v", err)
+	}
+	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorUnsupportedEndpoint {
+		t.Fatalf("bad local response = %#v, want unsupported_endpoint", resp)
+	}
+
+	badTarget := mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:9000"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "usb", Address: "/dev/bus/usb/001/002"},
+	})
+	resp, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "bad-target", Command: CommandForwardCreate, Params: badTarget})
+	if err != nil {
+		t.Fatalf("forward_create bad target daemon: %v", err)
+	}
+	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorBadTarget {
+		t.Fatalf("bad target response = %#v, want bad_target", resp)
+	}
+
+	resp, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "bad-remove", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{})})
+	if err != nil {
+		t.Fatalf("forward_remove bad selector daemon: %v", err)
+	}
+	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorBadRequest {
+		t.Fatalf("bad remove response = %#v, want bad_request", resp)
+	}
+}
+
 func TestServerReturnsStructuredProtocolErrors(t *testing.T) {
 	_, socketPath, wait := startTestServer(t)
 	defer wait()
@@ -184,6 +280,15 @@ func startTestServer(t *testing.T) (*Server, string, func()) {
 		}
 	}
 	return server, socketPath, wait
+}
+
+func mustJSON(t testing.TB, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("Marshal(%T): %v", v, err)
+	}
+	return b
 }
 
 func shortSocketTempDir(t testing.TB) string {

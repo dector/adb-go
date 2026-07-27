@@ -168,6 +168,34 @@ func (s *Server) handleRequest(req Request) Response {
 	case CommandShutdown:
 		resp.OK = true
 		resp.Result = map[string]any{"message": "shutting_down"}
+	case CommandForwardCreate:
+		params, errResp := decodeForwardCreateParams(req.Params)
+		if errResp != nil {
+			resp.Error = errResp
+			break
+		}
+		resp.OK = true
+		resp.Result = map[string]any{"forward": Forward{
+			State:             ForwardStateStopped,
+			Local:             params.Local,
+			Remote:            params.Remote,
+			Target:            params.Target,
+			Norebind:          params.Norebind,
+			ActiveConnections: 0,
+			LastError:         "forward listener ownership is not implemented yet",
+		}}
+	case CommandForwardList:
+		resp.OK = true
+		resp.Result = map[string]any{"forwards": []Forward{}}
+	case CommandForwardRemove:
+		if _, errResp := decodeForwardRemoveParams(req.Params); errResp != nil {
+			resp.Error = errResp
+			break
+		}
+		resp.Error = &Error{Code: ErrorForwardNotFound, Message: "forward not found"}
+	case CommandForwardRemoveAll:
+		resp.OK = true
+		resp.Result = map[string]any{"removed": 0}
 	default:
 		resp.Error = &Error{Code: ErrorUnknownCommand, Message: fmt.Sprintf("unknown daemon command %q", req.Command)}
 	}
