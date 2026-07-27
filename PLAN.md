@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M59 — Bridge daemon forwards to TCP ADB targets.
-- Completed milestone range: Milestones 17–58 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, and daemon-owned forwarding listener registration.
+- Current milestone: M61 — Surface persistent forwarding diagnostics.
+- Completed milestone range: Milestones 17–60 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, and CLI persistent forwarding controls.
 - Active focus: implement daemon-owned persistent TCP forwarding in small slices while preserving the existing foreground forwarding behavior and avoiding durable daemon-owned ADB state until explicitly designed.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -121,29 +121,29 @@ Done when:
 
 ## M60 — Add CLI persistent forwarding controls
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(cli): add persistent forward controls`
 
 Tasks:
 
-- [ ] Add `adb-go forward --background` to create daemon-owned persistent forwards.
-- [ ] Add `adb-go forward --list`, `--remove LOCAL`, `--remove-id ID`, and `--remove-all` wired to the daemon protocol.
-- [ ] Keep existing foreground `adb-go forward LOCAL REMOTE` behavior unchanged when daemon flags are absent.
-- [ ] Print clear setup/list/remove output, including actual bound local address for `tcp:0`.
-- [ ] Return actionable daemon-unavailable or daemon-too-old hints, such as running `adb-go daemon doctor`.
-- [ ] Document the new CLI behavior and the non-durable in-memory daemon lifecycle.
+- [x] Add `adb-go forward --background` to create daemon-owned persistent forwards.
+- [x] Add `adb-go forward --list`, `--remove LOCAL`, `--remove-id ID`, and `--remove-all` wired to the daemon protocol.
+- [x] Keep existing foreground `adb-go forward LOCAL REMOTE` behavior unchanged when daemon flags are absent.
+- [x] Print clear setup/list/remove output, including actual bound local address for `tcp:0`.
+- [x] Return actionable daemon-unavailable or daemon-too-old hints, such as running `adb-go daemon doctor`.
+- [x] Document the new CLI behavior and the non-durable in-memory daemon lifecycle.
 
 Tests:
 
-- [ ] CLI tests cover argument parsing and daemon requests for background/list/remove/remove-all.
-- [ ] CLI tests cover foreground forwarding still using the existing process-scoped path.
-- [ ] CLI tests cover daemon-unavailable or unknown-command error messages.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover argument parsing and daemon requests for background/list/remove/remove-all.
+- [x] CLI tests cover foreground forwarding still using the existing process-scoped path.
+- [x] CLI tests cover daemon-unavailable or unknown-command error messages.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can create, inspect, and remove daemon-owned persistent TCP forwards from the CLI while existing foreground forwarding remains compatible.
+- [x] Users can create, inspect, and remove daemon-owned persistent TCP forwards from the CLI while existing foreground forwarding remains compatible.
 
 ## M61 — Surface persistent forwarding diagnostics
 

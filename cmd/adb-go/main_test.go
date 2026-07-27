@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/binary"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"flag"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	adb "github.com/dector/adb-go"
+	"github.com/dector/adb-go/internal/daemon"
 	"github.com/dector/adb-go/internal/fakeadb"
 	"github.com/dector/adb-go/protocol"
 )
@@ -1352,6 +1354,138 @@ func TestRunForwardUsesUSBConnection(t *testing.T) {
 	}
 }
 
+func TestRunForwardCreatesBackgroundDaemonForward(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	var stdout, stderr bytes.Buffer
+	var gotSocket string
+	var gotReq daemon.Request
+	restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+		gotSocket = socketPath
+		gotReq = req
+		return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"forward": daemon.Forward{ID: "fwd-1", State: daemon.ForwardStateListening, Local: daemon.ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:43210"}, Remote: daemon.ForwardRemoteEndpoint{Service: "tcp:8000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}}}}, nil
+	})
+	defer restoreSend()
+
+	code := run([]string{"forward", "--socket", "/tmp/adb-god.sock", "--background", "--addr", "127.0.0.1", "tcp:0", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(forward --background) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if gotSocket != "/tmp/adb-god.sock" {
+		t.Fatalf("daemon socket = %q, want configured socket", gotSocket)
+	}
+	if gotReq.Command != daemon.CommandForwardCreate {
+		t.Fatalf("daemon command = %q, want forward_create", gotReq.Command)
+	}
+	var params daemon.ForwardCreateParams
+	if err := json.Unmarshal(gotReq.Params, &params); err != nil {
+		t.Fatalf("Unmarshal(params): %v", err)
+	}
+	if params.Local.Address != "127.0.0.1:0" || params.Remote.Service != "tcp:8000" || params.Target.Address != "127.0.0.1:5555" || params.Target.Transport != "tcp" {
+		t.Fatalf("params = %+v, want tcp local/remote/target", params)
+	}
+	if got := stdout.String(); !strings.Contains(got, "Forward fwd-1 listening on 127.0.0.1:43210 -> tcp:8000 via tcp:127.0.0.1:5555") || !strings.Contains(got, "in-memory daemon-owned") {
+		t.Fatalf("stdout = %q, want background forward status", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunForwardDaemonListAndRemoveCommands(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		response    daemon.Response
+		wantCommand string
+		wantStdout  string
+	}{
+		{name: "list", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandForwardList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"forwards": []daemon.Forward{{ID: "fwd-1", State: daemon.ForwardStateListening, Local: daemon.ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:9000"}, Remote: daemon.ForwardRemoteEndpoint{Service: "tcp:8000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "fwd-1\tlistening\t127.0.0.1:9000\ttcp:8000\ttcp:127.0.0.1:5555\t2"},
+		{name: "remove-local", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove", "tcp:9000"}, wantCommand: daemon.CommandForwardRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned forward(s)."},
+		{name: "remove-id", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove-id", "fwd-1"}, wantCommand: daemon.CommandForwardRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned forward(s)."},
+		{name: "remove-all", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove-all"}, wantCommand: daemon.CommandForwardRemoveAll, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 3}}, wantStdout: "Removed 3 daemon-owned forward(s)."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			var gotReq daemon.Request
+			restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+				gotReq = req
+				return tt.response, nil
+			})
+			defer restoreSend()
+
+			code := run(tt.args, &stdout, &stderr)
+
+			if code != 0 {
+				t.Fatalf("run(%v) exit code = %d, want 0; stderr = %q", tt.args, code, stderr.String())
+			}
+			if gotReq.Command != tt.wantCommand {
+				t.Fatalf("command = %q, want %q", gotReq.Command, tt.wantCommand)
+			}
+			if !strings.Contains(stdout.String(), tt.wantStdout) {
+				t.Fatalf("stdout = %q, want substring %q", stdout.String(), tt.wantStdout)
+			}
+		})
+	}
+}
+
+func TestRunForwardKeepsForegroundPathWhenDaemonFlagsAreAbsent(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	calledDaemon := false
+	restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+		calledDaemon = true
+		return daemon.Response{}, errors.New("unexpected daemon call")
+	})
+	defer restoreSend()
+	restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{}, nil
+	})
+	defer restoreConnect()
+	restoreForward := replaceStartForward(func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+		return fakeForwardSession{addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000}}, nil
+	})
+	defer restoreForward()
+
+	code := run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run(foreground forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if calledDaemon {
+		t.Fatal("foreground forward called daemon sender")
+	}
+}
+
+func TestRunForwardReportsDaemonUnavailableAndTooOld(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		resp       daemon.Response
+		err        error
+		wantSubstr string
+	}{
+		{name: "unavailable", err: errors.New("dial unix: no such file"), wantSubstr: "adb-god is not running or socket is unavailable"},
+		{name: "too-old", resp: daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorUnknownCommand, Message: "unknown daemon command"}}, wantSubstr: "adb-god is too old for persistent forwarding"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+				return tc.resp, tc.err
+			})
+			defer restoreSend()
+
+			code := run([]string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, &stdout, &stderr)
+
+			if code != 1 {
+				t.Fatalf("run(forward --list %s) exit code = %d, want 1", tc.name, code)
+			}
+			if !strings.Contains(stderr.String(), tc.wantSubstr) || !strings.Contains(stderr.String(), "daemon doctor") {
+				t.Fatalf("stderr = %q, want daemon guidance %q", stderr.String(), tc.wantSubstr)
+			}
+		})
+	}
+}
+
 func TestRunForwardReportsSetupAndWaitErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -2028,6 +2162,12 @@ func replaceStartForward(fn func(context.Context, deviceClient, string, adb.Forw
 	old := startForward
 	startForward = fn
 	return func() { startForward = old }
+}
+
+func replaceSendDaemonRequest(fn func(context.Context, string, daemon.Request) (daemon.Response, error)) func() {
+	old := sendDaemonRequest
+	sendDaemonRequest = fn
+	return func() { sendDaemonRequest = old }
 }
 
 func replaceCurrentTime(fn func() time.Time) func() {

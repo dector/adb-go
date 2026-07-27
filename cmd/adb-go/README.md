@@ -129,10 +129,12 @@ The CLI does not create or modify key files.
 ## Commands
 
 Device workflow commands such as `shell`, `push`, `pull`, `install-apk`,
-`getprop`, `logcat`, `screencap`, `reboot`, and `forward` connect directly to an
-explicit TCP or Linux USB target. The `daemon` command is different: it talks to
-the local `adb-god` control socket and does not select or operate on an Android
-device. The `version` command is host-only and performs no ADB or daemon I/O.
+`getprop`, `logcat`, `screencap`, `reboot`, and foreground `forward` connect directly to an
+explicit TCP or Linux USB target. Daemon-owned `forward --background`, `forward --list`,
+and `forward --remove*` talk to the local `adb-god` control socket; the daemon then
+opens explicit TCP ADB targets for background forward traffic. The `daemon` command also
+talks to `adb-god` but controls the process itself. The `version` command is host-only
+and performs no ADB or daemon I/O.
 
 ### `version`
 
@@ -407,19 +409,55 @@ connection is accepted by adb-go, adb-go opens a fresh device `tcp:PORT` ADB
 service stream, and bytes are copied in both directions. Press Ctrl-C or stop
 the process to close the local listener and any active bridged connections.
 
-This lifecycle is the main difference from official `adb forward`. Official adb
-registers mappings in the background host ADB server, so the `adb forward`
-command can exit while the server keeps listening and can later answer
-`--list`, `--remove`, and `--remove-all`. adb-go is direct-device and
-process-scoped in v0: it does not use the official server, does not create a
-persistent mapping table, and removes the forward when the command exits.
+For persistent background forwarding, start `adb-god` and pass `--background`:
+
+```sh
+adb-go forward --background --addr 127.0.0.1:5555 tcp:9000 tcp:8000
+adb-go forward --background --addr 127.0.0.1:5555 tcp:0 tcp:8000
+```
+
+This sends a `forward_create` request to the daemon and exits after registration.
+The daemon owns the loopback listener, accepts future host connections, connects
+to the explicit TCP ADB target (`--addr` or `ADB_GO_ADDR`) for each connection,
+opens the configured device `tcp:PORT` service, and copies bytes in both
+directions. `tcp:0` is resolved by the daemon, so the command prints the actual
+bound local address returned by `adb-god`.
+
+Daemon-owned forwards are in-memory only. They survive the creating CLI process,
+but they do not survive `adb-god` shutdown, restart, crash, logout, or service
+reinstall. They also deliberately do not persist USB target handles or
+`--auth-key` material yet, so `--background` currently supports explicit TCP ADB
+targets only. Use foreground forwarding for Linux USB targets or authenticated
+connections for now.
+
+Inspect and remove daemon-owned forwards with:
+
+```sh
+adb-go forward --list
+adb-go forward --remove tcp:9000
+adb-go forward --remove-id fwd-1
+adb-go forward --remove-all
+```
+
+`--list` prints the generated ID, state, local endpoint, remote service, target,
+active connection count, and last setup error if the daemon has observed one.
+Use `--norebind` with `--background` to fail instead of replacing an existing
+mapping for the same local endpoint. By default, creating a new daemon-owned
+forward on the same local endpoint replaces the old daemon-owned mapping.
+
+If a daemon command reports that the socket is unavailable or the daemon is too
+old for forwarding commands, start or inspect the daemon with:
+
+```sh
+adb-go daemon service start
+adb-go daemon doctor
+```
 
 Unsupported forwarding forms currently include host Unix sockets, Android local
 socket namespaces such as `localabstract:`, JDWP, vsock, reverse forwarding, raw
-advanced service targets, persistent mappings, `--list`, `--remove`, and
-`--remove-all`. Future daemon-backed persistent forwarding is designed in
-[`../../docs/persistent-forwarding-design.md`](../../docs/persistent-forwarding-design.md),
-but it is not implemented yet.
+advanced service targets, durable persistent mappings across daemon restarts,
+and daemon-owned USB/authenticated targets. The daemon-backed design background
+is in [`../../docs/persistent-forwarding-design.md`](../../docs/persistent-forwarding-design.md).
 
 ### `daemon`
 
@@ -583,12 +621,12 @@ service commands manage the host systemd unit. They are different from
 `adb-go daemon stop`, which sends a graceful shutdown request to the currently
 running daemon over the daemon socket protocol.
 
-The initial daemon is deliberately minimal. It is not the official adb server,
-it does not keep ADB devices,
-USB/TCP transports, foreground forwards, shell sessions, install state, logcat
-streams, screenshots, reboots, or authentication keys alive after a CLI command
-exits. Those are future design areas built on this process and socket
-foundation.
+The daemon is not the official adb server. It can currently keep in-memory
+TCP-to-device-TCP forwarding listeners alive after the creating CLI exits, but it
+still does not keep general ADB devices, USB transports, foreground forwards,
+shell sessions, install state, logcat streams, screenshots, reboots, durable
+forwarding tables, or authentication keys alive across daemon restarts. Those
+remain future design areas built on this process and socket foundation.
 
 ## Troubleshooting common errors
 
@@ -618,8 +656,9 @@ persistent forwarding, and most official flags are not implemented. Use
 `getprop` for adb-go's limited property inspection workflow, `screencap` for
 one-shot PNG screenshot capture, `reboot` for explicit disruptive reboot
 requests, `forward` for foreground local-TCP-to-device-TCP forwarding,
-`daemon` for minimal local `adb-god` process control, and `install-apk` for
-adb-go's limited one-APK installation workflow.
+`daemon` for local `adb-god` process control, daemon-owned in-memory TCP
+forwards for persistent forwarding within one daemon lifetime, and `install-apk`
+for adb-go's limited one-APK installation workflow.
 
 ## Testing
 
