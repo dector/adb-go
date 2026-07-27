@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M57 — Add daemon forwarding protocol model.
-- Completed milestone range: Milestones 17–56 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, and the daemon-backed persistent forwarding design.
+- Current milestone: M59 — Bridge daemon forwards to TCP ADB targets.
+- Completed milestone range: Milestones 17–58 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, and daemon-owned forwarding listener registration.
 - Active focus: implement daemon-owned persistent TCP forwarding in small slices while preserving the existing foreground forwarding behavior and avoiding durable daemon-owned ADB state until explicitly designed.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -71,28 +71,28 @@ Done when:
 
 ## M58 — Add daemon forwarding registry and TCP listener ownership
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(daemon): add forwarding listener registry`
 
 Tasks:
 
-- [ ] Add an in-memory daemon forwarding registry keyed by generated ID and local endpoint.
-- [ ] Implement daemon-owned loopback TCP listener creation for supported local `tcp:PORT` endpoints.
-- [ ] Implement list, remove-by-ID, remove-by-local, and remove-all behavior against daemon-owned listeners.
-- [ ] Implement rebind and `norebind` semantics for daemon-owned forwards only.
-- [ ] Ensure daemon shutdown closes forwarding listeners and active registry entries.
+- [x] Add an in-memory daemon forwarding registry keyed by generated ID and local endpoint.
+- [x] Implement daemon-owned loopback TCP listener creation for supported local `tcp:PORT` endpoints.
+- [x] Implement list, remove-by-ID, remove-by-local, and remove-all behavior against daemon-owned listeners.
+- [x] Implement rebind and `norebind` semantics for daemon-owned forwards only.
+- [x] Ensure daemon shutdown closes forwarding listeners and active registry entries.
 
 Tests:
 
-- [ ] Daemon tests cover create/list/remove/remove-all with isolated local TCP ports.
-- [ ] Daemon tests cover ephemeral `tcp:0`, address-in-use, and rebind-disallowed behavior.
-- [ ] Daemon shutdown tests cover listener cleanup.
-- [ ] `go test ./...` passes
+- [x] Daemon tests cover create/list/remove/remove-all with isolated local TCP ports.
+- [x] Daemon tests cover ephemeral `tcp:0`, address-in-use, and rebind-disallowed behavior.
+- [x] Daemon shutdown tests cover listener cleanup.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] `adb-god` can own and manage persistent local TCP listener registrations through the daemon protocol, without bridging ADB traffic yet.
+- [x] `adb-god` can own and manage persistent local TCP listener registrations through the daemon protocol, without bridging ADB traffic yet.
 
 ## M59 — Bridge daemon forwards to TCP ADB targets
 

@@ -101,8 +101,8 @@ func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 	if !ok {
 		t.Fatalf("forward_create result = %#v, want forward object", created.Result)
 	}
-	if forward["state"] != ForwardStateStopped || forward["lastError"] == "" {
-		t.Fatalf("forward_create forward = %#v, want validated non-owned forward model", forward)
+	if forward["state"] != ForwardStateListening || forward["id"] == "" || forward["lastError"] != nil {
+		t.Fatalf("forward_create forward = %#v, want daemon-owned listening forward", forward)
 	}
 
 	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "l1", Command: CommandForwardList})
@@ -128,8 +128,162 @@ func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("forward_remove_all daemon: %v", err)
 	}
-	if !removeAll.OK || removeAll.Result["removed"] != float64(0) {
-		t.Fatalf("forward_remove_all response = %#v, want removed 0", removeAll)
+	if !removeAll.OK || removeAll.Result["removed"] != float64(1) {
+		t.Fatalf("forward_remove_all response = %#v, want removed 1", removeAll)
+	}
+}
+
+func TestServerManagesDaemonForwardListeners(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "c1", Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
+	})})
+	if err != nil {
+		t.Fatalf("forward_create daemon: %v", err)
+	}
+	if !created.OK {
+		t.Fatalf("forward_create response = %#v, want ok", created)
+	}
+	forward := resultForward(t, created)
+	id, _ := forward["id"].(string)
+	local := resultLocal(t, forward)
+	if id == "" || forward["state"] != ForwardStateListening || local["address"] == "127.0.0.1:0" {
+		t.Fatalf("created forward = %#v, want id, listening state, and actual tcp:0 address", forward)
+	}
+
+	conn, err := net.DialTimeout("tcp", local["address"].(string), time.Second)
+	if err != nil {
+		t.Fatalf("dial daemon-owned forward listener: %v", err)
+	}
+	_ = conn.Close()
+
+	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "l1", Command: CommandForwardList})
+	if err != nil {
+		t.Fatalf("forward_list daemon: %v", err)
+	}
+	forwards, ok := list.Result["forwards"].([]any)
+	if !list.OK || !ok || len(forwards) != 1 {
+		t.Fatalf("forward_list response = %#v, want one forward", list)
+	}
+
+	removeByLocalEndpoint := ForwardLocalEndpoint{Network: "tcp", Address: local["address"].(string)}
+	removeByLocal, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "rl1", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{Local: &removeByLocalEndpoint})})
+	if err != nil {
+		t.Fatalf("forward_remove by local daemon: %v", err)
+	}
+	if !removeByLocal.OK || removeByLocal.Result["removed"] != float64(1) {
+		t.Fatalf("forward_remove by local response = %#v, want removed 1", removeByLocal)
+	}
+	if conn, err := net.DialTimeout("tcp", local["address"].(string), 100*time.Millisecond); err == nil {
+		_ = conn.Close()
+		t.Fatal("dial removed forward listener succeeded, want listener closed")
+	}
+
+	recreated, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "c2", Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
+	})})
+	if err != nil || !recreated.OK {
+		t.Fatalf("second forward_create = %#v, err = %v; want ok", recreated, err)
+	}
+	id, _ = resultForward(t, recreated)["id"].(string)
+	removeByID, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "ri1", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{ID: id})})
+	if err != nil {
+		t.Fatalf("forward_remove by id daemon: %v", err)
+	}
+	if !removeByID.OK || removeByID.Result["removed"] != float64(1) {
+		t.Fatalf("forward_remove by id response = %#v, want removed 1", removeByID)
+	}
+}
+
+func TestServerForwardRebindNorebindAddressInUseAndRemoveAll(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	base := ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: freeLoopbackAddress(t)},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
+	}
+	first, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, base)})
+	if err != nil || !first.OK {
+		t.Fatalf("first forward_create = %#v, err = %v; want ok", first, err)
+	}
+	firstID, _ := resultForward(t, first)["id"].(string)
+
+	norebind := base
+	norebind.Norebind = true
+	blocked, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, norebind)})
+	if err != nil {
+		t.Fatalf("norebind forward_create: %v", err)
+	}
+	if blocked.OK || blocked.Error == nil || blocked.Error.Code != ErrorRebindDisallowed {
+		t.Fatalf("norebind response = %#v, want rebind_disallowed", blocked)
+	}
+
+	rebound, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, base)})
+	if err != nil || !rebound.OK {
+		t.Fatalf("rebind forward_create = %#v, err = %v; want ok", rebound, err)
+	}
+	reboundID, _ := resultForward(t, rebound)["id"].(string)
+	if reboundID == "" || reboundID == firstID {
+		t.Fatalf("rebound id = %q, first id = %q; want replacement forward", reboundID, firstID)
+	}
+
+	busyLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("create busy listener: %v", err)
+	}
+	defer busyLn.Close()
+	busy := base
+	busy.Local.Address = busyLn.Addr().String()
+	busyResp, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, busy)})
+	if err != nil {
+		t.Fatalf("busy forward_create: %v", err)
+	}
+	if busyResp.OK || busyResp.Error == nil || busyResp.Error.Code != ErrorAddressInUse {
+		t.Fatalf("busy response = %#v, want address_in_use", busyResp)
+	}
+
+	removeAll, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardRemoveAll})
+	if err != nil {
+		t.Fatalf("forward_remove_all daemon: %v", err)
+	}
+	if !removeAll.OK || removeAll.Result["removed"] != float64(1) {
+		t.Fatalf("forward_remove_all response = %#v, want removed 1", removeAll)
+	}
+}
+
+func TestServerShutdownClosesForwardListeners(t *testing.T) {
+	server, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
+	})})
+	if err != nil || !created.OK {
+		t.Fatalf("forward_create = %#v, err = %v; want ok", created, err)
+	}
+	local := resultLocal(t, resultForward(t, created))["address"].(string)
+	if err := server.Shutdown(); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if conn, err := net.DialTimeout("tcp", local, 100*time.Millisecond); err == nil {
+		_ = conn.Close()
+		t.Fatal("dial forward listener after shutdown succeeded, want closed listener")
 	}
 }
 
@@ -280,6 +434,37 @@ func startTestServer(t *testing.T) (*Server, string, func()) {
 		}
 	}
 	return server, socketPath, wait
+}
+
+func resultForward(t testing.TB, resp Response) map[string]any {
+	t.Helper()
+	forward, ok := resp.Result["forward"].(map[string]any)
+	if !ok {
+		t.Fatalf("response result = %#v, want forward object", resp.Result)
+	}
+	return forward
+}
+
+func resultLocal(t testing.TB, forward map[string]any) map[string]any {
+	t.Helper()
+	local, ok := forward["local"].(map[string]any)
+	if !ok {
+		t.Fatalf("forward = %#v, want local object", forward)
+	}
+	return local
+}
+
+func freeLoopbackAddress(t testing.TB) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on free loopback address: %v", err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close free loopback listener: %v", err)
+	}
+	return addr
 }
 
 func mustJSON(t testing.TB, v any) json.RawMessage {

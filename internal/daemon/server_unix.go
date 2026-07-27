@@ -24,6 +24,7 @@ type Server struct {
 	socketPath string
 	listener   net.Listener
 	start      time.Time
+	forwards   *forwardRegistry
 
 	shutdownOnce sync.Once
 	done         chan struct{}
@@ -41,7 +42,7 @@ func NewServer(opts Options) (*Server, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("daemon socket path must be absolute")
 	}
-	return &Server{socketPath: path, done: make(chan struct{})}, nil
+	return &Server{socketPath: path, forwards: newForwardRegistry(), done: make(chan struct{})}, nil
 }
 
 func (s *Server) SocketPath() string { return s.socketPath }
@@ -92,6 +93,9 @@ func (s *Server) Shutdown() error {
 		close(s.done)
 		if s.listener != nil {
 			err = s.listener.Close()
+		}
+		if s.forwards != nil {
+			s.forwards.close()
 		}
 		if stat, statErr := os.Lstat(s.socketPath); statErr == nil && stat.Mode()&os.ModeSocket != 0 {
 			if removeErr := os.Remove(s.socketPath); removeErr != nil && err == nil {
@@ -174,28 +178,32 @@ func (s *Server) handleRequest(req Request) Response {
 			resp.Error = errResp
 			break
 		}
+		forward, forwardErr := s.forwards.create(params)
+		if forwardErr != nil {
+			resp.Error = forwardErr
+			break
+		}
 		resp.OK = true
-		resp.Result = map[string]any{"forward": Forward{
-			State:             ForwardStateStopped,
-			Local:             params.Local,
-			Remote:            params.Remote,
-			Target:            params.Target,
-			Norebind:          params.Norebind,
-			ActiveConnections: 0,
-			LastError:         "forward listener ownership is not implemented yet",
-		}}
+		resp.Result = map[string]any{"forward": forward}
 	case CommandForwardList:
 		resp.OK = true
-		resp.Result = map[string]any{"forwards": []Forward{}}
+		resp.Result = map[string]any{"forwards": s.forwards.list()}
 	case CommandForwardRemove:
-		if _, errResp := decodeForwardRemoveParams(req.Params); errResp != nil {
+		params, errResp := decodeForwardRemoveParams(req.Params)
+		if errResp != nil {
 			resp.Error = errResp
 			break
 		}
-		resp.Error = &Error{Code: ErrorForwardNotFound, Message: "forward not found"}
+		removed, forwardErr := s.forwards.remove(params)
+		if forwardErr != nil {
+			resp.Error = forwardErr
+			break
+		}
+		resp.OK = true
+		resp.Result = map[string]any{"removed": removed}
 	case CommandForwardRemoveAll:
 		resp.OK = true
-		resp.Result = map[string]any{"removed": 0}
+		resp.Result = map[string]any{"removed": s.forwards.removeAll()}
 	default:
 		resp.Error = &Error{Code: ErrorUnknownCommand, Message: fmt.Sprintf("unknown daemon command %q", req.Command)}
 	}
