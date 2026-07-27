@@ -5,11 +5,16 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/dector/adb-go/internal/fakeadb"
+	"github.com/dector/adb-go/protocol"
 )
 
 func TestDefaultSocketPathUsesAbsoluteOverride(t *testing.T) {
@@ -287,6 +292,201 @@ func TestServerShutdownClosesForwardListeners(t *testing.T) {
 	}
 }
 
+func TestServerBridgesForwardToFakeADBTarget(t *testing.T) {
+	fake := fakeadb.Start(t)
+	fake.Handle("tcp:9001", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		const remoteID = 42
+		if err := protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0}); err != nil {
+			return
+		}
+		for {
+			msg, err := protocol.ReadMessage(conn)
+			if err != nil || msg.Command == protocol.CommandCLSE {
+				return
+			}
+			if msg.Command != protocol.CommandWRTE {
+				continue
+			}
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: msg.Arg0})
+			_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: remoteID, Arg1: msg.Arg0, Payload: []byte("device:" + string(msg.Payload))})
+		}
+	})
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: fake.Addr()},
+	})})
+	if err != nil || !created.OK {
+		t.Fatalf("forward_create = %#v, err = %v; want ok", created, err)
+	}
+	local := resultLocal(t, resultForward(t, created))["address"].(string)
+
+	host, err := net.DialTimeout("tcp", local, time.Second)
+	if err != nil {
+		t.Fatalf("dial forward listener: %v", err)
+	}
+	defer host.Close()
+	_ = host.SetDeadline(time.Now().Add(time.Second))
+	if _, err := host.Write([]byte("hello")); err != nil {
+		t.Fatalf("write host payload: %v", err)
+	}
+	buf := make([]byte, len("device:hello"))
+	if _, err := io.ReadFull(host, buf); err != nil {
+		t.Fatalf("read bridged device payload: %v", err)
+	}
+	if string(buf) != "device:hello" {
+		t.Fatalf("bridged payload = %q, want device:hello", string(buf))
+	}
+
+	waitFor(t, time.Second, func() bool {
+		list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardList})
+		if err != nil || !list.OK {
+			return false
+		}
+		forwards := list.Result["forwards"].([]any)
+		forward := forwards[0].(map[string]any)
+		return forward["activeConnections"] == float64(1) && forward["lastError"] == nil && forward["state"] == ForwardStateListening
+	})
+}
+
+func TestServerForwardBridgeFailureKeepsListenerDegraded(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	target := freeLoopbackAddress(t)
+
+	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9001"},
+		Target: ForwardTarget{Transport: "tcp", Address: target},
+	})})
+	if err != nil || !created.OK {
+		t.Fatalf("forward_create = %#v, err = %v; want ok", created, err)
+	}
+	local := resultLocal(t, resultForward(t, created))["address"].(string)
+
+	conn, err := net.DialTimeout("tcp", local, time.Second)
+	if err != nil {
+		t.Fatalf("dial forward listener with down target: %v", err)
+	}
+	_ = conn.Close()
+
+	waitFor(t, time.Second, func() bool {
+		list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardList})
+		if err != nil || !list.OK {
+			return false
+		}
+		forward := list.Result["forwards"].([]any)[0].(map[string]any)
+		lastError, _ := forward["lastError"].(string)
+		return forward["state"] == ForwardStateDegraded && strings.Contains(lastError, "connect target")
+	})
+	second, err := net.DialTimeout("tcp", local, time.Second)
+	if err != nil {
+		t.Fatalf("dial degraded forward listener again: %v", err)
+	}
+	_ = second.Close()
+}
+
+func TestServerForwardRemoveAndShutdownCloseActiveBridgeConnections(t *testing.T) {
+	fake := fakeadb.Start(t)
+	fake.Handle("tcp:9002", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
+		const remoteID = 77
+		if err := protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: open.Arg0}); err != nil {
+			return
+		}
+		for {
+			msg, err := protocol.ReadMessage(conn)
+			if err != nil || msg.Command == protocol.CommandCLSE {
+				return
+			}
+			if msg.Command == protocol.CommandWRTE {
+				_ = protocol.WriteMessage(conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: remoteID, Arg1: msg.Arg0})
+			}
+		}
+	})
+	server, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9002"},
+		Target: ForwardTarget{Transport: "tcp", Address: fake.Addr()},
+	})})
+	if err != nil || !created.OK {
+		t.Fatalf("forward_create = %#v, err = %v; want ok", created, err)
+	}
+	forward := resultForward(t, created)
+	id := forward["id"].(string)
+	local := resultLocal(t, forward)["address"].(string)
+
+	host, err := net.DialTimeout("tcp", local, time.Second)
+	if err != nil {
+		t.Fatalf("dial forward listener: %v", err)
+	}
+	_ = host.SetDeadline(time.Now().Add(time.Second))
+	if _, err := host.Write([]byte("keepalive")); err != nil {
+		t.Fatalf("write host payload: %v", err)
+	}
+	waitFor(t, time.Second, func() bool {
+		list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardList})
+		if err != nil || !list.OK {
+			return false
+		}
+		forward := list.Result["forwards"].([]any)[0].(map[string]any)
+		return forward["activeConnections"] == float64(1)
+	})
+
+	removed, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{ID: id})})
+	if err != nil || !removed.OK {
+		t.Fatalf("forward_remove = %#v, err = %v; want ok", removed, err)
+	}
+	buf := make([]byte, 1)
+	if _, err := host.Read(buf); err == nil {
+		t.Fatal("read after removing active forward succeeded, want closed connection")
+	}
+	_ = host.Close()
+
+	created, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardCreate, Params: mustJSON(t, ForwardCreateParams{
+		Local:  ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:0"},
+		Remote: ForwardRemoteEndpoint{Service: "tcp:9002"},
+		Target: ForwardTarget{Transport: "tcp", Address: fake.Addr()},
+	})})
+	if err != nil || !created.OK {
+		t.Fatalf("second forward_create = %#v, err = %v; want ok", created, err)
+	}
+	local = resultLocal(t, resultForward(t, created))["address"].(string)
+	host, err = net.DialTimeout("tcp", local, time.Second)
+	if err != nil {
+		t.Fatalf("dial second forward listener: %v", err)
+	}
+	_ = host.SetDeadline(time.Now().Add(time.Second))
+	if _, err := host.Write([]byte("keepalive")); err != nil {
+		t.Fatalf("write second host payload: %v", err)
+	}
+	waitFor(t, time.Second, func() bool {
+		list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardList})
+		if err != nil || !list.OK {
+			return false
+		}
+		return list.Result["forwards"].([]any)[0].(map[string]any)["activeConnections"] == float64(1)
+	})
+	if err := server.Shutdown(); err != nil {
+		t.Fatalf("Shutdown() error = %v", err)
+	}
+	if _, err := host.Read(buf); err == nil {
+		t.Fatal("read after daemon shutdown succeeded, want closed connection")
+	}
+	_ = host.Close()
+}
+
 func TestServerForwardingProtocolValidationErrors(t *testing.T) {
 	_, socketPath, wait := startTestServer(t)
 	defer wait()
@@ -465,6 +665,21 @@ func freeLoopbackAddress(t testing.TB) string {
 		t.Fatalf("close free loopback listener: %v", err)
 	}
 	return addr
+}
+
+func waitFor(t testing.TB, timeout time.Duration, pred func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if pred() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pred() {
+		return
+	}
+	t.Fatalf("condition was not met within %s", timeout)
 }
 
 func mustJSON(t testing.TB, v any) json.RawMessage {

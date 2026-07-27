@@ -1,12 +1,16 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/dector/adb-go/client"
 )
 
 type forwardRegistry struct {
@@ -19,8 +23,18 @@ type forwardRegistry struct {
 type forwardEntry struct {
 	forward  Forward
 	listener net.Listener
+	active   map[*forwardConn]struct{}
 	done     chan struct{}
 }
+
+type forwardConn struct {
+	mu     sync.Mutex
+	host   net.Conn
+	client *client.Client
+	stream io.ReadWriteCloser
+}
+
+const forwardSetupTimeout = 10 * time.Second
 
 func newForwardRegistry() *forwardRegistry {
 	return &forwardRegistry{
@@ -64,6 +78,7 @@ func (r *forwardRegistry) create(params ForwardCreateParams) (Forward, *Error) {
 			ActiveConnections: 0,
 		},
 		listener: ln,
+		active:   make(map[*forwardConn]struct{}),
 		done:     make(chan struct{}),
 	}
 
@@ -79,7 +94,7 @@ func (r *forwardRegistry) create(params ForwardCreateParams) (Forward, *Error) {
 	}
 	r.byID[entry.forward.ID] = entry
 	r.byLocal[entry.forward.Local.key()] = entry.forward.ID
-	go entry.acceptAndClose()
+	go r.acceptAndBridge(entry)
 	return entry.forward, nil
 }
 
@@ -139,6 +154,9 @@ func (r *forwardRegistry) removeLocked(entry *forwardEntry) {
 	delete(r.byLocal, entry.forward.Local.key())
 	entry.forward.State = ForwardStateStopped
 	_ = entry.listener.Close()
+	for active := range entry.active {
+		active.close()
+	}
 }
 
 func (r *forwardRegistry) nextForwardID() string {
@@ -148,14 +166,109 @@ func (r *forwardRegistry) nextForwardID() string {
 	return "fwd_" + strconv.FormatUint(r.nextID, 10)
 }
 
-func (e *forwardEntry) acceptAndClose() {
+func (r *forwardRegistry) acceptAndBridge(entry *forwardEntry) {
 	for {
-		conn, err := e.listener.Accept()
+		conn, err := entry.listener.Accept()
 		if err != nil {
-			close(e.done)
+			close(entry.done)
 			return
 		}
-		_ = conn.Close()
+		active := &forwardConn{host: conn}
+		r.addActive(entry, active)
+		go r.bridge(entry, active)
+	}
+}
+
+func (r *forwardRegistry) bridge(entry *forwardEntry, active *forwardConn) {
+	defer r.removeActive(entry, active)
+	defer active.close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), forwardSetupTimeout)
+	defer cancel()
+
+	adbClient, err := client.ConnectTCP(ctx, entry.forward.Target.Address)
+	if err != nil {
+		r.recordForwardError(entry, fmt.Sprintf("connect target %s: %v", entry.forward.Target.Address, err))
+		return
+	}
+	active.setClient(adbClient)
+
+	stream, err := adbClient.OpenService(ctx, entry.forward.Remote.Service)
+	if err != nil {
+		r.recordForwardError(entry, fmt.Sprintf("open remote service %s: %v", entry.forward.Remote.Service, err))
+		return
+	}
+	active.setStream(stream)
+	r.recordForwardSuccess(entry)
+
+	copyDone := make(chan struct{}, 2)
+	go func() {
+		_, _ = io.Copy(stream, active.host)
+		copyDone <- struct{}{}
+	}()
+	go func() {
+		_, _ = io.Copy(active.host, stream)
+		copyDone <- struct{}{}
+	}()
+	<-copyDone
+	active.close()
+	<-copyDone
+}
+
+func (r *forwardRegistry) addActive(entry *forwardEntry, active *forwardConn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry.active[active] = struct{}{}
+	entry.forward.ActiveConnections = len(entry.active)
+}
+
+func (r *forwardRegistry) removeActive(entry *forwardEntry, active *forwardConn) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(entry.active, active)
+	entry.forward.ActiveConnections = len(entry.active)
+}
+
+func (r *forwardRegistry) recordForwardError(entry *forwardEntry, message string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry.forward.State = ForwardStateDegraded
+	entry.forward.LastError = message
+}
+
+func (r *forwardRegistry) recordForwardSuccess(entry *forwardEntry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry.forward.State = ForwardStateListening
+	entry.forward.LastError = ""
+}
+
+func (c *forwardConn) setClient(adbClient *client.Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.client = adbClient
+}
+
+func (c *forwardConn) setStream(stream io.ReadWriteCloser) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stream = stream
+}
+
+func (c *forwardConn) close() {
+	c.mu.Lock()
+	stream := c.stream
+	adbClient := c.client
+	host := c.host
+	c.mu.Unlock()
+	if stream != nil {
+		_ = stream.Close()
+	}
+	if adbClient != nil {
+		_ = adbClient.Close()
+	}
+	if host != nil {
+		_ = host.Close()
 	}
 }
 

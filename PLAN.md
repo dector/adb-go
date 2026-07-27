@@ -96,28 +96,28 @@ Done when:
 
 ## M59 — Bridge daemon forwards to TCP ADB targets
 
-Status: Not started
+Status: Implemented
 
 Commit: `feat(daemon): bridge persistent forwards`
 
 Tasks:
 
-- [ ] For each accepted daemon-owned local TCP connection, connect to the explicit TCP ADB target from the forwarding registration.
-- [ ] Open the configured remote `tcp:PORT` ADB service for each accepted host connection.
-- [ ] Copy bytes in both directions and close both sides when either side finishes.
-- [ ] Track active connection counts and last connection/setup errors for list diagnostics.
-- [ ] Keep USB target persistence out of scope for this first bridge slice.
+- [x] For each accepted daemon-owned local TCP connection, connect to the explicit TCP ADB target from the forwarding registration.
+- [x] Open the configured remote `tcp:PORT` ADB service for each accepted host connection.
+- [x] Copy bytes in both directions and close both sides when either side finishes.
+- [x] Track active connection counts and last connection/setup errors for list diagnostics.
+- [x] Keep USB target persistence out of scope for this first bridge slice.
 
 Tests:
 
-- [ ] Tests use fake ADB and local TCP clients to verify bidirectional forwarding through the daemon.
-- [ ] Tests cover failed target dial/service-open behavior without dropping the local listener.
-- [ ] Tests cover remove/shutdown closing active bridged connections.
-- [ ] `go test ./...` passes
+- [x] Tests use fake ADB and local TCP clients to verify bidirectional forwarding through the daemon.
+- [x] Tests cover failed target dial/service-open behavior without dropping the local listener.
+- [x] Tests cover remove/shutdown closing active bridged connections.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] A daemon-owned background forward can carry TCP traffic from a host client to a device `tcp:PORT` service through an explicit TCP ADB target.
+- [x] A daemon-owned background forward can carry TCP traffic from a host client to a device `tcp:PORT` service through an explicit TCP ADB target.
 
 ## M60 — Add CLI persistent forwarding controls
 
