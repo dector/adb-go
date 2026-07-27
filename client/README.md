@@ -154,7 +154,7 @@ commands or parse `getprop` output themselves.
 Read one property by name with `GetProp`:
 
 ```go
-model, err := c.GetProp(ctx, "ro.product.model")
+model, err := c.GetProp(ctx, client.PropProductModel)
 if err != nil {
     return err
 }
@@ -172,7 +172,7 @@ props, err := c.Properties(ctx)
 if err != nil {
     return err
 }
-fmt.Println(props["ro.build.version.sdk"])
+fmt.Println(props[client.PropBuildVersionSDK])
 ```
 
 `Properties` runs plain `getprop` and parses the standard `[name]: [value]`
@@ -180,10 +180,14 @@ format into a `map[string]string`. Empty output returns an empty map. Malformed
 non-empty lines produce an error that includes the line number, which helps
 callers distinguish a bad device response from a missing property.
 
+Common property name constants such as `PropProductModel` and
+`PropBuildVersionSDK` are provided for convenience when calling `GetProp` or
+indexing the `Properties` result.
+
 Property names and values are remote device data. They may vary by Android
 version, vendor image, user build, emulator configuration, and connected target;
-do not treat them as trusted local constants unless your application controls the
-device image.
+do not treat returned values as trusted local constants unless your application
+controls the device image.
 
 ## Logcat
 

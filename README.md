@@ -62,10 +62,11 @@ if err != nil {
 fmt.Printf("%s", out)
 ```
 
-Read Android system properties with helpers that wrap and parse `getprop`:
+Read Android system properties with helpers that wrap and parse `getprop`.
+Common property names are available as constants:
 
 ```go
-model, err := c.GetProp(ctx, "ro.product.model")
+model, err := c.GetProp(ctx, adb.PropProductModel)
 if err != nil {
     return err
 }
@@ -75,7 +76,7 @@ props, err := c.Properties(ctx)
 if err != nil {
     return err
 }
-fmt.Println(props["ro.build.version.sdk"])
+fmt.Println(props[adb.PropBuildVersionSDK])
 ```
 
 Stream Android log output with the small logcat helper:

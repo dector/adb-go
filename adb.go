@@ -74,6 +74,74 @@ const (
 	RebootRecovery RebootMode = client.RebootRecovery
 )
 
+const (
+	// PropProductBrand is the consumer-visible product brand.
+	PropProductBrand = client.PropProductBrand
+
+	// PropProductManufacturer is the device manufacturer.
+	PropProductManufacturer = client.PropProductManufacturer
+
+	// PropProductModel is the consumer-visible product model.
+	PropProductModel = client.PropProductModel
+
+	// PropProductName is the product name for the current build.
+	PropProductName = client.PropProductName
+
+	// PropProductDevice is the product device codename for the current build.
+	PropProductDevice = client.PropProductDevice
+
+	// PropProductBoard is the device board name.
+	PropProductBoard = client.PropProductBoard
+
+	// PropProductCPUABI is the primary application binary interface.
+	PropProductCPUABI = client.PropProductCPUABI
+
+	// PropProductCPUABIList is the comma-separated list of supported ABIs.
+	PropProductCPUABIList = client.PropProductCPUABIList
+
+	// PropBuildFingerprint is the unique build fingerprint string.
+	PropBuildFingerprint = client.PropBuildFingerprint
+
+	// PropBuildID is the build ID.
+	PropBuildID = client.PropBuildID
+
+	// PropBuildDisplayID is the human-readable build display ID.
+	PropBuildDisplayID = client.PropBuildDisplayID
+
+	// PropBuildType is the build type, such as user, userdebug, or eng.
+	PropBuildType = client.PropBuildType
+
+	// PropBuildTags is the build tag list, such as release-keys or test-keys.
+	PropBuildTags = client.PropBuildTags
+
+	// PropBuildVersionRelease is the Android release version.
+	PropBuildVersionRelease = client.PropBuildVersionRelease
+
+	// PropBuildVersionSDK is the Android SDK/API level.
+	PropBuildVersionSDK = client.PropBuildVersionSDK
+
+	// PropBuildVersionIncremental is the incremental build version.
+	PropBuildVersionIncremental = client.PropBuildVersionIncremental
+
+	// PropBuildVersionSecurityPatch is the Android security patch level.
+	PropBuildVersionSecurityPatch = client.PropBuildVersionSecurityPatch
+
+	// PropHardware is the hardware name reported by the device build.
+	PropHardware = client.PropHardware
+
+	// PropBootloader is the bootloader version.
+	PropBootloader = client.PropBootloader
+
+	// PropSerialNo is the device serial number property when exposed by the image.
+	PropSerialNo = client.PropSerialNo
+
+	// PropDebuggable reports whether the build is debuggable (usually "0" or "1").
+	PropDebuggable = client.PropDebuggable
+
+	// PropSecure reports whether the build runs adb in secure mode (usually "0" or "1").
+	PropSecure = client.PropSecure
+)
+
 var (
 	// ErrAuthRequired reports that the ADB peer requires authentication that is
 	// not implemented by adb-go yet.

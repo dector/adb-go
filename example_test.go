@@ -85,7 +85,7 @@ func ExampleClient_GetProp() {
 	}
 	defer client.Close()
 
-	sdk, err := client.GetProp(ctx, "ro.build.version.sdk")
+	sdk, err := client.GetProp(ctx, adb.PropBuildVersionSDK)
 	if err != nil {
 		return
 	}
@@ -104,7 +104,7 @@ func ExampleClient_Properties() {
 	if err != nil {
 		return
 	}
-	fmt.Println(props["ro.product.model"])
+	fmt.Println(props[adb.PropProductModel])
 }
 
 func ExampleClient_PushFile() {
