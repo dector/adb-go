@@ -63,6 +63,27 @@ block-beta
   protocol["PROTOCOL<br/>(ADB packets · handshake · streams)"]:2
 ```
 
+| Feature | Notes |
+| --- | --- |
+| Explicit TCP connections | Connect to a known ADB TCP endpoint. |
+| Linux USB connections | Only on Linux; uses `/dev/bus/usb` directly. |
+| USB device exploration | Only on Linux; lists locally visible ADB-capable USB interfaces. |
+| Explicit-key authentication | Uses caller-supplied existing ADB RSA private keys. |
+| Service opening | Opens raw ADB services for advanced callers. |
+| Shell execution | Runs one command and returns its output. |
+| Shell streaming | Streams command output to an `io.Writer`. |
+| Android properties | Wraps and parses `getprop`. |
+| Logcat | Supports streaming and dump-and-exit modes. |
+| Screencap | Captures one PNG screenshot. |
+| Reboot | Supports normal, bootloader, and recovery modes. |
+| Local TCP forwarding | Foreground process-scoped forwarding to device TCP ports. |
+| Daemon-owned TCP forwarding | In-memory background forwarding through `adb-god`; TCP targets only. |
+| File push | Pushes one local file to the device. |
+| File pull | Pulls one remote file to a new local destination. |
+| APK installation | Installs one local APK via `/data/local/tmp`; supports replace option. |
+| Experimental CLI | Thin wrapper around supported library workflows. |
+| adb-god daemon foundation | Unix-socket daemon with ping, status, shutdown, diagnostics, and forwarding. |
+
 ## High-level client API
 
 Use the root package for the stable high-level API. It re-exports the `client`
