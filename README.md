@@ -11,6 +11,8 @@ applications, with an experimental CLI wrapper for supported workflows.
 > foreground local TCP forwarding, single-file push/pull, and one-APK
 > installation.
 
+[`CHANELOG.md`](CHANELOG.md).
+
 ## Contents
 
 - [Overview](#overview)
