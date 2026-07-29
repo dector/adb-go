@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M63 — Add CLI mode router.
-- Completed milestone range: Milestones 17–62 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, and the extracted custom CLI mode package.
+- Current milestone: M64 — Add adb-compatible CLI skeleton.
+- Completed milestone range: Milestones 17–63 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, and the CLI custom/compat mode router.
 - Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -70,28 +70,28 @@ Done when:
 
 ## M63 — Add CLI mode router
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add custom and compat mode router`
 
 Tasks:
 
-- [ ] Replace `cmd/adb-go/main.go` with a tiny router that only detects mode and dispatches to the selected implementation.
-- [ ] Select compat mode when `ADB_GO_MODE=compat` or the executable basename is exactly `adb` or `adb.exe`.
-- [ ] Select custom mode when `ADB_GO_MODE=custom` or when no compat signal is present.
-- [ ] Reject any other non-empty `ADB_GO_MODE` value with exit code `2`.
-- [ ] Do not support bootstrap flags such as `--compat` or `--custom`.
-- [ ] Add a temporary compat placeholder that returns a clear “compat mode is not implemented yet” error with exit code `1`.
+- [x] Replace `cmd/adb-go/main.go` with a tiny router that only detects mode and dispatches to the selected implementation.
+- [x] Select compat mode when `ADB_GO_MODE=compat` or the executable basename is exactly `adb` or `adb.exe`.
+- [x] Select custom mode when `ADB_GO_MODE=custom` or when no compat signal is present.
+- [x] Reject any other non-empty `ADB_GO_MODE` value with exit code `2`.
+- [x] Do not support bootstrap flags such as `--compat` or `--custom`.
+- [x] Add a temporary compat placeholder that returns a clear “compat mode is not implemented yet” error with exit code `1`.
 
 Tests:
 
-- [ ] Router tests cover default custom mode, `ADB_GO_MODE=custom`, `ADB_GO_MODE=compat`, invalid `ADB_GO_MODE`, and `adb`/`adb.exe` basename detection.
-- [ ] Existing custom mode CLI tests continue to pass.
-- [ ] `go test ./...` passes
+- [x] Router tests cover default custom mode, `ADB_GO_MODE=custom`, `ADB_GO_MODE=compat`, invalid `ADB_GO_MODE`, and `adb`/`adb.exe` basename detection.
+- [x] Existing custom mode CLI tests continue to pass.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] The binary can route cleanly between custom mode and a compat placeholder without changing custom behavior.
+- [x] The binary can route cleanly between custom mode and a compat placeholder without changing custom behavior.
 
 ## M64 — Add adb-compatible CLI skeleton
 

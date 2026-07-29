@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/dector/adb-go/cmd/adb-go/internal/compat"
 	"github.com/dector/adb-go/cmd/adb-go/internal/custom"
 )
 
@@ -13,5 +14,5 @@ var version = "dev"
 
 func main() {
 	custom.Version = version
-	os.Exit(custom.Run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr, os.Args[0], os.Getenv("ADB_GO_MODE"), custom.Run, compat.Run))
 }
