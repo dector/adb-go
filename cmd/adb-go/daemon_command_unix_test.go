@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -126,7 +127,13 @@ func TestRunDaemonDoctorReportsRespondingDaemon(t *testing.T) {
 		t.Fatalf("run(daemon doctor) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
-	for _, want := range []string{"socketPath: " + socketPath, "socketExists: true", "socketType: unix", "daemonProtocol: responding", "daemonState: running", "daemonProtocolVersion: 1", "forwardTotal: 0", "forwardDegraded: 0", "systemdActive: active", "systemdEnabled: enabled", "hints: none"} {
+	wantSubstrings := []string{"socketPath: " + socketPath, "socketExists: true", "socketType: unix", "daemonProtocol: responding", "daemonState: running", "daemonProtocolVersion: 1", "forwardTotal: 0", "forwardDegraded: 0", "hints: none"}
+	if runtime.GOOS == "linux" {
+		wantSubstrings = append(wantSubstrings, "systemdActive: active", "systemdEnabled: enabled")
+	} else {
+		wantSubstrings = append(wantSubstrings, "systemdUserService: unsupported on this platform")
+	}
+	for _, want := range wantSubstrings {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
 		}
@@ -177,7 +184,7 @@ func TestRunDaemonDoctorHintsDegradedForwardingState(t *testing.T) {
 }
 
 func TestRunDaemonDoctorReportsMissingSocket(t *testing.T) {
-	socketPath := filepath.Join(t.TempDir(), "missing.sock")
+	socketPath := filepath.Join(shortSocketTempDir(t), "missing.sock")
 	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "inactive", "disabled", 3, 1)
 
 	var stdout, stderr bytes.Buffer
@@ -186,7 +193,13 @@ func TestRunDaemonDoctorReportsMissingSocket(t *testing.T) {
 		t.Fatalf("run(daemon doctor missing socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
-	for _, want := range []string{"socketPath: " + socketPath, "socketExists: false", "daemonProtocol: not responding", "systemdActive: inactive", "systemdEnabled: disabled", "No daemon socket exists", "service start", "service install"} {
+	wantSubstrings := []string{"socketPath: " + socketPath, "socketExists: false", "daemonProtocol: not responding", "No daemon socket exists", "service start", "service install"}
+	if runtime.GOOS == "linux" {
+		wantSubstrings = append(wantSubstrings, "systemdActive: inactive", "systemdEnabled: disabled")
+	} else {
+		wantSubstrings = append(wantSubstrings, "systemdUserService: unsupported on this platform")
+	}
+	for _, want := range wantSubstrings {
 		if !strings.Contains(got, want) {
 			t.Fatalf("doctor stdout = %q, want substring %q", got, want)
 		}
@@ -214,6 +227,7 @@ func TestRunDaemonDoctorReportsNonDaemonSocket(t *testing.T) {
 }
 
 func TestRunDaemonInstallWritesSystemdUserUnit(t *testing.T) {
+	requireLinux(t)
 	adbGodPath := filepath.Join(t.TempDir(), "adb-god")
 	if err := os.WriteFile(adbGodPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatalf("write fake adb-god: %v", err)
@@ -249,6 +263,7 @@ func TestRunDaemonInstallWritesSystemdUserUnit(t *testing.T) {
 }
 
 func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
+	requireLinux(t)
 	adbGodPath := filepath.Join(t.TempDir(), "adb-god")
 	if err := os.WriteFile(adbGodPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatalf("write fake adb-god: %v", err)
@@ -279,6 +294,7 @@ func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
 }
 
 func TestRunDaemonServiceReinstallRewritesUnitReloadsEnablesAndRestarts(t *testing.T) {
+	requireLinux(t)
 	oldDaemonPath := filepath.Join(t.TempDir(), "old-adb-god")
 	newDaemonPath := filepath.Join(t.TempDir(), "new-adb-god")
 	if err := os.WriteFile(newDaemonPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
@@ -333,6 +349,7 @@ func TestRunDaemonServiceReinstallRewritesUnitReloadsEnablesAndRestarts(t *testi
 }
 
 func TestRunDaemonServiceLifecycleCommands(t *testing.T) {
+	requireLinux(t)
 	for _, tc := range []struct {
 		command string
 		stdout  string
@@ -366,6 +383,7 @@ func TestRunDaemonServiceLifecycleCommands(t *testing.T) {
 }
 
 func TestRunDaemonServiceStatusReportsActiveAndEnabled(t *testing.T) {
+	requireLinux(t)
 	systemctlLog := filepath.Join(t.TempDir(), "systemctl.log")
 	systemctlPath := writeFakeSystemctlStatus(t, systemctlLog, "active", "enabled", 0, 0)
 
@@ -389,6 +407,7 @@ func TestRunDaemonServiceStatusReportsActiveAndEnabled(t *testing.T) {
 }
 
 func TestRunDaemonServiceStatusReportsInactiveAndDisabled(t *testing.T) {
+	requireLinux(t)
 	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "inactive", "disabled", 3, 1)
 
 	var stdout, stderr bytes.Buffer
@@ -403,6 +422,7 @@ func TestRunDaemonServiceStatusReportsInactiveAndDisabled(t *testing.T) {
 }
 
 func TestRunDaemonServiceLogsInvokesJournalctlWithDefaultShape(t *testing.T) {
+	requireLinux(t)
 	journalctlLog := filepath.Join(t.TempDir(), "journalctl.log")
 	journalctlPath := writeFakeJournalctl(t, journalctlLog, "recent daemon log\n")
 
@@ -425,6 +445,7 @@ func TestRunDaemonServiceLogsInvokesJournalctlWithDefaultShape(t *testing.T) {
 }
 
 func TestRunDaemonServiceLogsHonorsLinesAndFollow(t *testing.T) {
+	requireLinux(t)
 	journalctlLog := filepath.Join(t.TempDir(), "journalctl.log")
 	journalctlPath := writeFakeJournalctl(t, journalctlLog, "follow log\n")
 
@@ -447,6 +468,7 @@ func TestRunDaemonServiceLogsHonorsLinesAndFollow(t *testing.T) {
 }
 
 func TestRunDaemonServiceLogsRejectsNegativeLines(t *testing.T) {
+	requireLinux(t)
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"daemon", "service", "logs", "--lines", "-1"}, &stdout, &stderr)
 	if code != 2 {
@@ -461,6 +483,7 @@ func TestRunDaemonServiceLogsRejectsNegativeLines(t *testing.T) {
 }
 
 func TestRunDaemonServiceUninstallDisablesStopsRemovesUnitAndReloads(t *testing.T) {
+	requireLinux(t)
 	unitDir := filepath.Join(t.TempDir(), "units")
 	if err := os.MkdirAll(unitDir, 0o755); err != nil {
 		t.Fatalf("create unit dir: %v", err)
@@ -577,9 +600,26 @@ func decodeDaemonCommandResult(t *testing.T, result map[string]any, v any) {
 	}
 }
 
+func requireLinux(t testing.TB) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("systemd user service commands are supported on Linux only")
+	}
+}
+
+func shortSocketTempDir(t testing.TB) string {
+	t.Helper()
+	dir, err := os.MkdirTemp(os.TempDir(), "adbgo-")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 func startDaemonCommandTestServer(t *testing.T) (*daemon.Server, string, func()) {
 	t.Helper()
-	socketPath := filepath.Join(t.TempDir(), "adb-god.sock")
+	socketPath := filepath.Join(shortSocketTempDir(t), "d.sock")
 	server, err := daemon.NewServer(daemon.Options{SocketPath: socketPath})
 	if err != nil {
 		t.Fatalf("NewServer() error = %v", err)
