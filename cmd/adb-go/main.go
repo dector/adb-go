@@ -591,7 +591,7 @@ func runDaemonDoctor(args []string, socketPath string, stdout, stderr io.Writer)
 		}
 	} else if errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintln(stdout, "socketExists: false")
-		hints = append(hints, "No daemon socket exists at this path; start adb-god with a matching -socket path or run adb-go daemon service start if the service is installed.")
+		hints = append(hints, "No daemon socket exists at this path; start adb-god with a matching -socket path, or run adb-go daemon service install then adb-go daemon service start on supported platforms.")
 	} else {
 		fmt.Fprintf(stdout, "socketExists: unknown (%v)\n", err)
 		hints = append(hints, "adb-go could not inspect the socket path; check parent directory permissions.")

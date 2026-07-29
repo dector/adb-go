@@ -74,6 +74,9 @@ func (s *Server) Serve(ctx context.Context) error {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
 			select {
 			case <-s.done:
 				return nil
@@ -90,7 +93,7 @@ func (s *Server) Done() <-chan struct{} { return s.done }
 func (s *Server) Shutdown() error {
 	var err error
 	s.shutdownOnce.Do(func() {
-		close(s.done)
+		defer close(s.done)
 		if s.listener != nil {
 			err = s.listener.Close()
 		}
