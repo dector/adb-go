@@ -1,17 +1,10 @@
 # adb-go
 
 `adb-go` is a pure-Go implementation of the Android Debug Bridge (ADB)
-protocol. It is primarily a Go library for embedding ADB behavior in
-applications, with an experimental CLI wrapper for supported workflows.
+protocol.
 
-> **Status:** v0 is not a full replacement for the official `adb` binary yet.
-> It currently implements explicit TCP connections, initial Linux USB support,
-> explicit-key authentication, service opening, shell execution/streaming,
-> Android property lookup, logcat streaming/dump, screenshot capture, reboot,
-> foreground local TCP forwarding, single-file push/pull, and one-APK
-> installation.
-
-[`CHANELOG.md`](CHANELOG.md).
+> [!NOTE]
+> Current adb-go implementation is not a full replacement for the official `adb` binary yet.
 
 ## Contents
 
@@ -27,9 +20,11 @@ applications, with an experimental CLI wrapper for supported workflows.
 - [Current limitations](#current-limitations)
 - [Testing](#testing)
 
+History of changes is available in [`CHANELOG.md`](CHANELOG.md).
+
 ## Overview
 
-adb-go is layered from low-level ADB protocol primitives up to high-level
+`adb-go` is layered from low-level ADB protocol primitives up to high-level
 library workflows, with the CLI and daemon built on top.
 
 ```mermaid
@@ -53,24 +48,23 @@ block-beta
 
 | Feature | Notes |
 | --- | --- |
-| Explicit TCP connections | Connect to a known ADB TCP endpoint. |
-| Linux USB connections | Only on Linux; uses `/dev/bus/usb` directly. |
-| USB device exploration | Only on Linux; lists locally visible ADB-capable USB interfaces. |
-| Explicit-key authentication | Uses caller-supplied existing ADB RSA private keys. |
-| Service opening | Opens raw ADB services for advanced callers. |
-| Shell execution | Runs one command and returns its output. |
-| Shell streaming | Streams command output to an `io.Writer`. |
-| Android properties | Wraps and parses `getprop`. |
-| Logcat | Supports streaming and dump-and-exit modes. |
-| Screencap | Captures one PNG screenshot. |
-| Reboot | Supports normal, bootloader, and recovery modes. |
-| Local TCP forwarding | Foreground process-scoped forwarding to device TCP ports. |
-| Daemon-owned TCP forwarding | In-memory background forwarding through `adb-god`; TCP targets only. |
-| File push | Pushes one local file to the device. |
-| File pull | Pulls one remote file to a new local destination. |
-| APK installation | Installs one local APK via `/data/local/tmp`; supports replace option. |
-| Experimental CLI | Thin wrapper around supported library workflows. |
-| adb-god daemon foundation | Unix-socket daemon with ping, status, shutdown, diagnostics, and forwarding. |
+| TCP connections |  |
+| USB connections | Linux only |
+| USB device exploration | Linux only |
+| Key authentication |  |
+| Shell execution |  |
+| Shell streaming |  |
+| Service opening |  |
+| Android properties |  |
+| Logcat | Supports streaming and dump-and-exit modes |
+| Screencap |  |
+| Reboot | Supports normal, bootloader, and recovery modes |
+| Local TCP forwarding | Device TCP targets only |
+| Daemon-owned TCP forwarding | Device TCP targets only |
+| File push/pull |  |
+| APK installation | Supports replace option |
+| Sample CLI | Showcasing library |
+| adb-god daemon foundation | Unix-socket daemon |
 
 ## Install
 
