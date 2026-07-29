@@ -13,8 +13,8 @@ applications, with an experimental CLI wrapper for supported workflows.
 
 ## Contents
 
-- [Install](#install)
 - [Overview](#overview)
+- [Install](#install)
 - [High-level client API](#high-level-client-api)
 - [Linux USB support](#linux-usb-support)
 - [Authentication helpers](#authentication-helpers)
@@ -24,20 +24,6 @@ applications, with an experimental CLI wrapper for supported workflows.
 - [Implementation notes](#implementation-notes)
 - [Current limitations](#current-limitations)
 - [Testing](#testing)
-
-## Install
-
-```sh
-go get github.com/dector/adb-go
-```
-
-```go
-import adb "github.com/dector/adb-go"
-```
-
-The current TCP and Linux USB implementation uses only the Go standard library:
-no Android SDK, platform-tools, official `adb` binary, cgo, libusb, or native
-dependencies are required.
 
 ## Overview
 
@@ -83,6 +69,37 @@ block-beta
 | APK installation | Installs one local APK via `/data/local/tmp`; supports replace option. |
 | Experimental CLI | Thin wrapper around supported library workflows. |
 | adb-god daemon foundation | Unix-socket daemon with ping, status, shutdown, diagnostics, and forwarding. |
+
+## Install
+
+### With Go
+
+```sh
+go get github.com/dector/adb-go
+```
+
+```go
+import adb "github.com/dector/adb-go"
+```
+
+### With mise
+
+Use mise to provide Go, then add adb-go to your module:
+
+```sh
+mise use go@latest
+go get github.com/dector/adb-go
+```
+
+Or run the install with a temporary mise-managed Go toolchain:
+
+```sh
+mise x go@latest -- go get github.com/dector/adb-go
+```
+
+The current TCP and Linux USB implementation uses only the Go standard library:
+no Android SDK, platform-tools, official `adb` binary, cgo, libusb, or native
+dependencies are required.
 
 ## High-level client API
 
