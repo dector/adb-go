@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M65 — Add compat daemon/server foundation.
-- Completed milestone range: Milestones 17–64 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, and the adb-compatible CLI skeleton.
+- Current milestone: M66 — Add compat target selection foundation.
+- Completed milestone range: Milestones 17–65 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, the adb-compatible CLI skeleton, and the compat daemon/server foundation.
 - Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -119,28 +119,28 @@ Done when:
 
 ## M65 — Add compat daemon/server foundation
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add compat daemon foundation`
 
 Tasks:
 
-- [ ] Add compat implementations for `start-server`, `kill-server`, and `devices` on top of adb-go daemon internals/protocol rather than the official adb server protocol.
-- [ ] Auto-start the adb-go daemon for compat commands that need server state.
-- [ ] Make `adb devices` show daemon-known TCP devices from prior compat `connect` work and locally discoverable USB devices when available.
-- [ ] Keep broad blind TCP/emulator scanning out of the initial compat `devices` behavior.
-- [ ] Preserve official adb CLI-facing output shape where practical while allowing different daemon internals.
+- [x] Add compat implementations for `start-server`, `kill-server`, and `devices` on top of adb-go daemon internals/protocol rather than the official adb server protocol.
+- [x] Auto-start the adb-go daemon for compat commands that need server state.
+- [x] Make `adb devices` show daemon-known TCP devices from prior compat `connect` work and locally discoverable USB devices when available.
+- [x] Keep broad blind TCP/emulator scanning out of the initial compat `devices` behavior.
+- [x] Preserve official adb CLI-facing output shape where practical while allowing different daemon internals.
 
 Tests:
 
-- [ ] Compat tests cover server lifecycle commands and auto-start behavior.
-- [ ] Compat tests cover no-device `devices` output matching the official reference shape.
-- [ ] Daemon tests cover any new protocol/state needed by compat devices listing.
-- [ ] `go test ./...` passes
+- [x] Compat tests cover server lifecycle commands and auto-start behavior.
+- [x] Compat tests cover no-device `devices` output matching the official reference shape.
+- [x] Daemon tests cover any new protocol/state needed by compat devices listing.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Compat mode has adb-shaped server lifecycle and device-list foundations backed by adb-go daemon internals.
+- [x] Compat mode has adb-shaped server lifecycle and device-list foundations backed by adb-go daemon internals.
 
 ## M66 — Add compat target selection foundation
 

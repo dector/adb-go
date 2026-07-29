@@ -25,6 +25,7 @@ type Server struct {
 	listener   net.Listener
 	start      time.Time
 	forwards   *forwardRegistry
+	devices    *deviceRegistry
 
 	shutdownOnce sync.Once
 	done         chan struct{}
@@ -42,7 +43,7 @@ func NewServer(opts Options) (*Server, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("daemon socket path must be absolute")
 	}
-	return &Server{socketPath: path, forwards: newForwardRegistry(), done: make(chan struct{})}, nil
+	return &Server{socketPath: path, forwards: newForwardRegistry(), devices: newDeviceRegistry(), done: make(chan struct{})}, nil
 }
 
 func (s *Server) SocketPath() string { return s.socketPath }
@@ -177,6 +178,22 @@ func (s *Server) handleRequest(req Request) Response {
 	case CommandShutdown:
 		resp.OK = true
 		resp.Result = map[string]any{"message": "shutting_down"}
+	case CommandDeviceList:
+		resp.OK = true
+		resp.Result = map[string]any{"devices": s.devices.list()}
+	case CommandDeviceRegister:
+		params, errResp := decodeDeviceRegisterParams(req.Params)
+		if errResp != nil {
+			resp.Error = errResp
+			break
+		}
+		device, deviceErr := s.devices.register(params)
+		if deviceErr != nil {
+			resp.Error = deviceErr
+			break
+		}
+		resp.OK = true
+		resp.Result = map[string]any{"device": device}
 	case CommandForwardCreate:
 		params, errResp := decodeForwardCreateParams(req.Params)
 		if errResp != nil {

@@ -90,6 +90,65 @@ func TestServerPingStatusShutdownAndCleanup(t *testing.T) {
 	}
 }
 
+func TestServerHandlesDeviceListAndRegister(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "empty", Command: CommandDeviceList})
+	if err != nil {
+		t.Fatalf("device_list daemon: %v", err)
+	}
+	if !list.OK || list.ID != "empty" {
+		t.Fatalf("device_list response = %#v, want ok with echoed id", list)
+	}
+	if devices, ok := list.Result["devices"].([]any); !ok || len(devices) != 0 {
+		t.Fatalf("device_list devices = %#v, want empty list", list.Result["devices"])
+	}
+
+	params := mustJSON(t, DeviceRegisterParams{Transport: "tcp", Address: "127.0.0.1:5555"})
+	registered, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "reg", Command: CommandDeviceRegister, Params: params})
+	if err != nil {
+		t.Fatalf("device_register daemon: %v", err)
+	}
+	if !registered.OK || registered.ID != "reg" {
+		t.Fatalf("device_register response = %#v, want ok with echoed id", registered)
+	}
+	device, ok := registered.Result["device"].(map[string]any)
+	if !ok {
+		t.Fatalf("device_register result = %#v, want device object", registered.Result)
+	}
+	if device["serial"] != "127.0.0.1:5555" || device["state"] != DeviceStateDevice || device["transport"] != "tcp" {
+		t.Fatalf("registered device = %#v, want default tcp device", device)
+	}
+
+	list, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "list", Command: CommandDeviceList})
+	if err != nil {
+		t.Fatalf("device_list daemon: %v", err)
+	}
+	devices, ok := list.Result["devices"].([]any)
+	if !ok || len(devices) != 1 {
+		t.Fatalf("device_list devices = %#v, want one device", list.Result["devices"])
+	}
+}
+
+func TestServerRejectsInvalidDeviceRegister(t *testing.T) {
+	_, socketPath, wait := startTestServer(t)
+	defer wait()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	params := mustJSON(t, DeviceRegisterParams{Transport: "tcp", Address: "127.0.0.1"})
+	resp, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandDeviceRegister, Params: params})
+	if err != nil {
+		t.Fatalf("device_register daemon: %v", err)
+	}
+	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorBadRequest {
+		t.Fatalf("device_register response = %#v, want bad_request", resp)
+	}
+}
+
 func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 	_, socketPath, wait := startTestServer(t)
 	defer wait()

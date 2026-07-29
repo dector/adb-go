@@ -23,8 +23,11 @@ global options:
  --help     show this help message
 
 host commands:
- help       show this help message
- version    show version num
+ help         show this help message
+ version      show version num
+ start-server ensure adb-go daemon is running
+ kill-server  stop adb-go daemon
+ devices      list connected devices
 
 This adb-go compatibility mode is a host-side adb CLI skeleton. Unsupported
 commands will be added incrementally as adb-compatible behavior is implemented.
@@ -55,6 +58,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "version":
 		return runVersion(commandArgs, opts, stdout, stderr)
+	case "start-server":
+		return runStartServer(commandArgs, opts, stdout, stderr)
+	case "kill-server":
+		return runKillServer(commandArgs, opts, stdout, stderr)
+	case "devices":
+		return runDevices(commandArgs, opts, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "adb: unknown command %s\n", command)
 		return 1
