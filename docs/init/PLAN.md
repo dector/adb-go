@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M62 — Extract custom CLI mode package.
-- Completed milestone range: Milestones 17–61 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, and persistent forwarding diagnostics.
+- Current milestone: M63 — Add CLI mode router.
+- Completed milestone range: Milestones 17–62 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, and the extracted custom CLI mode package.
 - Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -47,26 +47,26 @@ Milestone rules:
 
 ## M62 — Extract custom CLI mode package
 
-Status: Not started
+Status: Done
 
 Commit: `refactor(cli): extract custom mode package`
 
 Tasks:
 
-- [ ] Move the current `cmd/adb-go` CLI implementation into `cmd/adb-go/internal/custom`.
-- [ ] Expose a `custom.Run(args []string, stdout, stderr io.Writer) int` entrypoint for the moved implementation.
-- [ ] Keep the current adb-go custom UX, command names, flags, usage text, and behavior unchanged.
-- [ ] Leave `cmd/adb-go/main.go` as a thin compatibility wrapper around custom mode only; do not add mode detection yet.
-- [ ] Update package names/imports and test package references after the move.
+- [x] Move the current `cmd/adb-go` CLI implementation into `cmd/adb-go/internal/custom`.
+- [x] Expose a `custom.Run(args []string, stdout, stderr io.Writer) int` entrypoint for the moved implementation.
+- [x] Keep the current adb-go custom UX, command names, flags, usage text, and behavior unchanged.
+- [x] Leave `cmd/adb-go/main.go` as a thin compatibility wrapper around custom mode only; do not add mode detection yet.
+- [x] Update package names/imports and test package references after the move.
 
 Tests:
 
-- [ ] Existing CLI tests pass without intentional expectation changes.
-- [ ] `go test ./...` passes
+- [x] Existing CLI tests pass without intentional expectation changes.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] The current adb-go CLI behavior is preserved exactly while the code lives under `cmd/adb-go/internal/custom`.
+- [x] The current adb-go CLI behavior is preserved exactly while the code lives under `cmd/adb-go/internal/custom`.
 
 ## M63 — Add CLI mode router
 

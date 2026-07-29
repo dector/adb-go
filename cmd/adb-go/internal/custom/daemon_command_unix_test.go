@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package custom
 
 import (
 	"bytes"
@@ -20,9 +20,9 @@ import (
 
 func TestRunDaemonRequiresCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon"}, &stdout, &stderr)
+	code := Run([]string{"daemon"}, &stdout, &stderr)
 	if code != 2 {
-		t.Fatalf("run(daemon) exit code = %d, want 2", code)
+		t.Fatalf("Run(daemon) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -34,9 +34,9 @@ func TestRunDaemonRequiresCommand(t *testing.T) {
 
 func TestRunDaemonRejectsUnknownCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "devices"}, &stdout, &stderr)
+	code := Run([]string{"daemon", "devices"}, &stdout, &stderr)
 	if code != 2 {
-		t.Fatalf("run(daemon devices) exit code = %d, want 2", code)
+		t.Fatalf("Run(daemon devices) exit code = %d, want 2", code)
 	}
 	if got := stderr.String(); !strings.Contains(got, `unknown daemon command "devices"`) {
 		t.Fatalf("stderr = %q, want unknown command error", got)
@@ -46,9 +46,9 @@ func TestRunDaemonRejectsUnknownCommand(t *testing.T) {
 func TestRunDaemonReportsUnavailableSocket(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing.sock")
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", path, "status"}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", path, "status"}, &stdout, &stderr)
 	if code != 1 {
-		t.Fatalf("run(daemon status unavailable) exit code = %d, want 1", code)
+		t.Fatalf("Run(daemon status unavailable) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -63,18 +63,18 @@ func TestRunDaemonPingStatusAndStopWithSocketFlag(t *testing.T) {
 	defer wait()
 
 	var pingOut, pingErr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "ping"}, &pingOut, &pingErr)
+	code := Run([]string{"daemon", "--socket", socketPath, "ping"}, &pingOut, &pingErr)
 	if code != 0 {
-		t.Fatalf("run(daemon ping) exit code = %d, want 0; stderr = %q", code, pingErr.String())
+		t.Fatalf("Run(daemon ping) exit code = %d, want 0; stderr = %q", code, pingErr.String())
 	}
 	if strings.TrimSpace(pingOut.String()) != "pong" {
 		t.Fatalf("ping stdout = %q, want pong", pingOut.String())
 	}
 
 	var statusOut, statusErr bytes.Buffer
-	code = run([]string{"daemon", "--socket", socketPath, "status"}, &statusOut, &statusErr)
+	code = Run([]string{"daemon", "--socket", socketPath, "status"}, &statusOut, &statusErr)
 	if code != 0 {
-		t.Fatalf("run(daemon status) exit code = %d, want 0; stderr = %q", code, statusErr.String())
+		t.Fatalf("Run(daemon status) exit code = %d, want 0; stderr = %q", code, statusErr.String())
 	}
 	gotStatus := statusOut.String()
 	for _, want := range []string{"state: running", "pid:", "socketPath: " + socketPath, "protocolVersion: 1", "uptimeMillis:", "forwardTotal: 0", "forwardListening: 0", "forwardDegraded: 0", "forwardActiveConnections: 0"} {
@@ -84,9 +84,9 @@ func TestRunDaemonPingStatusAndStopWithSocketFlag(t *testing.T) {
 	}
 
 	var stopOut, stopErr bytes.Buffer
-	code = run([]string{"daemon", "--socket", socketPath, "stop"}, &stopOut, &stopErr)
+	code = Run([]string{"daemon", "--socket", socketPath, "stop"}, &stopOut, &stopErr)
 	if code != 0 {
-		t.Fatalf("run(daemon stop) exit code = %d, want 0; stderr = %q", code, stopErr.String())
+		t.Fatalf("Run(daemon stop) exit code = %d, want 0; stderr = %q", code, stopErr.String())
 	}
 	if !strings.Contains(stopOut.String(), "adb-god shutting down") {
 		t.Fatalf("stop stdout = %q, want shutdown message", stopOut.String())
@@ -107,9 +107,9 @@ func TestRunDaemonUsesConfiguredEnvironmentSocketPath(t *testing.T) {
 	t.Setenv(daemon.EnvSocket, socketPath)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "ping"}, &stdout, &stderr)
+	code := Run([]string{"daemon", "ping"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon ping with env socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon ping with env socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if strings.TrimSpace(stdout.String()) != "pong" {
 		t.Fatalf("stdout = %q, want pong", stdout.String())
@@ -122,9 +122,9 @@ func TestRunDaemonDoctorReportsRespondingDaemon(t *testing.T) {
 	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "active", "enabled", 0, 0)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon doctor) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon doctor) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
 	wantSubstrings := []string{"socketPath: " + socketPath, "socketExists: true", "socketType: unix", "daemonProtocol: responding", "daemonState: running", "daemonProtocolVersion: 1", "forwardTotal: 0", "forwardDegraded: 0", "hints: none"}
@@ -171,9 +171,9 @@ func TestRunDaemonDoctorHintsDegradedForwardingState(t *testing.T) {
 	})
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon doctor degraded) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon doctor degraded) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
 	for _, want := range []string{"forwardTotal: 1", "forwardDegraded: 1", "forward --list", "last setup errors"} {
@@ -188,9 +188,9 @@ func TestRunDaemonDoctorReportsMissingSocket(t *testing.T) {
 	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "inactive", "disabled", 3, 1)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon doctor missing socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon doctor missing socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
 	wantSubstrings := []string{"socketPath: " + socketPath, "socketExists: false", "daemonProtocol: not responding", "No daemon socket exists", "service start", "service install"}
@@ -214,9 +214,9 @@ func TestRunDaemonDoctorReportsNonDaemonSocket(t *testing.T) {
 	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "active", "enabled", 0, 0)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", socketPath, "doctor", "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon doctor non-daemon socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon doctor non-daemon socket) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	got := stdout.String()
 	for _, want := range []string{"socketExists: true", "daemonProtocol: not responding", "exists but is not a Unix socket"} {
@@ -236,9 +236,9 @@ func TestRunDaemonInstallWritesSystemdUserUnit(t *testing.T) {
 	unitDir := filepath.Join(t.TempDir(), "systemd", "user")
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", socketPath, "service", "install", "--adb-god", adbGodPath, "--unit-dir", unitDir, "--no-enable"}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", socketPath, "service", "install", "--adb-god", adbGodPath, "--unit-dir", unitDir, "--no-enable"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service install) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service install) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	unitPath := filepath.Join(unitDir, "adb-god.service")
 	unit, err := os.ReadFile(unitPath)
@@ -276,9 +276,9 @@ func TestRunDaemonInstallRunsSystemctlUserCommands(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", filepath.Join(t.TempDir(), "adb-god.sock"), "service", "install", "--adb-god", adbGodPath, "--unit-dir", filepath.Join(t.TempDir(), "units"), "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", filepath.Join(t.TempDir(), "adb-god.sock"), "service", "install", "--adb-god", adbGodPath, "--unit-dir", filepath.Join(t.TempDir(), "units"), "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service install) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service install) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	logBytes, err := os.ReadFile(systemctlLog)
 	if err != nil {
@@ -314,9 +314,9 @@ func TestRunDaemonServiceReinstallRewritesUnitReloadsEnablesAndRestarts(t *testi
 	systemctlPath := writeFakeSystemctl(t, systemctlLog)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "--socket", newSocketPath, "service", "reinstall", "--adb-god", newDaemonPath, "--unit-dir", unitDir, "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "--socket", newSocketPath, "service", "reinstall", "--adb-god", newDaemonPath, "--unit-dir", unitDir, "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service reinstall) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service reinstall) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	unit, err := os.ReadFile(unitPath)
 	if err != nil {
@@ -363,9 +363,9 @@ func TestRunDaemonServiceLifecycleCommands(t *testing.T) {
 			systemctlPath := writeFakeSystemctl(t, systemctlLog)
 
 			var stdout, stderr bytes.Buffer
-			code := run([]string{"daemon", "service", tc.command, "--systemctl", systemctlPath}, &stdout, &stderr)
+			code := Run([]string{"daemon", "service", tc.command, "--systemctl", systemctlPath}, &stdout, &stderr)
 			if code != 0 {
-				t.Fatalf("run(daemon service %s) exit code = %d, want 0; stderr = %q", tc.command, code, stderr.String())
+				t.Fatalf("Run(daemon service %s) exit code = %d, want 0; stderr = %q", tc.command, code, stderr.String())
 			}
 			logBytes, err := os.ReadFile(systemctlLog)
 			if err != nil {
@@ -388,9 +388,9 @@ func TestRunDaemonServiceStatusReportsActiveAndEnabled(t *testing.T) {
 	systemctlPath := writeFakeSystemctlStatus(t, systemctlLog, "active", "enabled", 0, 0)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "service", "status", "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "service", "status", "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service status) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service status) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	logBytes, err := os.ReadFile(systemctlLog)
 	if err != nil {
@@ -411,9 +411,9 @@ func TestRunDaemonServiceStatusReportsInactiveAndDisabled(t *testing.T) {
 	systemctlPath := writeFakeSystemctlStatus(t, filepath.Join(t.TempDir(), "systemctl.log"), "inactive", "disabled", 3, 1)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "service", "status", "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "service", "status", "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service status) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service status) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	wantOut := "active: inactive\nenabled: disabled\n"
 	if stdout.String() != wantOut {
@@ -427,9 +427,9 @@ func TestRunDaemonServiceLogsInvokesJournalctlWithDefaultShape(t *testing.T) {
 	journalctlPath := writeFakeJournalctl(t, journalctlLog, "recent daemon log\n")
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "service", "logs", "--journalctl", journalctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "service", "logs", "--journalctl", journalctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service logs) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service logs) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	logBytes, err := os.ReadFile(journalctlLog)
 	if err != nil {
@@ -450,9 +450,9 @@ func TestRunDaemonServiceLogsHonorsLinesAndFollow(t *testing.T) {
 	journalctlPath := writeFakeJournalctl(t, journalctlLog, "follow log\n")
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "service", "logs", "--journalctl", journalctlPath, "--lines", "25", "--follow"}, &stdout, &stderr)
+	code := Run([]string{"daemon", "service", "logs", "--journalctl", journalctlPath, "--lines", "25", "--follow"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service logs --lines --follow) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service logs --lines --follow) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	logBytes, err := os.ReadFile(journalctlLog)
 	if err != nil {
@@ -470,9 +470,9 @@ func TestRunDaemonServiceLogsHonorsLinesAndFollow(t *testing.T) {
 func TestRunDaemonServiceLogsRejectsNegativeLines(t *testing.T) {
 	requireLinux(t)
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "service", "logs", "--lines", "-1"}, &stdout, &stderr)
+	code := Run([]string{"daemon", "service", "logs", "--lines", "-1"}, &stdout, &stderr)
 	if code != 2 {
-		t.Fatalf("run(daemon service logs --lines -1) exit code = %d, want 2", code)
+		t.Fatalf("Run(daemon service logs --lines -1) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -496,9 +496,9 @@ func TestRunDaemonServiceUninstallDisablesStopsRemovesUnitAndReloads(t *testing.
 	systemctlPath := writeFakeSystemctl(t, systemctlLog)
 
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"daemon", "service", "uninstall", "--unit-dir", unitDir, "--systemctl", systemctlPath}, &stdout, &stderr)
+	code := Run([]string{"daemon", "service", "uninstall", "--unit-dir", unitDir, "--systemctl", systemctlPath}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("run(daemon service uninstall) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(daemon service uninstall) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if _, err := os.Stat(unitPath); !os.IsNotExist(err) {
 		t.Fatalf("unit after uninstall: err = %v, want not exist", err)

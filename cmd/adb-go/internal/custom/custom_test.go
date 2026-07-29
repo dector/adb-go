@@ -1,4 +1,4 @@
-package main
+package custom
 
 import (
 	"bytes"
@@ -30,10 +30,10 @@ import (
 func TestRunShowsUsageWithNoArgs(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run(nil, &stdout, &stderr)
+	code := Run(nil, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(nil) exit code = %d, want 0", code)
+		t.Fatalf("Run(nil) exit code = %d, want 0", code)
 	}
 	if !strings.Contains(stdout.String(), "Usage:") {
 		t.Fatalf("stdout = %q, want usage text", stdout.String())
@@ -46,10 +46,10 @@ func TestRunShowsUsageWithNoArgs(t *testing.T) {
 func TestRunShowsUsageForHelp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"help"}, &stdout, &stderr)
+	code := Run([]string{"help"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(help) exit code = %d, want 0", code)
+		t.Fatalf("Run(help) exit code = %d, want 0", code)
 	}
 	if !strings.Contains(stdout.String(), "Commands:") {
 		t.Fatalf("stdout = %q, want command list", stdout.String())
@@ -62,10 +62,10 @@ func TestRunShowsUsageForHelp(t *testing.T) {
 func TestRunVersionPrintsDevelopmentBuildInfo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"version"}, &stdout, &stderr)
+	code := Run([]string{"version"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(version) exit code = %d, want 0", code)
+		t.Fatalf("Run(version) exit code = %d, want 0", code)
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
@@ -89,10 +89,10 @@ func TestFormatVersion(t *testing.T) {
 func TestRunVersionRejectsArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"version", "extra"}, &stdout, &stderr)
+	code := Run([]string{"version", "extra"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(version extra) exit code = %d, want 2", code)
+		t.Fatalf("Run(version extra) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -105,10 +105,10 @@ func TestRunVersionRejectsArguments(t *testing.T) {
 func TestRunUnknownCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"devices"}, &stdout, &stderr)
+	code := Run([]string{"devices"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(unknown) exit code = %d, want 2", code)
+		t.Fatalf("Run(unknown) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -130,10 +130,10 @@ func TestRunTargetsScanListsDiscoveredTCPTargets(t *testing.T) {
 	})
 	defer restoreScan()
 
-	code := run([]string{"targets", "--scan"}, &stdout, &stderr)
+	code := Run([]string{"targets", "--scan"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(targets --scan) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(targets --scan) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
@@ -158,10 +158,10 @@ func TestRunTargetsReportsScanErrors(t *testing.T) {
 	})
 	defer restoreScan()
 
-	code := run([]string{"targets", "--scan"}, &stdout, &stderr)
+	code := Run([]string{"targets", "--scan"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(targets --scan) exit code = %d, want 1", code)
+		t.Fatalf("Run(targets --scan) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -179,10 +179,10 @@ func TestRunTargetsListsEnvAndUSBTargets(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"targets"}, &stdout, &stderr)
+	code := Run([]string{"targets"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(targets) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(targets) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
@@ -203,10 +203,10 @@ func TestRunTargetsHandlesUnsupportedUSBWithoutTargets(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"targets"}, &stdout, &stderr)
+	code := Run([]string{"targets"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(targets unsupported USB) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(targets unsupported USB) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
@@ -224,10 +224,10 @@ func TestRunTargetsReportsUSBErrors(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"targets"}, &stdout, &stderr)
+	code := Run([]string{"targets"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(targets USB error) exit code = %d, want 1", code)
+		t.Fatalf("Run(targets USB error) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -387,10 +387,10 @@ func TestRunShellUsesUSBConnection(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"shell", "--usb-path", "/dev/bus/usb/001/002", "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--usb-path", "/dev/bus/usb/001/002", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(shell --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(shell --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -407,10 +407,10 @@ func TestRunShellAuthRequiredSuggestsAuthKey(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"shell", "--addr", "127.0.0.1:5555", "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--addr", "127.0.0.1:5555", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(shell auth required) exit code = %d, want 1", code)
+		t.Fatalf("Run(shell auth required) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -423,10 +423,10 @@ func TestRunShellAuthRequiredSuggestsAuthKey(t *testing.T) {
 func TestRunRejectsConflictingTCPAndUSBFlags(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"shell", "--addr", "127.0.0.1:5555", "--usb", "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--addr", "127.0.0.1:5555", "--usb", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(conflicting connection flags) exit code = %d, want 2", code)
+		t.Fatalf("Run(conflicting connection flags) exit code = %d, want 2", code)
 	}
 	if got := stderr.String(); !strings.Contains(got, "cannot combine TCP --addr with USB") {
 		t.Fatalf("stderr = %q, want TCP/USB conflict error", got)
@@ -436,10 +436,10 @@ func TestRunRejectsConflictingTCPAndUSBFlags(t *testing.T) {
 func TestRunShellMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"shell", "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(shell missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(shell missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -452,10 +452,10 @@ func TestRunShellMissingAddr(t *testing.T) {
 func TestRunShellMissingCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"shell", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(shell missing command) exit code = %d, want 2", code)
+		t.Fatalf("Run(shell missing command) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -470,10 +470,10 @@ func TestRunShellStreamsOutput(t *testing.T) {
 	server.Handle("shell:echo hello", writeCLIShellOutput(t, "hello\n"))
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"shell", "--addr", server.Addr(), "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--addr", server.Addr(), "echo", "hello"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(shell) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(shell) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != "hello\n" {
 		t.Fatalf("stdout = %q, want hello newline", stdout.String())
@@ -493,10 +493,10 @@ func TestRunShellJoinsCommandArguments(t *testing.T) {
 	})
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"shell", "--addr", server.Addr(), "pm", "list", "packages", "|", "grep", "example"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--addr", server.Addr(), "pm", "list", "packages", "|", "grep", "example"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(shell) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(shell) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if got := <-opened; got != wantService {
 		t.Fatalf("opened service = %q, want %q", got, wantService)
@@ -513,10 +513,10 @@ func TestRunShellConnectFailure(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"shell", "--addr", "127.0.0.1:5555", "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--addr", "127.0.0.1:5555", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(shell connect failure) exit code = %d, want 1", code)
+		t.Fatalf("Run(shell connect failure) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -533,10 +533,10 @@ func TestRunShellUnsupportedUSBConnectFailure(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"shell", "--usb", "echo", "hello"}, &stdout, &stderr)
+	code := Run([]string{"shell", "--usb", "echo", "hello"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(shell unsupported USB) exit code = %d, want 1", code)
+		t.Fatalf("Run(shell unsupported USB) exit code = %d, want 1", code)
 	}
 	if got := stderr.String(); !strings.Contains(got, "operation unsupported") || !strings.Contains(got, "requested transport or selector") {
 		t.Fatalf("stderr = %q, want unsupported-platform guidance", got)
@@ -566,10 +566,10 @@ func TestFormatCLIErrorAddsActionableHints(t *testing.T) {
 func TestRunLogcatMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"logcat"}, &stdout, &stderr)
+	code := Run([]string{"logcat"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(logcat missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(logcat missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -582,10 +582,10 @@ func TestRunLogcatMissingAddr(t *testing.T) {
 func TestRunLogcatRejectsUnexpectedArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"logcat", "--addr", "127.0.0.1:5555", "*:I"}, &stdout, &stderr)
+	code := Run([]string{"logcat", "--addr", "127.0.0.1:5555", "*:I"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(logcat unexpected arg) exit code = %d, want 2", code)
+		t.Fatalf("Run(logcat unexpected arg) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -610,10 +610,10 @@ func TestRunLogcatUsesConnectionFlagsAndDumpOption(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"logcat", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "--dump"}, &stdout, &stderr)
+	code := Run([]string{"logcat", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "--dump"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(logcat --dump) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(logcat --dump) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != "dumped log\n" {
 		t.Fatalf("stdout = %q, want dumped log", stdout.String())
@@ -647,10 +647,10 @@ func TestRunLogcatUsesUSBConnection(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"logcat", "--usb-path", "/dev/bus/usb/001/002"}, &stdout, &stderr)
+	code := Run([]string{"logcat", "--usb-path", "/dev/bus/usb/001/002"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(logcat --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(logcat --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -665,10 +665,10 @@ func TestRunLogcatStreamsOutput(t *testing.T) {
 	server.Handle("shell:logcat", writeCLIShellOutput(t, "01-02 03:04:05.678  123  456 I Tag: hello\n"))
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"logcat", "--addr", server.Addr()}, &stdout, &stderr)
+	code := Run([]string{"logcat", "--addr", server.Addr()}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(logcat) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(logcat) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != "01-02 03:04:05.678  123  456 I Tag: hello\n" {
 		t.Fatalf("stdout = %q, want log line", stdout.String())
@@ -687,10 +687,10 @@ func TestRunLogcatReportsStreamingFailure(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"logcat", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+	code := Run([]string{"logcat", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(logcat failure) exit code = %d, want 1", code)
+		t.Fatalf("Run(logcat failure) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -703,10 +703,10 @@ func TestRunLogcatReportsStreamingFailure(t *testing.T) {
 func TestRunGetPropMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"getprop", "ro.product.model"}, &stdout, &stderr)
+	code := Run([]string{"getprop", "ro.product.model"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(getprop missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(getprop missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -719,10 +719,10 @@ func TestRunGetPropMissingAddr(t *testing.T) {
 func TestRunGetPropRejectsExtraArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"getprop", "--addr", "127.0.0.1:5555", "ro.product.model", "extra"}, &stdout, &stderr)
+	code := Run([]string{"getprop", "--addr", "127.0.0.1:5555", "ro.product.model", "extra"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(getprop extra arg) exit code = %d, want 2", code)
+		t.Fatalf("Run(getprop extra arg) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -746,10 +746,10 @@ func TestRunGetPropUsesConnectionFlagsForOneProperty(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"getprop", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "ro.product.model"}, &stdout, &stderr)
+	code := Run([]string{"getprop", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "ro.product.model"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(getprop property) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(getprop property) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != "Pixel Fixture\n" {
 		t.Fatalf("stdout = %q, want property value", stdout.String())
@@ -779,10 +779,10 @@ func TestRunGetPropUsesUSBConnectionForAllProperties(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"getprop", "--usb-path", "/dev/bus/usb/001/002"}, &stdout, &stderr)
+	code := Run([]string{"getprop", "--usb-path", "/dev/bus/usb/001/002"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(getprop --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(getprop --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -798,10 +798,10 @@ func TestRunGetPropReadsOnePropertyThroughADB(t *testing.T) {
 	server.Handle("shell:getprop 'ro.product.model'", writeCLIShellOutput(t, "Pixel Fixture\n"))
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"getprop", "--addr", server.Addr(), "ro.product.model"}, &stdout, &stderr)
+	code := Run([]string{"getprop", "--addr", server.Addr(), "ro.product.model"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(getprop property) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(getprop property) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != "Pixel Fixture\n" {
 		t.Fatalf("stdout = %q, want property value", stdout.String())
@@ -816,10 +816,10 @@ func TestRunGetPropReadsAllPropertiesThroughADB(t *testing.T) {
 	server.Handle("shell:getprop", writeCLIShellOutput(t, "[ro.product.model]: [Pixel Fixture]\n[ro.build.version.sdk]: [35]\n"))
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"getprop", "--addr", server.Addr()}, &stdout, &stderr)
+	code := Run([]string{"getprop", "--addr", server.Addr()}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(getprop all) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(getprop all) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	want := "[ro.build.version.sdk]: [35]\n[ro.product.model]: [Pixel Fixture]\n"
 	if stdout.String() != want {
@@ -839,10 +839,10 @@ func TestRunGetPropReportsErrors(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"getprop", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+	code := Run([]string{"getprop", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(getprop failure) exit code = %d, want 1", code)
+		t.Fatalf("Run(getprop failure) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -855,10 +855,10 @@ func TestRunGetPropReportsErrors(t *testing.T) {
 func TestRunScreencapMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"screencap"}, &stdout, &stderr)
+	code := Run([]string{"screencap"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(screencap missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(screencap missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -871,10 +871,10 @@ func TestRunScreencapMissingAddr(t *testing.T) {
 func TestRunScreencapRejectsExtraArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", "one.png", "two.png"}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", "127.0.0.1:5555", "one.png", "two.png"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(screencap extra args) exit code = %d, want 2", code)
+		t.Fatalf("Run(screencap extra args) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -901,10 +901,10 @@ func TestRunScreencapUsesDefaultTimestampedPath(t *testing.T) {
 	_ = os.Remove(localPath)
 	defer os.Remove(localPath)
 
-	code := run([]string{"screencap", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(screencap default path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(screencap default path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != localPath+"\n" {
 		t.Fatalf("stdout = %q, want written path", stdout.String())
@@ -934,10 +934,10 @@ func TestRunScreencapUsesConnectionFlagsAndCustomPath(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, localPath}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, localPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(screencap custom path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(screencap custom path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.String() != localPath+"\n" {
 		t.Fatalf("stdout = %q, want written path", stdout.String())
@@ -969,10 +969,10 @@ func TestRunScreencapUsesUSBConnection(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"screencap", "--usb-path", "/dev/bus/usb/001/002", localPath}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--usb-path", "/dev/bus/usb/001/002", localPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(screencap --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(screencap --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -995,10 +995,10 @@ func TestRunScreencapDoesNotOverwriteExistingDestinationByDefault(t *testing.T) 
 	})
 	defer restore()
 
-	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", localPath}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", "127.0.0.1:5555", localPath}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(screencap existing destination) exit code = %d, want 1", code)
+		t.Fatalf("Run(screencap existing destination) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1028,10 +1028,10 @@ func TestRunScreencapOverwriteReplacesExistingDestination(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", "--overwrite", localPath}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", "127.0.0.1:5555", "--overwrite", localPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(screencap --overwrite) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(screencap --overwrite) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	contents, err := os.ReadFile(localPath)
 	if err != nil {
@@ -1048,10 +1048,10 @@ func TestRunScreencapCapturesThroughADB(t *testing.T) {
 	localPath := filepath.Join(t.TempDir(), "screen.png")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"screencap", "--addr", server.Addr(), localPath}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", server.Addr(), localPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(screencap) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(screencap) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	contents, err := os.ReadFile(localPath)
 	if err != nil {
@@ -1071,10 +1071,10 @@ func TestRunScreencapReportsCaptureFailure(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"screencap", "--addr", "127.0.0.1:5555", filepath.Join(t.TempDir(), "screen.png")}, &stdout, &stderr)
+	code := Run([]string{"screencap", "--addr", "127.0.0.1:5555", filepath.Join(t.TempDir(), "screen.png")}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(screencap failure) exit code = %d, want 1", code)
+		t.Fatalf("Run(screencap failure) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1087,10 +1087,10 @@ func TestRunScreencapReportsCaptureFailure(t *testing.T) {
 func TestRunRebootMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"reboot"}, &stdout, &stderr)
+	code := Run([]string{"reboot"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(reboot missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(reboot missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1103,10 +1103,10 @@ func TestRunRebootMissingAddr(t *testing.T) {
 func TestRunRebootRejectsExtraArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"reboot", "--addr", "127.0.0.1:5555", "bootloader", "extra"}, &stdout, &stderr)
+	code := Run([]string{"reboot", "--addr", "127.0.0.1:5555", "bootloader", "extra"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(reboot extra arg) exit code = %d, want 2", code)
+		t.Fatalf("Run(reboot extra arg) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1119,10 +1119,10 @@ func TestRunRebootRejectsExtraArguments(t *testing.T) {
 func TestRunRebootRejectsUnsupportedMode(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"reboot", "--addr", "127.0.0.1:5555", "sideload"}, &stdout, &stderr)
+	code := Run([]string{"reboot", "--addr", "127.0.0.1:5555", "sideload"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(reboot unsupported mode) exit code = %d, want 2", code)
+		t.Fatalf("Run(reboot unsupported mode) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1146,10 +1146,10 @@ func TestRunRebootUsesConnectionFlagsAndNormalMode(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"reboot", "--addr", "127.0.0.1:5555", "--auth-key", keyPath}, &stdout, &stderr)
+	code := Run([]string{"reboot", "--addr", "127.0.0.1:5555", "--auth-key", keyPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(reboot) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(reboot) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1181,10 +1181,10 @@ func TestRunRebootUsesUSBConnectionAndMode(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"reboot", "--usb-path", "/dev/bus/usb/001/002", "recovery"}, &stdout, &stderr)
+	code := Run([]string{"reboot", "--usb-path", "/dev/bus/usb/001/002", "recovery"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(reboot --usb-path recovery) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(reboot --usb-path recovery) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -1200,10 +1200,10 @@ func TestRunRebootOpensServiceThroughADB(t *testing.T) {
 	server.Handle("reboot:bootloader", cliRebootServiceHandler(t, opened))
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"reboot", "--addr", server.Addr(), "bootloader"}, &stdout, &stderr)
+	code := Run([]string{"reboot", "--addr", server.Addr(), "bootloader"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(reboot bootloader) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(reboot bootloader) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1225,10 +1225,10 @@ func TestRunRebootReportsFailure(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"reboot", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
+	code := Run([]string{"reboot", "--addr", "127.0.0.1:5555"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(reboot failure) exit code = %d, want 1", code)
+		t.Fatalf("Run(reboot failure) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1241,10 +1241,10 @@ func TestRunRebootReportsFailure(t *testing.T) {
 func TestRunForwardMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"forward", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+	code := Run([]string{"forward", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(forward missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(forward missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1261,10 +1261,10 @@ func TestRunForwardRejectsWrongArgCount(t *testing.T) {
 	} {
 		var stdout, stderr bytes.Buffer
 
-		code := run(args, &stdout, &stderr)
+		code := Run(args, &stdout, &stderr)
 
 		if code != 2 {
-			t.Fatalf("run(%v) exit code = %d, want 2", args, code)
+			t.Fatalf("Run(%v) exit code = %d, want 2", args, code)
 		}
 		if stdout.Len() != 0 {
 			t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1283,10 +1283,10 @@ func TestRunForwardRejectsUnsupportedTargets(t *testing.T) {
 	} {
 		var stdout, stderr bytes.Buffer
 
-		code := run(args, &stdout, &stderr)
+		code := Run(args, &stdout, &stderr)
 
 		if code != 2 {
-			t.Fatalf("run(%v) exit code = %d, want 2", args, code)
+			t.Fatalf("Run(%v) exit code = %d, want 2", args, code)
 		}
 		if stdout.Len() != 0 {
 			t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1312,10 +1312,10 @@ func TestRunForwardUsesConnectionFlagsAndStartsForegroundSession(t *testing.T) {
 	})
 	defer restoreForward()
 
-	code := run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+	code := Run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
 		t.Fatalf("connect target = %+v, want TCP addr", gotTarget)
@@ -1344,10 +1344,10 @@ func TestRunForwardUsesUSBConnection(t *testing.T) {
 	})
 	defer restoreForward()
 
-	code := run([]string{"forward", "--usb-path", "/dev/bus/usb/001/002", "tcp:0", "tcp:8000"}, &stdout, &stderr)
+	code := Run([]string{"forward", "--usb-path", "/dev/bus/usb/001/002", "tcp:0", "tcp:8000"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(forward --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(forward --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -1366,10 +1366,10 @@ func TestRunForwardCreatesBackgroundDaemonForward(t *testing.T) {
 	})
 	defer restoreSend()
 
-	code := run([]string{"forward", "--socket", "/tmp/adb-god.sock", "--background", "--addr", "127.0.0.1", "tcp:0", "tcp:8000"}, &stdout, &stderr)
+	code := Run([]string{"forward", "--socket", "/tmp/adb-god.sock", "--background", "--addr", "127.0.0.1", "tcp:0", "tcp:8000"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(forward --background) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(forward --background) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if gotSocket != "/tmp/adb-god.sock" {
 		t.Fatalf("daemon socket = %q, want configured socket", gotSocket)
@@ -1415,10 +1415,10 @@ func TestRunForwardDaemonListAndRemoveCommands(t *testing.T) {
 			})
 			defer restoreSend()
 
-			code := run(tt.args, &stdout, &stderr)
+			code := Run(tt.args, &stdout, &stderr)
 
 			if code != 0 {
-				t.Fatalf("run(%v) exit code = %d, want 0; stderr = %q", tt.args, code, stderr.String())
+				t.Fatalf("Run(%v) exit code = %d, want 0; stderr = %q", tt.args, code, stderr.String())
 			}
 			if gotReq.Command != tt.wantCommand {
 				t.Fatalf("command = %q, want %q", gotReq.Command, tt.wantCommand)
@@ -1447,10 +1447,10 @@ func TestRunForwardKeepsForegroundPathWhenDaemonFlagsAreAbsent(t *testing.T) {
 	})
 	defer restoreForward()
 
-	code := run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+	code := Run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(foreground forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(foreground forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if calledDaemon {
 		t.Fatal("foreground forward called daemon sender")
@@ -1474,10 +1474,10 @@ func TestRunForwardReportsDaemonUnavailableAndTooOld(t *testing.T) {
 			})
 			defer restoreSend()
 
-			code := run([]string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, &stdout, &stderr)
+			code := Run([]string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, &stdout, &stderr)
 
 			if code != 1 {
-				t.Fatalf("run(forward --list %s) exit code = %d, want 1", tc.name, code)
+				t.Fatalf("Run(forward --list %s) exit code = %d, want 1", tc.name, code)
 			}
 			if !strings.Contains(stderr.String(), tc.wantSubstr) || !strings.Contains(stderr.String(), "daemon doctor") {
 				t.Fatalf("stderr = %q, want daemon guidance %q", stderr.String(), tc.wantSubstr)
@@ -1510,10 +1510,10 @@ func TestRunForwardReportsSetupAndWaitErrors(t *testing.T) {
 			})
 			defer restoreForward()
 
-			code := run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+			code := Run([]string{"forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
 
 			if code != 1 {
-				t.Fatalf("run(forward %s error) exit code = %d, want 1", tc.name, code)
+				t.Fatalf("Run(forward %s error) exit code = %d, want 1", tc.name, code)
 			}
 			if got := stderr.String(); !strings.Contains(got, tc.wantSubstr) {
 				t.Fatalf("stderr = %q, want %q", got, tc.wantSubstr)
@@ -1549,10 +1549,10 @@ func TestParseRebootMode(t *testing.T) {
 func TestRunPushMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"push", "./local.txt", "/data/local/tmp/local.txt"}, &stdout, &stderr)
+	code := Run([]string{"push", "./local.txt", "/data/local/tmp/local.txt"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(push missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(push missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1575,10 +1575,10 @@ func TestRunPushWrongArgCount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
-			code := run(tt.args, &stdout, &stderr)
+			code := Run(tt.args, &stdout, &stderr)
 
 			if code != 2 {
-				t.Fatalf("run(push wrong arg count) exit code = %d, want 2", code)
+				t.Fatalf("Run(push wrong arg count) exit code = %d, want 2", code)
 			}
 			if stdout.Len() != 0 {
 				t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1599,10 +1599,10 @@ func TestRunPushMissingLocalFileShowsPathHint(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"push", "--addr", "127.0.0.1:5555", "./missing.txt", "/data/local/tmp/missing.txt"}, &stdout, &stderr)
+	code := Run([]string{"push", "--addr", "127.0.0.1:5555", "./missing.txt", "/data/local/tmp/missing.txt"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(push missing local file) exit code = %d, want 1", code)
+		t.Fatalf("Run(push missing local file) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1622,10 +1622,10 @@ func TestRunPushTransfersFile(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"push", "--addr", server.Addr(), localPath, "/data/local/tmp/local.txt"}, &stdout, &stderr)
+	code := Run([]string{"push", "--addr", server.Addr(), localPath, "/data/local/tmp/local.txt"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(push) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(push) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1645,10 +1645,10 @@ func TestRunPushTransfersFile(t *testing.T) {
 func TestRunInstallAPKMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"install-apk", "./app.apk"}, &stdout, &stderr)
+	code := Run([]string{"install-apk", "./app.apk"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(install-apk missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(install-apk missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1671,10 +1671,10 @@ func TestRunInstallAPKWrongArgCount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
-			code := run(tt.args, &stdout, &stderr)
+			code := Run(tt.args, &stdout, &stderr)
 
 			if code != 2 {
-				t.Fatalf("run(install-apk wrong arg count) exit code = %d, want 2", code)
+				t.Fatalf("Run(install-apk wrong arg count) exit code = %d, want 2", code)
 			}
 			if stdout.Len() != 0 {
 				t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1702,10 +1702,10 @@ func TestRunInstallAPKUsesConnectionFlagsAndReplaceOption(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"install-apk", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "--replace", "./app.apk"}, &stdout, &stderr)
+	code := Run([]string{"install-apk", "--addr", "127.0.0.1:5555", "--auth-key", keyPath, "--replace", "./app.apk"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(install-apk --replace) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(install-apk --replace) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.Len() != 0 || stderr.Len() != 0 {
 		t.Fatalf("stdout/stderr = %q/%q, want empty", stdout.String(), stderr.String())
@@ -1738,10 +1738,10 @@ func TestRunInstallAPKUsesUSBConnection(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"install-apk", "--usb-path", "/dev/bus/usb/001/002", "./app.apk"}, &stdout, &stderr)
+	code := Run([]string{"install-apk", "--usb-path", "/dev/bus/usb/001/002", "./app.apk"}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(install-apk --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(install-apk --usb-path) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if !gotTarget.usb || gotTarget.usbOptions.DevicePath != "/dev/bus/usb/001/002" {
 		t.Fatalf("connect target = %+v, want USB path selection", gotTarget)
@@ -1757,10 +1757,10 @@ func TestRunInstallAPKReportsPackageManagerFailure(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"install-apk", "--addr", "127.0.0.1:5555", "./app.apk"}, &stdout, &stderr)
+	code := Run([]string{"install-apk", "--addr", "127.0.0.1:5555", "./app.apk"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(install-apk failure) exit code = %d, want 1", code)
+		t.Fatalf("Run(install-apk failure) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1773,10 +1773,10 @@ func TestRunInstallAPKReportsPackageManagerFailure(t *testing.T) {
 func TestRunPullMissingAddr(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"pull", "/data/local/tmp/remote.txt", "./remote.txt"}, &stdout, &stderr)
+	code := Run([]string{"pull", "/data/local/tmp/remote.txt", "./remote.txt"}, &stdout, &stderr)
 
 	if code != 2 {
-		t.Fatalf("run(pull missing addr) exit code = %d, want 2", code)
+		t.Fatalf("Run(pull missing addr) exit code = %d, want 2", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1799,10 +1799,10 @@ func TestRunPullWrongArgCount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
-			code := run(tt.args, &stdout, &stderr)
+			code := Run(tt.args, &stdout, &stderr)
 
 			if code != 2 {
-				t.Fatalf("run(pull wrong arg count) exit code = %d, want 2", code)
+				t.Fatalf("Run(pull wrong arg count) exit code = %d, want 2", code)
 			}
 			if stdout.Len() != 0 {
 				t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1823,10 +1823,10 @@ func TestRunPullExistingDestinationSuggestsOverwrite(t *testing.T) {
 	})
 	defer restore()
 
-	code := run([]string{"pull", "--addr", "127.0.0.1:5555", "/data/local/tmp/remote.txt", "./remote.txt"}, &stdout, &stderr)
+	code := Run([]string{"pull", "--addr", "127.0.0.1:5555", "/data/local/tmp/remote.txt", "./remote.txt"}, &stdout, &stderr)
 
 	if code != 1 {
-		t.Fatalf("run(pull existing destination) exit code = %d, want 1", code)
+		t.Fatalf("Run(pull existing destination) exit code = %d, want 1", code)
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1843,10 +1843,10 @@ func TestRunPullTransfersFile(t *testing.T) {
 	localPath := filepath.Join(t.TempDir(), "remote.txt")
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"pull", "--addr", server.Addr(), "/data/local/tmp/remote.txt", localPath}, &stdout, &stderr)
+	code := Run([]string{"pull", "--addr", server.Addr(), "/data/local/tmp/remote.txt", localPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(pull) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(pull) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
@@ -1876,10 +1876,10 @@ func TestRunPullOverwriteReplacesExistingDestination(t *testing.T) {
 	}
 	var stdout, stderr bytes.Buffer
 
-	code := run([]string{"pull", "--addr", server.Addr(), "--overwrite", "/data/local/tmp/remote.txt", localPath}, &stdout, &stderr)
+	code := Run([]string{"pull", "--addr", server.Addr(), "--overwrite", "/data/local/tmp/remote.txt", localPath}, &stdout, &stderr)
 
 	if code != 0 {
-		t.Fatalf("run(pull --overwrite) exit code = %d, want 0; stderr = %q", code, stderr.String())
+		t.Fatalf("Run(pull --overwrite) exit code = %d, want 0; stderr = %q", code, stderr.String())
 	}
 	if got := <-requested; got != "/data/local/tmp/remote.txt" {
 		t.Fatalf("pulled remote path = %q, want /data/local/tmp/remote.txt", got)
