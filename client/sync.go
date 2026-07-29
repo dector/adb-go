@@ -184,7 +184,7 @@ func (c *Client) PushFile(ctx context.Context, localPath, remotePath string) err
 	defer stopCancelCloser()
 
 	// TODO(sync): Add explicit push options for remote mode and mtime. v0 uses
-	// the adb-compatible default file mode requested in SPEC.md and the local
+	// the adb-compatible default file mode requested in docs/init/SPEC.md and the local
 	// file's modification time.
 	const defaultRemoteMode = 0o644
 	sendPayload := []byte(remotePath + "," + strconv.FormatUint(defaultRemoteMode, 10))
