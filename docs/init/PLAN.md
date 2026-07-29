@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M64 — Add adb-compatible CLI skeleton.
-- Completed milestone range: Milestones 17–63 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, and the CLI custom/compat mode router.
+- Current milestone: M65 — Add compat daemon/server foundation.
+- Completed milestone range: Milestones 17–64 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, and the adb-compatible CLI skeleton.
 - Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -95,27 +95,27 @@ Done when:
 
 ## M64 — Add adb-compatible CLI skeleton
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add adb compat skeleton`
 
 Tasks:
 
-- [ ] Add `cmd/adb-go/internal/compat` with an independent `compat.Run(args []string, stdout, stderr io.Writer) int` implementation.
-- [ ] Implement compat `help`, `--help`, no-args, unknown command, and `version` behavior using the current Android SDK Platform-Tools `adb` output shape as the reference.
-- [ ] Make compat `version` adb-shaped but explicit that the implementation is adb-go, for example with an `(adb-go compat)` marker or equivalent wording.
-- [ ] Keep custom-only commands and flags such as `targets`, `daemon`, `install-apk`, `--addr`, `--usb`, and `ADB_GO_ADDR` out of compat mode.
-- [ ] Parse official-style global options enough for host-only skeleton commands, including `-H` and `-P` before `version`.
+- [x] Add `cmd/adb-go/internal/compat` with an independent `compat.Run(args []string, stdout, stderr io.Writer) int` implementation.
+- [x] Implement compat `help`, `--help`, no-args, unknown command, and `version` behavior using the current Android SDK Platform-Tools `adb` output shape as the reference.
+- [x] Make compat `version` adb-shaped but explicit that the implementation is adb-go, for example with an `(adb-go compat)` marker or equivalent wording.
+- [x] Keep custom-only commands and flags such as `targets`, `daemon`, `install-apk`, `--addr`, `--usb`, and `ADB_GO_ADDR` out of compat mode.
+- [x] Parse official-style global options enough for host-only skeleton commands, including `-H` and `-P` before `version`.
 
 Tests:
 
-- [ ] Compat tests cover `help`, `--help`, no args, `-h`, unknown commands, `version`, and global `-H`/`-P` with `version`.
-- [ ] Snapshot-style assertions cover important stdout/stderr placement and exit codes from the captured official adb reference.
-- [ ] `go test ./...` passes
+- [x] Compat tests cover `help`, `--help`, no args, `-h`, unknown commands, `version`, and global `-H`/`-P` with `version`.
+- [x] Snapshot-style assertions cover important stdout/stderr placement and exit codes from the captured official adb reference.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Compat mode has a real adb-shaped host-only skeleton while remaining independent from custom mode.
+- [x] Compat mode has a real adb-shaped host-only skeleton while remaining independent from custom mode.
 
 ## M65 — Add compat daemon/server foundation
 

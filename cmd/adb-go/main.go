@@ -14,5 +14,6 @@ var version = "dev"
 
 func main() {
 	custom.Version = version
+	compat.Version = version
 	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr, os.Args[0], os.Getenv("ADB_GO_MODE"), custom.Run, compat.Run))
 }

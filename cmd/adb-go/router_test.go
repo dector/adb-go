@@ -6,8 +6,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/dector/adb-go/cmd/adb-go/internal/compat"
 )
 
 func TestRunCLIDefaultsToCustomMode(t *testing.T) {
@@ -96,23 +94,6 @@ func TestRunCLIUsesCompatModeForADBExecutableBasenames(t *testing.T) {
 				t.Fatalf("custom calls = %d, compat calls = %d; want compat only", calls.customCalls, calls.compatCalls)
 			}
 		})
-	}
-}
-
-func TestCompatPlaceholderReportsNotImplemented(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	calls := recordingRunners()
-
-	code := runCLI([]string{"devices"}, &stdout, &stderr, "adb", "", calls.custom, compat.Run)
-
-	if code != 1 {
-		t.Fatalf("runCLI compat placeholder exit code = %d, want 1", code)
-	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout = %q, want empty", stdout.String())
-	}
-	if got := stderr.String(); !strings.Contains(got, "compat mode is not implemented yet") {
-		t.Fatalf("stderr = %q, want compat placeholder message", got)
 	}
 }
 
