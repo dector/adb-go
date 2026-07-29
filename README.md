@@ -14,6 +14,7 @@ applications, with an experimental CLI wrapper for supported workflows.
 ## Contents
 
 - [Install](#install)
+- [Overview](#overview)
 - [High-level client API](#high-level-client-api)
 - [Linux USB support](#linux-usb-support)
 - [Authentication helpers](#authentication-helpers)
@@ -37,6 +38,30 @@ import adb "github.com/dector/adb-go"
 The current TCP and Linux USB implementation uses only the Go standard library:
 no Android SDK, platform-tools, official `adb` binary, cgo, libusb, or native
 dependencies are required.
+
+## Overview
+
+adb-go is layered from low-level ADB protocol primitives up to high-level
+library workflows, with the CLI and daemon built on top.
+
+```mermaid
+block-beta
+  columns 2
+
+  cli["CMD/ADB-GO<br/>(experimental CLI)"]
+  daemon["CMD/ADB-GOD<br/>(daemon foundation)"]
+
+  root["GITHUB.COM/DECTOR/ADB-GO<br/>(stable high-level API)"]:2
+
+  workflows["CLIENT WORKFLOWS<br/>(shell · push/pull · install · logcat · screencap · reboot · forward)"]:2
+
+  client["CLIENT<br/>(connections, services, device operations)"]:2
+
+  auth["AUTH<br/>(RSA key loading and signing)"]
+  transports["TRANSPORTS<br/>(TCP · Linux USB)"]
+
+  protocol["PROTOCOL<br/>(ADB packets · handshake · streams)"]:2
+```
 
 ## High-level client API
 
