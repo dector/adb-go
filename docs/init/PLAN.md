@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M61 — Surface persistent forwarding diagnostics.
-- Completed milestone range: Milestones 17–60 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, and CLI persistent forwarding controls.
-- Active focus: implement daemon-owned persistent TCP forwarding in small slices while preserving the existing foreground forwarding behavior and avoiding durable daemon-owned ADB state until explicitly designed.
+- Current milestone: M62 — Extract custom CLI mode package.
+- Completed milestone range: Milestones 17–61 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, and persistent forwarding diagnostics.
+- Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -45,128 +45,126 @@ Milestone rules:
 - Use grouped numbering such as `M40.1`, `M40.2`, and `M41.1` for related slices of one feature area.
 - Do not keep fully implemented milestone bodies in this file long term; summarize completed ranges in `Progress` instead.
 
-## M57 — Add daemon forwarding protocol model
+## M62 — Extract custom CLI mode package
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(daemon): add forwarding protocol model`
-
-Tasks:
-
-- [x] Add daemon request/response types for `forward_create`, `forward_list`, `forward_remove`, and `forward_remove_all`.
-- [x] Define stable forwarding error codes such as `address_in_use`, `unsupported_endpoint`, `bad_target`, `rebind_disallowed`, and `forward_not_found`.
-- [x] Add validation for the first supported endpoint families without opening listeners or ADB device connections.
-- [x] Keep the protocol backward-compatible with existing `ping`, `status`, and `shutdown` commands.
-
-Tests:
-
-- [x] Unit tests cover JSON request/response handling for forwarding commands.
-- [x] Unit tests cover validation and stable daemon error codes.
-- [x] Existing daemon protocol tests continue to pass.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] The daemon protocol can parse, validate, and report forwarding commands without yet owning real listeners.
-
-## M58 — Add daemon forwarding registry and TCP listener ownership
-
-Status: Implemented
-
-Commit: `feat(daemon): add forwarding listener registry`
+Commit: `refactor(cli): extract custom mode package`
 
 Tasks:
 
-- [x] Add an in-memory daemon forwarding registry keyed by generated ID and local endpoint.
-- [x] Implement daemon-owned loopback TCP listener creation for supported local `tcp:PORT` endpoints.
-- [x] Implement list, remove-by-ID, remove-by-local, and remove-all behavior against daemon-owned listeners.
-- [x] Implement rebind and `norebind` semantics for daemon-owned forwards only.
-- [x] Ensure daemon shutdown closes forwarding listeners and active registry entries.
+- [ ] Move the current `cmd/adb-go` CLI implementation into `cmd/adb-go/internal/custom`.
+- [ ] Expose a `custom.Run(args []string, stdout, stderr io.Writer) int` entrypoint for the moved implementation.
+- [ ] Keep the current adb-go custom UX, command names, flags, usage text, and behavior unchanged.
+- [ ] Leave `cmd/adb-go/main.go` as a thin compatibility wrapper around custom mode only; do not add mode detection yet.
+- [ ] Update package names/imports and test package references after the move.
 
 Tests:
 
-- [x] Daemon tests cover create/list/remove/remove-all with isolated local TCP ports.
-- [x] Daemon tests cover ephemeral `tcp:0`, address-in-use, and rebind-disallowed behavior.
-- [x] Daemon shutdown tests cover listener cleanup.
-- [x] `go test ./...` passes
+- [ ] Existing CLI tests pass without intentional expectation changes.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] `adb-god` can own and manage persistent local TCP listener registrations through the daemon protocol, without bridging ADB traffic yet.
+- [ ] The current adb-go CLI behavior is preserved exactly while the code lives under `cmd/adb-go/internal/custom`.
 
-## M59 — Bridge daemon forwards to TCP ADB targets
+## M63 — Add CLI mode router
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(daemon): bridge persistent forwards`
+Commit: `feat(cli): add custom and compat mode router`
 
 Tasks:
 
-- [x] For each accepted daemon-owned local TCP connection, connect to the explicit TCP ADB target from the forwarding registration.
-- [x] Open the configured remote `tcp:PORT` ADB service for each accepted host connection.
-- [x] Copy bytes in both directions and close both sides when either side finishes.
-- [x] Track active connection counts and last connection/setup errors for list diagnostics.
-- [x] Keep USB target persistence out of scope for this first bridge slice.
+- [ ] Replace `cmd/adb-go/main.go` with a tiny router that only detects mode and dispatches to the selected implementation.
+- [ ] Select compat mode when `ADB_GO_MODE=compat` or the executable basename is exactly `adb` or `adb.exe`.
+- [ ] Select custom mode when `ADB_GO_MODE=custom` or when no compat signal is present.
+- [ ] Reject any other non-empty `ADB_GO_MODE` value with exit code `2`.
+- [ ] Do not support bootstrap flags such as `--compat` or `--custom`.
+- [ ] Add a temporary compat placeholder that returns a clear “compat mode is not implemented yet” error with exit code `1`.
 
 Tests:
 
-- [x] Tests use fake ADB and local TCP clients to verify bidirectional forwarding through the daemon.
-- [x] Tests cover failed target dial/service-open behavior without dropping the local listener.
-- [x] Tests cover remove/shutdown closing active bridged connections.
-- [x] `go test ./...` passes
+- [ ] Router tests cover default custom mode, `ADB_GO_MODE=custom`, `ADB_GO_MODE=compat`, invalid `ADB_GO_MODE`, and `adb`/`adb.exe` basename detection.
+- [ ] Existing custom mode CLI tests continue to pass.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] A daemon-owned background forward can carry TCP traffic from a host client to a device `tcp:PORT` service through an explicit TCP ADB target.
+- [ ] The binary can route cleanly between custom mode and a compat placeholder without changing custom behavior.
 
-## M60 — Add CLI persistent forwarding controls
+## M64 — Add adb-compatible CLI skeleton
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): add persistent forward controls`
+Commit: `feat(cli): add adb compat skeleton`
 
 Tasks:
 
-- [x] Add `adb-go forward --background` to create daemon-owned persistent forwards.
-- [x] Add `adb-go forward --list`, `--remove LOCAL`, `--remove-id ID`, and `--remove-all` wired to the daemon protocol.
-- [x] Keep existing foreground `adb-go forward LOCAL REMOTE` behavior unchanged when daemon flags are absent.
-- [x] Print clear setup/list/remove output, including actual bound local address for `tcp:0`.
-- [x] Return actionable daemon-unavailable or daemon-too-old hints, such as running `adb-go daemon doctor`.
-- [x] Document the new CLI behavior and the non-durable in-memory daemon lifecycle.
+- [ ] Add `cmd/adb-go/internal/compat` with an independent `compat.Run(args []string, stdout, stderr io.Writer) int` implementation.
+- [ ] Implement compat `help`, `--help`, no-args, unknown command, and `version` behavior using the current Android SDK Platform-Tools `adb` output shape as the reference.
+- [ ] Make compat `version` adb-shaped but explicit that the implementation is adb-go, for example with an `(adb-go compat)` marker or equivalent wording.
+- [ ] Keep custom-only commands and flags such as `targets`, `daemon`, `install-apk`, `--addr`, `--usb`, and `ADB_GO_ADDR` out of compat mode.
+- [ ] Parse official-style global options enough for host-only skeleton commands, including `-H` and `-P` before `version`.
 
 Tests:
 
-- [x] CLI tests cover argument parsing and daemon requests for background/list/remove/remove-all.
-- [x] CLI tests cover foreground forwarding still using the existing process-scoped path.
-- [x] CLI tests cover daemon-unavailable or unknown-command error messages.
-- [x] `go test ./...` passes
+- [ ] Compat tests cover `help`, `--help`, no args, `-h`, unknown commands, `version`, and global `-H`/`-P` with `version`.
+- [ ] Snapshot-style assertions cover important stdout/stderr placement and exit codes from the captured official adb reference.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Users can create, inspect, and remove daemon-owned persistent TCP forwards from the CLI while existing foreground forwarding remains compatible.
+- [ ] Compat mode has a real adb-shaped host-only skeleton while remaining independent from custom mode.
 
-## M61 — Surface persistent forwarding diagnostics
+## M65 — Add compat daemon/server foundation
 
-Status: Implemented
+Status: Not started
 
-Commit: `feat(cli): show daemon forwarding diagnostics`
+Commit: `feat(cli): add compat daemon foundation`
 
 Tasks:
 
-- [x] Add concise forwarding counts to daemon diagnostics without turning `daemon status` into a full forwarding table.
-- [x] Include forwarding state hints in `adb-go daemon doctor` when daemon-owned forwards are degraded.
-- [x] Ensure detailed mappings remain available through `adb-go forward --list`.
-- [x] Update daemon and CLI documentation with troubleshooting examples for degraded forwards, target disconnects, and lost forwards after daemon restart.
+- [ ] Add compat implementations for `start-server`, `kill-server`, and `devices` on top of adb-go daemon internals/protocol rather than the official adb server protocol.
+- [ ] Auto-start the adb-go daemon for compat commands that need server state.
+- [ ] Make `adb devices` show daemon-known TCP devices from prior compat `connect` work and locally discoverable USB devices when available.
+- [ ] Keep broad blind TCP/emulator scanning out of the initial compat `devices` behavior.
+- [ ] Preserve official adb CLI-facing output shape where practical while allowing different daemon internals.
 
 Tests:
 
-- [x] CLI/daemon tests cover forwarding counts in diagnostics.
-- [x] CLI tests cover doctor hints for degraded forwarding state.
-- [x] `go test ./...` passes
+- [ ] Compat tests cover server lifecycle commands and auto-start behavior.
+- [ ] Compat tests cover no-device `devices` output matching the official reference shape.
+- [ ] Daemon tests cover any new protocol/state needed by compat devices listing.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Support requests can distinguish daemon reachability problems from persistent-forward target/listener problems without exposing payload data.
+- [ ] Compat mode has adb-shaped server lifecycle and device-list foundations backed by adb-go daemon internals.
+
+## M66 — Add compat target selection foundation
+
+Status: Not started
+
+Commit: `feat(cli): add compat target selection`
+
+Tasks:
+
+- [ ] Support official target selectors `-s SERIAL`, `-d`, and `-e` in compat mode.
+- [ ] Support `$ANDROID_SERIAL`, with `-s SERIAL` taking precedence.
+- [ ] Keep `ADB_GO_ADDR` ignored in compat mode.
+- [ ] Map selected compat transports onto daemon/device registry entries and adb-go TCP/USB connection options.
+- [ ] Defer transport IDs (`-t ID`) unless promoted into this milestone after additional reference capture.
+
+Tests:
+
+- [ ] Compat parser tests cover selector precedence and no-command help/exit behavior for `-s`, `-d`, and `-e`.
+- [ ] Compat command tests cover selected-device resolution against fake daemon/device state.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] Compat commands can resolve devices using official adb selector mechanisms without exposing custom adb-go target flags.
 
 ## Deferred milestones
 
