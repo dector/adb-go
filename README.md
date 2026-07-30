@@ -109,15 +109,9 @@ ports, pushing or pulling one file, and installing one APK.
 ctx := context.Background()
 
 c, err := adb.Connect(ctx, "127.0.0.1:5555")
-if err != nil {
-    return err
-}
 defer c.Close()
 
 out, err := c.Shell(ctx, "echo hello")
-if err != nil {
-    return err
-}
 fmt.Printf("%s", out)
 ```
 
@@ -126,15 +120,9 @@ Common property names are available as constants:
 
 ```go
 model, err := c.GetProp(ctx, adb.PropProductModel)
-if err != nil {
-    return err
-}
 fmt.Println(model)
 
 props, err := c.Properties(ctx)
-if err != nil {
-    return err
-}
 fmt.Println(props[adb.PropBuildVersionSDK])
 ```
 
@@ -142,9 +130,6 @@ Stream Android log output with the small logcat helper:
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{})
-if err != nil {
-    return err
-}
 ```
 
 Use dump-and-exit mode when you want the current log buffer instead of a
@@ -152,18 +137,12 @@ long-running stream:
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true})
-if err != nil {
-    return err
-}
 ```
 
 Capture one PNG screenshot with the screencap helper:
 
 ```go
 png, err := c.Screencap(ctx)
-if err != nil {
-    return err
-}
 err = os.WriteFile("screen.png", png, 0o666)
 ```
 
@@ -171,18 +150,12 @@ Or let adb-go write to a new local destination that must not already exist:
 
 ```go
 err := c.ScreencapFile(ctx, "screen.png")
-if err != nil {
-    return err
-}
 ```
 
 Request a supported reboot mode explicitly:
 
 ```go
 err := c.Reboot(ctx, adb.RebootNormal)
-if err != nil {
-    return err
-}
 ```
 
 `Reboot` is disruptive: a successful request affects the selected device
@@ -192,14 +165,8 @@ Forward local TCP connections to a TCP endpoint on the selected device:
 
 ```go
 remote, err := adb.ForwardTCP(8080)
-if err != nil {
-    return err
-}
 
 forward, err := c.ForwardLocalTCP(ctx, "127.0.0.1:0", remote)
-if err != nil {
-    return err
-}
 defer forward.Close()
 
 fmt.Println("listening on", forward.LocalAddr())
@@ -214,9 +181,6 @@ Install one local APK with the adb-go-specific install helper:
 
 ```go
 err := c.InstallAPKWithOptions(ctx, "./app.apk", adb.InstallOptions{Replace: true})
-if err != nil {
-    return err
-}
 ```
 
 The install helper intentionally is not a full clone of `adb install`; it pushes
@@ -245,9 +209,6 @@ key. adb-go does not generate, discover, or persist keys in v0.
 
 ```go
 credential, err := adb.LoadPrivateKey("/home/me/.android/adbkey")
-if err != nil {
-    return err
-}
 
 c, err := adb.ConnectTCPWithOptions(ctx, "127.0.0.1:5555", adb.ConnectOptions{
     AuthCredentials: []adb.AuthCredential{credential},

@@ -41,9 +41,6 @@ want the package-level API without root re-exports.
 ctx := context.Background()
 
 c, err := adb.Connect(ctx, "127.0.0.1:5555")
-if err != nil {
-    return err
-}
 defer c.Close()
 ```
 
@@ -61,9 +58,6 @@ options:
 
 ```go
 c, err := adb.ConnectUSB(ctx, adb.USBOptions{})
-if err != nil {
-    return err
-}
 defer c.Close()
 ```
 
@@ -96,9 +90,6 @@ to the connection call explicitly:
 
 ```go
 credential, err := adb.LoadPrivateKey("/home/me/.android/adbkey")
-if err != nil {
-    return err
-}
 
 c, err := adb.ConnectTCPWithOptions(ctx, "127.0.0.1:5555", adb.ConnectOptions{
     AuthCredentials: []adb.AuthCredential{credential},
@@ -126,9 +117,6 @@ closes the stream, and returns the complete output as bytes.
 
 ```go
 out, err := c.Shell(ctx, "echo hello")
-if err != nil {
-    return err
-}
 fmt.Printf("%s", out)
 ```
 
@@ -139,9 +127,6 @@ Use `ShellStream` when output may be large or should be displayed as it arrives:
 
 ```go
 err := c.ShellStream(ctx, "pm list packages", os.Stdout)
-if err != nil {
-    return err
-}
 ```
 
 ## Device properties
@@ -155,9 +140,6 @@ Read one property by name with `GetProp`:
 
 ```go
 model, err := c.GetProp(ctx, client.PropProductModel)
-if err != nil {
-    return err
-}
 fmt.Println(model)
 ```
 
@@ -169,9 +151,6 @@ Read all properties with `Properties`:
 
 ```go
 props, err := c.Properties(ctx)
-if err != nil {
-    return err
-}
 fmt.Println(props[client.PropBuildVersionSDK])
 ```
 
@@ -198,9 +177,6 @@ the context is canceled.
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{})
-if err != nil {
-    return err
-}
 ```
 
 By default this follows the device log stream, like running `adb logcat`. For a
@@ -209,9 +185,6 @@ snapshot of the current log buffers that exits when the dump is complete, set
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true})
-if err != nil {
-    return err
-}
 ```
 
 The helper intentionally supports only this small option set for now. It does
@@ -233,9 +206,6 @@ bounded logcat session.
 
 ```go
 png, err := c.Screencap(ctx)
-if err != nil {
-    return err
-}
 err = os.WriteFile("screen.png", png, 0o666)
 ```
 
@@ -244,9 +214,6 @@ For the common case where adb-go should write the file itself, use
 
 ```go
 err := c.ScreencapFile(ctx, "screen.png")
-if err != nil {
-    return err
-}
 ```
 
 `ScreencapFile` creates the local destination with exclusive-create semantics:
@@ -277,9 +244,6 @@ names through the high-level API:
 
 ```go
 err := c.Reboot(ctx, adb.RebootNormal)
-if err != nil {
-    return err
-}
 ```
 
 Supported modes are:
@@ -310,14 +274,8 @@ bytes in both directions until either side closes:
 
 ```go
 remote, err := adb.ForwardTCP(8080)
-if err != nil {
-    return err
-}
 
 forward, err := c.ForwardLocalTCP(ctx, "127.0.0.1:9000", remote)
-if err != nil {
-    return err
-}
 defer forward.Close()
 
 fmt.Println("forwarding from", forward.LocalAddr())
@@ -396,9 +354,6 @@ small adb-go helper, not an attempt to mirror every `adb install` flag.
 
 ```go
 err := c.InstallAPK(ctx, "./app.apk")
-if err != nil {
-    return err
-}
 ```
 
 For the currently supported replace-existing-app behavior, use
@@ -407,9 +362,6 @@ to Android package manager's `pm install -r` option:
 
 ```go
 err := c.InstallAPKWithOptions(ctx, "./app.apk", adb.InstallOptions{Replace: true})
-if err != nil {
-    return err
-}
 ```
 
 The helper is built from existing ADB primitives so its behavior stays explicit:
@@ -442,9 +394,6 @@ Advanced callers can open any supported device service directly:
 
 ```go
 stream, err := c.OpenService(ctx, "shell:uname -a")
-if err != nil {
-    return err
-}
 defer stream.Close()
 
 _, err = io.Copy(os.Stdout, stream)
