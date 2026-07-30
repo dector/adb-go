@@ -170,6 +170,159 @@ Done when:
 
 These remain out of the active plan unless promoted into a concrete milestone using the template above.
 
+### Reverse port forwarding
+
+Forward port forwarding is currently implemented in two paths:
+
+- Foreground `adb-go forward` uses `client.ForwardLocalTCP` in `client/forward.go`: adb-go binds a host TCP listener, accepts host connections, opens a fresh device ADB service stream such as `tcp:8000` for each connection, and bridges bytes both ways until either side closes.
+- Daemon-owned `adb-go forward --background` uses `internal/daemon/forward_registry.go`: `adb-god` stores an in-memory registration, owns the host listener, reconnects to the explicit TCP ADB target per accepted host connection, opens the configured device `tcp:PORT` service, tracks state/active connections/last errors, and exposes create/list/remove operations through the daemon protocol.
+
+Reverse forwarding should mirror this in small slices while respecting that the
+listener is device-side and that `adbd` may initiate streams back to the host.
+The exact service strings and remote-initiated stream behavior should be verified
+against current AOSP/platform-tools before implementation.
+
+### M67 — Design reverse port forwarding
+
+Status: Not started
+
+Commit: `docs(forward): design reverse port forwarding`
+
+Tasks:
+
+- [ ] Capture official `adb reverse` behavior for `tcp:REMOTE tcp:LOCAL`, `--list`, `--remove`, `--remove-all`, and `--no-rebind`/norebind semantics where supported.
+- [ ] Document direct-device feasibility: reverse registration service strings, how `adbd` reports setup errors, and whether adb-go must support device-initiated `OPEN` streams to bridge back to host TCP.
+- [ ] Define first-slice endpoint support as device TCP to host TCP only, with loopback host TCP targets by default.
+- [ ] Decide foreground versus daemon-owned lifecycle for custom `adb-go reverse`, and how it maps to future compat `adb reverse` behavior.
+- [ ] Record security, cleanup, disconnect, and unsupported-endpoint behavior in a dedicated reverse-forwarding design doc or an update to the forwarding docs.
+
+Tests:
+
+- [ ] Documentation review checks the proposed behavior against current Android SDK Platform-Tools reference output.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] The project has a reviewed reverse-forwarding design that can be implemented without guessing about ADB protocol behavior.
+
+### M68 — Add protocol support for reverse streams
+
+Status: Not started
+
+Commit: `feat(protocol): support device initiated streams`
+
+Tasks:
+
+- [ ] Extend the protocol connection reader to handle peer-initiated `OPEN` packets instead of ignoring them.
+- [ ] Add an internal accept/handler mechanism that can route device-initiated reverse streams by service name to a host-side bridge.
+- [ ] Preserve existing client-initiated `OpenService` stream behavior and error semantics.
+- [ ] Ensure connection close, stream close, backpressure, and concurrent read/write behavior remain safe.
+
+Tests:
+
+- [ ] Protocol tests cover receiving peer `OPEN`, replying `OKAY`, reading/writing payloads, and closing both accepted and initiated streams.
+- [ ] Existing protocol/client forwarding tests continue to pass.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] adb-go can safely accept and service streams opened by `adbd` without breaking existing client-initiated services.
+
+### M69 — Add client reverse TCP API
+
+Status: Not started
+
+Commit: `feat(client): add reverse tcp forwarding`
+
+Tasks:
+
+- [ ] Add typed reverse endpoint helpers for device TCP and host TCP ports with range validation.
+- [ ] Add a `Client` reverse-forwarding API that registers the device-side listener using the verified `reverse:` ADB service, bridges accepted reverse streams to host TCP connections, and cleans up the registration on `Close`.
+- [ ] Support `tcp:0` remote-device port behavior if the reference implementation and `adbd` expose the selected port reliably; otherwise document it as unsupported in the first slice.
+- [ ] Return actionable setup errors for unsupported devices, address conflicts, registration failures, host dial failures, and cleanup failures.
+- [ ] Update root package re-exports and client README documentation.
+
+Tests:
+
+- [ ] Fake ADB tests cover reverse registration service strings, host TCP bridging, cleanup, and setup failure mapping.
+- [ ] Unit tests cover endpoint parsing/validation and unsupported endpoint families.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] Library callers can create a process-scoped reverse TCP forward from a device TCP port to a host TCP port.
+
+### M70 — Add custom CLI reverse command
+
+Status: Not started
+
+Commit: `feat(cli): add reverse command`
+
+Tasks:
+
+- [ ] Add `adb-go reverse [connection flags] tcp:REMOTE_PORT tcp:LOCAL_PORT` using the client reverse TCP API.
+- [ ] Make foreground lifetime and cleanup explicit in usage text and status output.
+- [ ] Add `--list`, `--remove`, and `--remove-all` only if the M67 design chooses daemon-backed or direct-device support for those operations in this slice; otherwise document them as deferred.
+- [ ] Keep unsupported endpoint families rejected with clear guidance.
+- [ ] Update README and forwarding documentation with examples and limitations.
+
+Tests:
+
+- [ ] CLI tests cover success, argument validation, unsupported endpoint errors, connection errors, and cleanup/error reporting.
+- [ ] If list/remove are included, tests cover output shape and missing-forward behavior.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] Users can run a documented custom-mode reverse TCP forwarding workflow without relying on the official adb server.
+
+### M71 — Add daemon-owned reverse forwarding
+
+Status: Not started
+
+Commit: `feat(daemon): add reverse forwarding registry`
+
+Tasks:
+
+- [ ] Extend daemon forwarding models or add reverse-specific models for device-side listener registrations.
+- [ ] Add daemon protocol commands for reverse create/list/remove/remove-all, keeping forward and reverse diagnostics distinct enough for troubleshooting.
+- [ ] Implement daemon-owned lifecycle, reconnection policy, cleanup-on-remove, active connection tracking, and last-error reporting for explicit TCP ADB targets.
+- [ ] Wire custom CLI background/list/remove controls if the M67 design chooses daemon-owned reverse support.
+- [ ] Document that reverse registrations are in-memory unless a later durable-state milestone is designed.
+
+Tests:
+
+- [ ] Daemon protocol and registry tests cover create/list/remove/remove-all, norebind, reconnect/degraded state, active connections, and shutdown cleanup.
+- [ ] CLI tests cover daemon unavailable/too-old errors and successful daemon-owned reverse operations.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] `adb-god` can own in-memory reverse TCP forwarding registrations with lifecycle and diagnostics matching the forward registry quality bar.
+
+### M72 — Add compat adb reverse support
+
+Status: Not started
+
+Commit: `feat(cli): add adb reverse compat`
+
+Tasks:
+
+- [ ] Implement compat-mode `adb reverse` syntax and output shape for supported TCP endpoints using current platform-tools behavior as reference.
+- [ ] Route official target selectors from the compat target-selection foundation into reverse operations.
+- [ ] Map compat list/remove/remove-all semantics to the chosen direct or daemon-backed adb-go reverse implementation.
+- [ ] Keep unsupported endpoint families and unsupported devices reported in adb-shaped errors.
+
+Tests:
+
+- [ ] Compat tests cover `adb reverse tcp:REMOTE tcp:LOCAL`, `--list`, `--remove`, `--remove-all`, selector handling, unsupported endpoints, and error output.
+- [ ] Reference-output snapshots cover important stdout/stderr and exit-code behavior.
+- [ ] `go test ./...` passes
+
+Done when:
+
+- [ ] Compat mode has adb-shaped reverse TCP forwarding for the endpoint families adb-go actually supports.
+
 ### Cross-platform USB
 
 Potential future commit series depends on platform research:
