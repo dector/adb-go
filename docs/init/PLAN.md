@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M68 — Add protocol support for reverse streams.
-- Completed milestone range: Milestones 17–67 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, the adb-compatible CLI skeleton, the compat daemon/server foundation, the compat target selection foundation, and the reverse port forwarding design.
+- Current milestone: M70 — Add custom CLI reverse command.
+- Completed milestone range: Milestones 17–69 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, and the direct-device client reverse TCP API.
 - Active focus: implement reverse port forwarding in small slices. Start with protocol support for device-initiated ADB streams, then add a direct-device TCP reverse API, a foreground custom CLI command, daemon-owned reverse lifecycle, and finally adb-compatible `adb reverse` behavior for supported endpoint families.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -231,27 +231,27 @@ Done when:
 
 ### M69 — Add client reverse TCP API
 
-Status: Not started
+Status: Done
 
 Commit: `feat(client): add reverse tcp forwarding`
 
 Tasks:
 
-- [ ] Add typed reverse endpoint helpers for device TCP and host TCP ports with range validation.
-- [ ] Add a `Client` reverse-forwarding API that registers the device-side listener using the verified `reverse:` ADB service, bridges accepted reverse streams to host TCP connections, and cleans up the registration on `Close`.
-- [ ] Support `tcp:0` remote-device port behavior if the reference implementation and `adbd` expose the selected port reliably; otherwise document it as unsupported in the first slice.
-- [ ] Return actionable setup errors for unsupported devices, address conflicts, registration failures, host dial failures, and cleanup failures.
-- [ ] Update root package re-exports and client README documentation.
+- [x] Add typed reverse endpoint helpers for device TCP and host TCP ports with range validation.
+- [x] Add a `Client` reverse-forwarding API that registers the device-side listener using the verified `reverse:` ADB service, bridges accepted reverse streams to host TCP connections, and cleans up the registration on `Close`.
+- [x] Support `tcp:0` remote-device port behavior if the reference implementation and `adbd` expose the selected port reliably; otherwise document it as unsupported in the first slice.
+- [x] Return actionable setup errors for unsupported devices, address conflicts, registration failures, host dial failures, and cleanup failures.
+- [x] Update root package re-exports and client README documentation.
 
 Tests:
 
-- [ ] Fake ADB tests cover reverse registration service strings, host TCP bridging, cleanup, and setup failure mapping.
-- [ ] Unit tests cover endpoint parsing/validation and unsupported endpoint families.
-- [ ] `go test ./...` passes
+- [x] Fake ADB tests cover reverse registration service strings, host TCP bridging, cleanup, and setup failure mapping.
+- [x] Unit tests cover endpoint parsing/validation and unsupported endpoint families.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Library callers can create a process-scoped reverse TCP forward from a device TCP port to a host TCP port.
+- [x] Library callers can create a process-scoped reverse TCP forward from a device TCP port to a host TCP port.
 
 ### M70 — Add custom CLI reverse command
 

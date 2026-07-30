@@ -4,8 +4,9 @@ Package `client` provides the high-level ADB client API used by the root
 `github.com/dector/adb-go` package. It handles TCP dialing, Linux USB dialing
 and USB candidate listing, the initial ADB `CNXN`/`AUTH` handshake, service
 opening, shell helpers, Android property helpers, logcat streaming, screenshot
-capture, reboot requests, foreground local TCP forwarding, single-file `sync:`
-push/pull helpers, and a small APK install helper.
+capture, reboot requests, foreground local TCP forwarding, foreground reverse
+TCP forwarding, single-file `sync:` push/pull helpers, and a small APK install
+helper.
 
 ## Contents
 
@@ -311,12 +312,48 @@ the background and can later answer `adb forward --list` or remove mappings. adb
 server-compatible daemon in v0; the forward exists only while this process and
 its `Forward` handle are alive.
 
-Currently supported endpoint forms are local TCP listeners and remote device TCP
-services only. Persistent mappings, `--list`/remove operations, reverse
-forwarding, JDWP, Android local socket namespaces, host Unix sockets, vsock, and
-raw advanced endpoint strings are out of scope for the first forwarding API.
-See [`../docs/forwarding-design.md`](../docs/forwarding-design.md) for the full
+Currently supported forward endpoint forms are local TCP listeners and remote
+device TCP services only. Persistent mappings, `--list`/remove operations, JDWP,
+Android local socket namespaces, host Unix sockets, vsock, and raw advanced
+endpoint strings are out of scope for the first forwarding API. See
+[`../docs/forwarding-design.md`](../docs/forwarding-design.md) for the full
 design rationale.
+
+`ReverseTCP` starts process-scoped reverse TCP forwarding. The listener lives on
+the device, and adb-go bridges device-initiated ADB streams back to a host
+loopback TCP target:
+
+```go
+remote, err := adb.ReverseDeviceTCP(8081)
+local, err := adb.ReverseHostTCP(3000)
+
+reverse, err := c.ReverseTCP(ctx, remote, local)
+defer reverse.Close()
+
+err = reverse.Wait()
+```
+
+This registers the device service string `reverse:forward:tcp:8081;tcp:3000`.
+After registration, when an app on the device connects to `127.0.0.1:8081`,
+`adbd` opens a new ADB stream back to adb-go. adb-go accepts that stream, dials
+`127.0.0.1:3000` on the host, and copies bytes in both directions until either
+side closes.
+
+Use `ReverseDeviceTCP(port)` for the device-side listener and
+`ReverseHostTCP(port)` for the host-side loopback target. Both helpers validate
+that the port is in the normal TCP range `1..65535`; device-side `tcp:0`
+auto-selection is intentionally not supported in this first slice because adb-go
+does not yet expose the selected device port reliably. `ParseReverseDeviceEndpoint`
+and `ParseReverseHostEndpoint` parse the supported `tcp:PORT` form and reject
+other ADB endpoint families with clear errors.
+
+The returned `Reverse` handle owns the reverse lifetime. `Close` removes the
+device-side registration with `reverse:killforward:REMOTE`, unregisters the
+accepted-stream handler, and closes active streams and host TCP connections.
+Canceling the context passed to `ReverseTCP`, closing the `Client`, or exiting
+the process also ends the forwarding session. Like foreground forward mappings,
+this is not an adb-server-compatible persistent registration; daemon-owned and
+adb-compatible reverse behavior is planned separately.
 
 ## File transfer
 

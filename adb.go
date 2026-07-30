@@ -9,7 +9,7 @@
 // device. After connecting, a Client can open raw ADB services and perform
 // common operations such as shell commands, file push/pull, APK installation,
 // logcat capture, property reads, screencaps, reboots, and process-scoped local
-// TCP forwarding.
+// and reverse TCP forwarding.
 package adb
 
 import (
@@ -40,6 +40,15 @@ type ForwardTarget = client.ForwardTarget
 
 // Forward is an active local forwarding session.
 type Forward = client.Forward
+
+// ReverseDeviceEndpoint describes the device-side listener used by reverse forwarding.
+type ReverseDeviceEndpoint = client.ReverseDeviceEndpoint
+
+// ReverseHostEndpoint describes the host-side target used by reverse forwarding.
+type ReverseHostEndpoint = client.ReverseHostEndpoint
+
+// Reverse is an active reverse forwarding session.
+type Reverse = client.Reverse
 
 // ConnectOptions controls optional high-level connection behavior.
 type ConnectOptions = client.ConnectOptions
@@ -185,6 +194,26 @@ func LoadPrivateKey(path string) (*Credential, error) {
 // ForwardTCP returns a device TCP forwarding target for port.
 func ForwardTCP(port int) (ForwardTarget, error) {
 	return client.ForwardTCP(port)
+}
+
+// ReverseDeviceTCP returns a device-side TCP reverse endpoint for port.
+func ReverseDeviceTCP(port int) (ReverseDeviceEndpoint, error) {
+	return client.ReverseDeviceTCP(port)
+}
+
+// ReverseHostTCP returns a host-side loopback TCP reverse target for port.
+func ReverseHostTCP(port int) (ReverseHostEndpoint, error) {
+	return client.ReverseHostTCP(port)
+}
+
+// ParseReverseDeviceEndpoint parses a supported reverse device endpoint.
+func ParseReverseDeviceEndpoint(endpoint string) (ReverseDeviceEndpoint, error) {
+	return client.ParseReverseDeviceEndpoint(endpoint)
+}
+
+// ParseReverseHostEndpoint parses a supported reverse host endpoint.
+func ParseReverseHostEndpoint(endpoint string) (ReverseHostEndpoint, error) {
+	return client.ParseReverseHostEndpoint(endpoint)
 }
 
 // ConnectUSB connects to an ADB device over USB and performs the initial ADB
