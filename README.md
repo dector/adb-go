@@ -1,7 +1,6 @@
 # adb-go
 
-`adb-go` is a pure-Go implementation of the Android Debug Bridge (ADB)
-protocol.
+`adb-go` is a pure-Go implementation of the [ADB (Android Debug Bridge)](https://developer.android.com/tools/adb) protocol.
 
 > [!NOTE]
 > Current adb-go implementation is not a full replacement for the official `adb` binary yet.
@@ -26,6 +25,8 @@ History of changes is available in [`CHANELOG.md`](CHANELOG.md).
 
 `adb-go` is layered from low-level ADB protocol primitives up to high-level
 library workflows, with the CLI and daemon built on top.
+
+Most probably you are here for [high-level client API](#high-level-client-api).
 
 ```mermaid
 block-beta
@@ -68,7 +69,7 @@ block-beta
 
 ## Install
 
-### With Go
+### As Go package
 
 ```sh
 go get github.com/dector/adb-go
@@ -78,28 +79,17 @@ go get github.com/dector/adb-go
 import adb "github.com/dector/adb-go"
 ```
 
-### With mise
+### As cli tool
 
-Use mise to provide Go, then add adb-go to your module:
-
-```sh
-mise use go@latest
-go get github.com/dector/adb-go
-```
-
-Or run the install with a temporary mise-managed Go toolchain:
+Download [latest binary (snapshot)](https://github.com/dector/adb-go/releases/tag/snapshot) or use mise:
 
 ```sh
-mise x go@latest -- go get github.com/dector/adb-go
+mise u -g "github:dector/adb-go@snapshot"
 ```
-
-The current TCP and Linux USB implementation uses only the Go standard library:
-no Android SDK, platform-tools, official `adb` binary, cgo, libusb, or native
-dependencies are required.
 
 ## High-level client API
 
-Use the root package for the stable high-level API. It re-exports the `client`
+Use the root package for the high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
 reading Android system properties, streaming Android logs, capturing screenshots,
 rebooting into supported modes, forwarding local TCP connections to device TCP
@@ -110,13 +100,16 @@ ctx := context.Background()
 
 c, err := adb.Connect(ctx, "127.0.0.1:5555")
 defer c.Close()
+```
 
+Use shell:
+
+```
 out, err := c.Shell(ctx, "echo hello")
 fmt.Printf("%s", out)
 ```
 
-Read Android system properties with helpers that wrap and parse `getprop`.
-Common property names are available as constants:
+Read Android system properties:
 
 ```go
 model, err := c.GetProp(ctx, adb.PropProductModel)
@@ -126,33 +119,32 @@ props, err := c.Properties(ctx)
 fmt.Println(props[adb.PropBuildVersionSDK])
 ```
 
-Stream Android log output with the small logcat helper:
+Stream Android log output:
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{})
 ```
 
-Use dump-and-exit mode when you want the current log buffer instead of a
-long-running stream:
+or use dump-and-exit mode:
 
 ```go
 err := c.Logcat(ctx, os.Stdout, adb.LogcatOptions{Dump: true})
 ```
 
-Capture one PNG screenshot with the screencap helper:
+Capture PNG screenshot:
 
 ```go
 png, err := c.Screencap(ctx)
 err = os.WriteFile("screen.png", png, 0o666)
 ```
 
-Or let adb-go write to a new local destination that must not already exist:
+Or (file must not exist):
 
 ```go
 err := c.ScreencapFile(ctx, "screen.png")
 ```
 
-Request a supported reboot mode explicitly:
+Request a reboot:
 
 ```go
 err := c.Reboot(ctx, adb.RebootNormal)
@@ -177,7 +169,7 @@ This is process-scoped foreground forwarding. It is useful for bridging local
 clients to a service listening on the device, but it is not an adb-server-backed
 persistent `adb forward` registration.
 
-Install one local APK with the adb-go-specific install helper:
+Install APK:
 
 ```go
 err := c.InstallAPKWithOptions(ctx, "./app.apk", adb.InstallOptions{Replace: true})
