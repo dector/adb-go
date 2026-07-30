@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: No active incomplete milestone; only deferred milestones remain.
-- Completed milestone range: Milestones 17–66 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, the adb-compatible CLI skeleton, the compat daemon/server foundation, and the compat target selection foundation.
-- Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
+- Current milestone: M68 — Add protocol support for reverse streams.
+- Completed milestone range: Milestones 17–67 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, the adb-compatible CLI skeleton, the compat daemon/server foundation, the compat target selection foundation, and the reverse port forwarding design.
+- Active focus: implement reverse port forwarding in small slices. Start with protocol support for device-initiated ADB streams, then add a direct-device TCP reverse API, a foreground custom CLI command, daemon-owned reverse lifecycle, and finally adb-compatible `adb reverse` behavior for supported endpoint families.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -166,11 +166,12 @@ Done when:
 
 - [x] Compat commands can resolve devices using official adb selector mechanisms without exposing custom adb-go target flags.
 
-## Deferred milestones
+## Reverse port forwarding
 
-These remain out of the active plan unless promoted into a concrete milestone using the template above.
+Reverse forwarding is now the active focus. These milestones should remain small,
+reviewable slices and should be implemented in order.
 
-### Reverse port forwarding
+### Background
 
 Forward port forwarding is currently implemented in two paths:
 
@@ -184,26 +185,26 @@ against current AOSP/platform-tools before implementation.
 
 ### M67 — Design reverse port forwarding
 
-Status: Not started
+Status: Done
 
 Commit: `docs(forward): design reverse port forwarding`
 
 Tasks:
 
-- [ ] Capture official `adb reverse` behavior for `tcp:REMOTE tcp:LOCAL`, `--list`, `--remove`, `--remove-all`, and `--no-rebind`/norebind semantics where supported.
-- [ ] Document direct-device feasibility: reverse registration service strings, how `adbd` reports setup errors, and whether adb-go must support device-initiated `OPEN` streams to bridge back to host TCP.
-- [ ] Define first-slice endpoint support as device TCP to host TCP only, with loopback host TCP targets by default.
-- [ ] Decide foreground versus daemon-owned lifecycle for custom `adb-go reverse`, and how it maps to future compat `adb reverse` behavior.
-- [ ] Record security, cleanup, disconnect, and unsupported-endpoint behavior in a dedicated reverse-forwarding design doc or an update to the forwarding docs.
+- [x] Capture official `adb reverse` behavior for `tcp:REMOTE tcp:LOCAL`, `--list`, `--remove`, `--remove-all`, and `--no-rebind`/norebind semantics where supported.
+- [x] Document direct-device feasibility: reverse registration service strings, how `adbd` reports setup errors, and whether adb-go must support device-initiated `OPEN` streams to bridge back to host TCP.
+- [x] Define first-slice endpoint support as device TCP to host TCP only, with loopback host TCP targets by default.
+- [x] Decide foreground versus daemon-owned lifecycle for custom `adb-go reverse`, and how it maps to future compat `adb reverse` behavior.
+- [x] Record security, cleanup, disconnect, and unsupported-endpoint behavior in a dedicated reverse-forwarding design doc or an update to the forwarding docs.
 
 Tests:
 
-- [ ] Documentation review checks the proposed behavior against current Android SDK Platform-Tools reference output.
-- [ ] `go test ./...` passes
+- [x] Documentation review checks the proposed behavior against current Android SDK Platform-Tools reference output.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] The project has a reviewed reverse-forwarding design that can be implemented without guessing about ADB protocol behavior.
+- [x] The project has a reviewed reverse-forwarding design that can be implemented without guessing about ADB protocol behavior.
 
 ### M68 — Add protocol support for reverse streams
 
