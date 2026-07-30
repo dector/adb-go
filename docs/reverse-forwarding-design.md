@@ -169,9 +169,11 @@ registry quality bar.
 
 ### Daemon-owned reverse forwarding
 
-Daemon-owned reverse forwarding is the right long-lived model. `adb-god` can own
-an in-memory reverse registry, keep the host bridge alive after the CLI exits,
-list registrations, and remove them later.
+Daemon-owned reverse forwarding is the right long-lived model. As of M71,
+`adb-god` owns an in-memory reverse registry, keeps the host bridge alive after
+the creating CLI exits, lists registrations, and removes them later through the
+custom `adb-go reverse --background`, `--list`, `--remove`, `--remove-id`, and
+`--remove-all` commands.
 
 Compared with daemon-owned forward mappings, reverse mappings have one extra
 cleanup responsibility: the daemon must unregister the device-side listener when

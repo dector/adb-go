@@ -1430,6 +1430,74 @@ func TestRunForwardDaemonListAndRemoveCommands(t *testing.T) {
 	}
 }
 
+func TestRunReverseCreatesBackgroundDaemonReverse(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "")
+	var stdout, stderr bytes.Buffer
+	var gotReq daemon.Request
+	restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+		gotReq = req
+		return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverse": daemon.Reverse{ID: "rev-1", State: daemon.ReverseStateListening, Remote: daemon.ReverseRemoteEndpoint{Service: "tcp:8081"}, Local: daemon.ReverseLocalEndpoint{Service: "tcp:3000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}}}}, nil
+	})
+	defer restoreSend()
+
+	code := Run([]string{"reverse", "--socket", "/tmp/adb-god.sock", "--background", "--addr", "127.0.0.1", "--norebind", "tcp:8081", "tcp:3000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(reverse --background) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if gotReq.Command != daemon.CommandReverseCreate {
+		t.Fatalf("daemon command = %q, want reverse_create", gotReq.Command)
+	}
+	var params daemon.ReverseCreateParams
+	if err := json.Unmarshal(gotReq.Params, &params); err != nil {
+		t.Fatalf("Unmarshal(params): %v", err)
+	}
+	if params.Remote.Service != "tcp:8081" || params.Local.Service != "tcp:3000" || params.Target.Address != "127.0.0.1:5555" || !params.Norebind {
+		t.Fatalf("params = %+v, want tcp reverse target with norebind", params)
+	}
+	if got := stdout.String(); !strings.Contains(got, "Reverse rev-1 listening on device tcp:8081 -> host tcp:3000 via tcp:127.0.0.1:5555") || !strings.Contains(got, "in-memory daemon-owned") {
+		t.Fatalf("stdout = %q, want background reverse status", got)
+	}
+}
+
+func TestRunReverseDaemonListAndRemoveCommands(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		response    daemon.Response
+		wantCommand string
+		wantStdout  string
+	}{
+		{name: "list", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandReverseList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": []daemon.Reverse{{ID: "rev-1", State: daemon.ReverseStateListening, Remote: daemon.ReverseRemoteEndpoint{Service: "tcp:8081"}, Local: daemon.ReverseLocalEndpoint{Service: "tcp:3000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "rev-1\tlistening\ttcp:8081\ttcp:3000\ttcp:127.0.0.1:5555\t2"},
+		{name: "remove-remote", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove", "tcp:8081"}, wantCommand: daemon.CommandReverseRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned reverse(s)."},
+		{name: "remove-id", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove-id", "rev-1"}, wantCommand: daemon.CommandReverseRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned reverse(s)."},
+		{name: "remove-all", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove-all"}, wantCommand: daemon.CommandReverseRemoveAll, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 3}}, wantStdout: "Removed 3 daemon-owned reverse(s)."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			var gotReq daemon.Request
+			restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+				gotReq = req
+				return tt.response, nil
+			})
+			defer restoreSend()
+
+			code := Run(tt.args, &stdout, &stderr)
+
+			if code != 0 {
+				t.Fatalf("Run(%v) exit code = %d, want 0; stderr = %q", tt.args, code, stderr.String())
+			}
+			if gotReq.Command != tt.wantCommand {
+				t.Fatalf("command = %q, want %q", gotReq.Command, tt.wantCommand)
+			}
+			if !strings.Contains(stdout.String(), tt.wantStdout) {
+				t.Fatalf("stdout = %q, want substring %q", stdout.String(), tt.wantStdout)
+			}
+		})
+	}
+}
+
 func TestRunForwardKeepsForegroundPathWhenDaemonFlagsAreAbsent(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	calledDaemon := false
@@ -1558,7 +1626,7 @@ func TestRunReverseUsesConnectionFlagsAndStartsForegroundSession(t *testing.T) {
 	}
 }
 
-func TestRunReverseRejectsInvalidArgumentsAndDeferredStateCommands(t *testing.T) {
+func TestRunReverseRejectsInvalidArguments(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		args       []string
@@ -1568,7 +1636,7 @@ func TestRunReverseRejectsInvalidArgumentsAndDeferredStateCommands(t *testing.T)
 		{name: "unsupported remote", args: []string{"reverse", "--addr", "127.0.0.1:5555", "localabstract:name", "tcp:3000"}, wantSubstr: "unsupported device endpoint"},
 		{name: "unsupported local", args: []string{"reverse", "--addr", "127.0.0.1:5555", "tcp:8081", "localabstract:name"}, wantSubstr: "unsupported host endpoint"},
 		{name: "tcp zero", args: []string{"reverse", "--addr", "127.0.0.1:5555", "tcp:0", "tcp:3000"}, wantSubstr: "out of range"},
-		{name: "deferred list", args: []string{"reverse", "--list"}, wantSubstr: "Reverse --list, --remove, and"},
+		{name: "norebind without background", args: []string{"reverse", "--addr", "127.0.0.1:5555", "--norebind", "tcp:8081", "tcp:3000"}, wantSubstr: "--norebind is only meaningful with --background"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
@@ -1583,6 +1651,35 @@ func TestRunReverseRejectsInvalidArgumentsAndDeferredStateCommands(t *testing.T)
 			}
 			if got := stderr.String(); !strings.Contains(got, tc.wantSubstr) || !strings.Contains(got, "Usage:") {
 				t.Fatalf("stderr = %q, want %q and usage", got, tc.wantSubstr)
+			}
+		})
+	}
+}
+
+func TestRunReverseReportsDaemonUnavailableAndTooOld(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		resp       daemon.Response
+		err        error
+		wantSubstr string
+	}{
+		{name: "unavailable", err: errors.New("dial unix: no such file"), wantSubstr: "adb-god is not running or socket is unavailable"},
+		{name: "too-old", resp: daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorUnknownCommand, Message: "unknown daemon command"}}, wantSubstr: "adb-god is too old for persistent reverse forwarding"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			restoreSend := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+				return tc.resp, tc.err
+			})
+			defer restoreSend()
+
+			code := Run([]string{"reverse", "--socket", "/tmp/adb-god.sock", "--list"}, &stdout, &stderr)
+
+			if code != 1 {
+				t.Fatalf("Run(reverse --list %s) exit code = %d, want 1", tc.name, code)
+			}
+			if !strings.Contains(stderr.String(), tc.wantSubstr) || !strings.Contains(stderr.String(), "daemon doctor") {
+				t.Fatalf("stderr = %q, want daemon guidance %q", stderr.String(), tc.wantSubstr)
 			}
 		})
 	}

@@ -25,6 +25,7 @@ type Server struct {
 	listener   net.Listener
 	start      time.Time
 	forwards   *forwardRegistry
+	reverses   *reverseRegistry
 	devices    *deviceRegistry
 
 	shutdownOnce sync.Once
@@ -43,7 +44,7 @@ func NewServer(opts Options) (*Server, error) {
 	if !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("daemon socket path must be absolute")
 	}
-	return &Server{socketPath: path, forwards: newForwardRegistry(), devices: newDeviceRegistry(), done: make(chan struct{})}, nil
+	return &Server{socketPath: path, forwards: newForwardRegistry(), reverses: newReverseRegistry(), devices: newDeviceRegistry(), done: make(chan struct{})}, nil
 }
 
 func (s *Server) SocketPath() string { return s.socketPath }
@@ -100,6 +101,9 @@ func (s *Server) Shutdown() error {
 		}
 		if s.forwards != nil {
 			s.forwards.close()
+		}
+		if s.reverses != nil {
+			s.reverses.close()
 		}
 		if stat, statErr := os.Lstat(s.socketPath); statErr == nil && stat.Mode()&os.ModeSocket != 0 {
 			if removeErr := os.Remove(s.socketPath); removeErr != nil && err == nil {
@@ -167,6 +171,7 @@ func (s *Server) handleRequest(req Request) Response {
 	case CommandStatus:
 		resp.OK = true
 		forwardDiagnostics := s.forwards.diagnostics()
+		reverseDiagnostics := s.reverses.diagnostics()
 		resp.Result = map[string]any{
 			"state":              "running",
 			"pid":                os.Getpid(),
@@ -174,6 +179,7 @@ func (s *Server) handleRequest(req Request) Response {
 			"protocolVersion":    ProtocolVersion,
 			"uptimeMillis":       time.Since(s.start).Milliseconds(),
 			"forwardDiagnostics": forwardDiagnostics,
+			"reverseDiagnostics": reverseDiagnostics,
 		}
 	case CommandShutdown:
 		resp.OK = true
@@ -226,6 +232,38 @@ func (s *Server) handleRequest(req Request) Response {
 	case CommandForwardRemoveAll:
 		resp.OK = true
 		resp.Result = map[string]any{"removed": s.forwards.removeAll()}
+	case CommandReverseCreate:
+		params, errResp := decodeReverseCreateParams(req.Params)
+		if errResp != nil {
+			resp.Error = errResp
+			break
+		}
+		reverse, reverseErr := s.reverses.create(params)
+		if reverseErr != nil {
+			resp.Error = reverseErr
+			break
+		}
+		resp.OK = true
+		resp.Result = map[string]any{"reverse": reverse}
+	case CommandReverseList:
+		resp.OK = true
+		resp.Result = map[string]any{"reverses": s.reverses.list()}
+	case CommandReverseRemove:
+		params, errResp := decodeReverseRemoveParams(req.Params)
+		if errResp != nil {
+			resp.Error = errResp
+			break
+		}
+		removed, reverseErr := s.reverses.remove(params)
+		if reverseErr != nil {
+			resp.Error = reverseErr
+			break
+		}
+		resp.OK = true
+		resp.Result = map[string]any{"removed": removed}
+	case CommandReverseRemoveAll:
+		resp.OK = true
+		resp.Result = map[string]any{"removed": s.reverses.removeAll()}
 	default:
 		resp.Error = &Error{Code: ErrorUnknownCommand, Message: fmt.Sprintf("unknown daemon command %q", req.Command)}
 	}

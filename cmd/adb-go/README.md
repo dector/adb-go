@@ -136,11 +136,11 @@ The CLI does not create or modify key files.
 Device workflow commands such as `shell`, `push`, `pull`, `install-apk`,
 `getprop`, `logcat`, `screencap`, `reboot`, foreground `forward`, and foreground
 `reverse` connect directly to an explicit TCP or Linux USB target. Daemon-owned
-`forward --background`, `forward --list`, and `forward --remove*` talk to the
-local `adb-god` control socket; the daemon then opens explicit TCP ADB targets
-for background forward traffic. The `daemon` command also talks to `adb-god` but
-controls the process itself. The `version` command is host-only and performs no
-ADB or daemon I/O.
+`forward --background`/`reverse --background`, `--list`, and `--remove*` talk to
+the local `adb-god` control socket; the daemon then opens explicit TCP ADB
+targets for background forwarding traffic. The `daemon` command also talks to
+`adb-god` but controls the process itself. The `version` command is host-only
+and performs no ADB or daemon I/O.
 
 ### `version`
 
@@ -467,13 +467,17 @@ USB/authenticated targets. The daemon-backed design background is in
 
 ### `reverse`
 
-`adb-go reverse` starts a foreground reverse TCP forwarding session from a TCP
-listener on the selected device to a TCP port on host loopback:
+`adb-go reverse` starts either a foreground or daemon-owned reverse TCP
+forwarding session from a TCP listener on the selected device to a TCP port on
+host loopback:
 
 ```sh
 adb-go reverse --addr 127.0.0.1:5555 tcp:8081 tcp:3000
 adb-go reverse --usb-path /dev/bus/usb/001/002 tcp:8081 tcp:3000
 adb-go reverse --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:8081 tcp:3000
+adb-go reverse --background --addr 127.0.0.1:5555 tcp:8081 tcp:3000
+adb-go reverse --list
+adb-go reverse --remove tcp:8081
 ```
 
 The first endpoint is the remote device listener and the second endpoint is the
@@ -495,12 +499,16 @@ host loopback target, and copies bytes in both directions. Press Ctrl-C or stop
 the process to remove the device-side reverse registration and close active
 bridged connections.
 
-`adb-go reverse --list`, `--remove`, and `--remove-all` are intentionally
-deferred until daemon-owned reverse forwarding is implemented. The current
-command is process-scoped: when the CLI exits, the reverse is gone. Unsupported
-reverse forms include Android local socket namespaces, JDWP, vsock, host Unix
-sockets, generic service targets, and durable adb-server-style reverse tables.
-Design details are in
+For persistent background reverse forwarding, start `adb-god` and pass
+`--background`. Daemon-owned reverses are in-memory: they survive the creating
+CLI process, but they are removed by `adb-go reverse --remove`,
+`adb-go reverse --remove-all`, or `adb-god` shutdown. Background reverse
+currently supports explicit unauthenticated TCP ADB targets only; USB targets and
+`--auth-key` persistence are intentionally deferred.
+
+Unsupported reverse forms include Android local socket namespaces, JDWP, vsock,
+host Unix sockets, generic service targets, durable on-disk reverse tables, and
+adb-compatible `adb reverse` mode. Design details are in
 [`../../docs/reverse-forwarding-design.md`](../../docs/reverse-forwarding-design.md).
 
 ### `daemon`

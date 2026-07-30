@@ -351,12 +351,11 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   normal, bootloader, and recovery modes through adb-go's `Reboot` helper and
   CLI `reboot` command; a successful request may close the ADB connection while
   the selected device restarts.
-- Forwarding support covers foreground process-scoped TCP forwards,
-  foreground process-scoped TCP reverse forwards, and daemon-owned in-memory TCP
-  forwards through `adb-go forward --background`, `--list`, `--remove`, and
-  `--remove-all`. It does not emulate the official adb server's durable mapping
-  store and does not support JDWP, Unix sockets, daemon-owned reverse
-  forwarding, or other endpoint families yet.
+- Forwarding support covers foreground process-scoped TCP forwards/reverses and
+  daemon-owned in-memory TCP forwards/reverses through `adb-go forward` and
+  `adb-go reverse` background/list/remove commands. It does not emulate the
+  official adb server's durable mapping store and does not support JDWP, Unix
+  sockets, or other endpoint families yet.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 

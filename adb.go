@@ -50,6 +50,9 @@ type ReverseHostEndpoint = client.ReverseHostEndpoint
 // Reverse is an active reverse forwarding session.
 type Reverse = client.Reverse
 
+// ReverseOptions tunes reverse forwarding behavior for advanced callers.
+type ReverseOptions = client.ReverseOptions
+
 // ConnectOptions controls optional high-level connection behavior.
 type ConnectOptions = client.ConnectOptions
 

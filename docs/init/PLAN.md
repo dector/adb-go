@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M70 — Add custom CLI reverse command.
-- Completed milestone range: Milestones 17–69 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, and the direct-device client reverse TCP API.
+- Current milestone: M72 — Add compat adb reverse support.
+- Completed milestone range: Milestones 17–71 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, and daemon-owned reverse forwarding.
 - Active focus: implement reverse port forwarding in small slices. Start with protocol support for device-initiated ADB streams, then add a direct-device TCP reverse API, a foreground custom CLI command, daemon-owned reverse lifecycle, and finally adb-compatible `adb reverse` behavior for supported endpoint families.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -279,27 +279,27 @@ Done when:
 
 ### M71 — Add daemon-owned reverse forwarding
 
-Status: Not started
+Status: Done
 
 Commit: `feat(daemon): add reverse forwarding registry`
 
 Tasks:
 
-- [ ] Extend daemon forwarding models or add reverse-specific models for device-side listener registrations.
-- [ ] Add daemon protocol commands for reverse create/list/remove/remove-all, keeping forward and reverse diagnostics distinct enough for troubleshooting.
-- [ ] Implement daemon-owned lifecycle, reconnection policy, cleanup-on-remove, active connection tracking, and last-error reporting for explicit TCP ADB targets.
-- [ ] Wire custom CLI background/list/remove controls if the M67 design chooses daemon-owned reverse support.
-- [ ] Document that reverse registrations are in-memory unless a later durable-state milestone is designed.
+- [x] Extend daemon forwarding models or add reverse-specific models for device-side listener registrations.
+- [x] Add daemon protocol commands for reverse create/list/remove/remove-all, keeping forward and reverse diagnostics distinct enough for troubleshooting.
+- [x] Implement daemon-owned lifecycle, reconnection policy, cleanup-on-remove, active connection tracking, and last-error reporting for explicit TCP ADB targets.
+- [x] Wire custom CLI background/list/remove controls if the M67 design chooses daemon-owned reverse support.
+- [x] Document that reverse registrations are in-memory unless a later durable-state milestone is designed.
 
 Tests:
 
-- [ ] Daemon protocol and registry tests cover create/list/remove/remove-all, norebind, reconnect/degraded state, active connections, and shutdown cleanup.
-- [ ] CLI tests cover daemon unavailable/too-old errors and successful daemon-owned reverse operations.
-- [ ] `go test ./...` passes
+- [x] Daemon protocol and registry tests cover create/list/remove/remove-all, norebind, reconnect/degraded state, active connections, and shutdown cleanup.
+- [x] CLI tests cover daemon unavailable/too-old errors and successful daemon-owned reverse operations.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] `adb-god` can own in-memory reverse TCP forwarding registrations with lifecycle and diagnostics matching the forward registry quality bar.
+- [x] `adb-god` can own in-memory reverse TCP forwarding registrations with lifecycle and diagnostics matching the forward registry quality bar.
 
 ### M72 — Add compat adb reverse support
 

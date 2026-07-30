@@ -77,16 +77,32 @@ func ParseReverseHostEndpoint(endpoint string) (ReverseHostEndpoint, error) {
 	return ReverseHostTCP(port)
 }
 
+// ReverseOptions tunes reverse forwarding behavior for advanced callers such as
+// the adb-go daemon. Most callers should use Client.ReverseTCP.
+type ReverseOptions struct {
+	// Norebind asks adbd to fail registration if the device-side endpoint already
+	// has a reverse mapping.
+	Norebind bool
+	// OnActiveConnections is called when the number of active bridged device
+	// connections changes.
+	OnActiveConnections func(int)
+	// OnBridgeError is called for per-connection bridge setup errors, such as a
+	// device connection arriving while the host TCP target is unavailable.
+	OnBridgeError func(error)
+}
+
 // Reverse is an active process-scoped reverse forwarding session.
 type Reverse struct {
 	client *Client
 	remote ReverseDeviceEndpoint
 	local  ReverseHostEndpoint
 	cancel context.CancelFunc
+	opts   ReverseOptions
 
-	mu     sync.Mutex
-	closed bool
-	active map[io.Closer]struct{}
+	mu            sync.Mutex
+	closed        bool
+	active        map[io.Closer]struct{}
+	activeBridges int
 
 	bridgeWG sync.WaitGroup
 	done     chan error
@@ -108,6 +124,8 @@ func (r *Reverse) Close() error {
 		return nil
 	}
 	r.closed = true
+	r.opts.OnActiveConnections = nil
+	r.opts.OnBridgeError = nil
 	active := make([]io.Closer, 0, len(r.active))
 	for closer := range r.active {
 		active = append(active, closer)
@@ -147,6 +165,11 @@ func (r *Reverse) Wait() error {
 // listener to a host loopback TCP target. The forwarding exists only while the
 // returned Reverse remains open and this process keeps running.
 func (c *Client) ReverseTCP(ctx context.Context, remote ReverseDeviceEndpoint, local ReverseHostEndpoint) (*Reverse, error) {
+	return c.ReverseTCPWithOptions(ctx, remote, local, ReverseOptions{})
+}
+
+// ReverseTCPWithOptions starts reverse TCP forwarding with advanced options.
+func (c *Client) ReverseTCPWithOptions(ctx context.Context, remote ReverseDeviceEndpoint, local ReverseHostEndpoint, opts ReverseOptions) (*Reverse, error) {
 	if c == nil || c.conn == nil {
 		return nil, protocol.ErrDeviceClosed
 	}
@@ -169,6 +192,7 @@ func (c *Client) ReverseTCP(ctx context.Context, remote ReverseDeviceEndpoint, l
 		remote: remote,
 		local:  local,
 		cancel: cancel,
+		opts:   opts,
 		active: make(map[io.Closer]struct{}),
 		done:   make(chan error, 1),
 	}
@@ -190,7 +214,7 @@ func (c *Client) ReverseTCP(ctx context.Context, remote ReverseDeviceEndpoint, l
 		}
 	}()
 
-	if err := c.registerReverse(ctx, remote, local); err != nil {
+	if err := c.registerReverse(ctx, remote, local, opts.Norebind); err != nil {
 		return nil, err
 	}
 	registered = true
@@ -202,8 +226,12 @@ func (c *Client) ReverseTCP(ctx context.Context, remote ReverseDeviceEndpoint, l
 	return r, nil
 }
 
-func (c *Client) registerReverse(ctx context.Context, remote ReverseDeviceEndpoint, local ReverseHostEndpoint) error {
-	service := "reverse:forward:" + remote.service + ";" + local.service
+func (c *Client) registerReverse(ctx context.Context, remote ReverseDeviceEndpoint, local ReverseHostEndpoint, norebind bool) error {
+	command := "forward:"
+	if norebind {
+		command = "forward:norebind:"
+	}
+	service := "reverse:" + command + remote.service + ";" + local.service
 	stream, err := c.OpenService(ctx, service)
 	if err != nil {
 		return fmt.Errorf("adb reverse register %s -> %s: %w", remote.service, local.service, err)
@@ -258,14 +286,15 @@ func (r *Reverse) handleStream(ctx context.Context, stream io.ReadWriteCloser) {
 	dialer := net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "tcp", r.local.addr)
 	if err != nil {
+		if r.opts.OnBridgeError != nil {
+			r.opts.OnBridgeError(err)
+		}
 		_ = stream.Close()
 		return
 	}
 
-	r.addActive(stream)
-	r.addActive(conn)
-	defer r.removeActive(stream)
-	defer r.removeActive(conn)
+	r.addBridge(stream, conn)
+	defer r.removeBridge(stream, conn)
 
 	var once sync.Once
 	closeBoth := func() {
@@ -288,18 +317,39 @@ func (r *Reverse) handleStream(ctx context.Context, stream io.ReadWriteCloser) {
 	copies.Wait()
 }
 
-func (r *Reverse) addActive(closer io.Closer) {
+func (r *Reverse) addBridge(closers ...io.Closer) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if r.closed {
-		_ = closer.Close()
+		r.mu.Unlock()
+		for _, closer := range closers {
+			_ = closer.Close()
+		}
 		return
 	}
-	r.active[closer] = struct{}{}
+	for _, closer := range closers {
+		r.active[closer] = struct{}{}
+	}
+	r.activeBridges++
+	active := r.activeBridges
+	r.mu.Unlock()
+	r.notifyActive(active)
 }
 
-func (r *Reverse) removeActive(closer io.Closer) {
+func (r *Reverse) removeBridge(closers ...io.Closer) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.active, closer)
+	for _, closer := range closers {
+		delete(r.active, closer)
+	}
+	if r.activeBridges > 0 {
+		r.activeBridges--
+	}
+	active := r.activeBridges
+	r.mu.Unlock()
+	r.notifyActive(active)
+}
+
+func (r *Reverse) notifyActive(active int) {
+	if r.opts.OnActiveConnections != nil {
+		r.opts.OnActiveConnections(active)
+	}
 }
