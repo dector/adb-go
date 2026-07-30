@@ -21,6 +21,7 @@ clone of the official `adb` command.
   - [`screencap`](#screencap)
   - [`reboot`](#reboot)
   - [`forward`](#forward)
+  - [`reverse`](#reverse)
   - [`daemon`](#daemon)
 - [Troubleshooting common errors](#troubleshooting-common-errors)
 - [Limitations](#limitations)
@@ -62,6 +63,7 @@ adb-go logcat --addr 127.0.0.1:5555
 adb-go screencap --addr 127.0.0.1:5555 ./screen.png
 adb-go reboot --addr 127.0.0.1:5555
 adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+adb-go reverse --addr 127.0.0.1:5555 tcp:8081 tcp:3000
 ```
 
 If the port is omitted, the library connection path defaults to the standard ADB
@@ -82,6 +84,7 @@ adb-go logcat --dump
 adb-go screencap ./screen.png
 adb-go reboot recovery
 adb-go forward tcp:9000 tcp:9000
+adb-go reverse tcp:8081 tcp:3000
 ```
 
 ## USB targets
@@ -99,6 +102,7 @@ adb-go logcat --usb-path /dev/bus/usb/001/002
 adb-go screencap --usb-path /dev/bus/usb/001/002 ./screen.png
 adb-go reboot --usb-path /dev/bus/usb/001/002 bootloader
 adb-go forward --usb-path /dev/bus/usb/001/002 tcp:9000 tcp:9000
+adb-go reverse --usb-path /dev/bus/usb/001/002 tcp:8081 tcp:3000
 ```
 
 `--usb` requests USB discovery without narrowing selection. It succeeds only
@@ -122,6 +126,7 @@ adb-go logcat --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 --dump
 adb-go screencap --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 ./screen.png
 adb-go reboot --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 recovery
 adb-go forward --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+adb-go reverse --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:8081 tcp:3000
 ```
 
 The CLI does not create or modify key files.
@@ -129,12 +134,13 @@ The CLI does not create or modify key files.
 ## Commands
 
 Device workflow commands such as `shell`, `push`, `pull`, `install-apk`,
-`getprop`, `logcat`, `screencap`, `reboot`, and foreground `forward` connect directly to an
-explicit TCP or Linux USB target. Daemon-owned `forward --background`, `forward --list`,
-and `forward --remove*` talk to the local `adb-god` control socket; the daemon then
-opens explicit TCP ADB targets for background forward traffic. The `daemon` command also
-talks to `adb-god` but controls the process itself. The `version` command is host-only
-and performs no ADB or daemon I/O.
+`getprop`, `logcat`, `screencap`, `reboot`, foreground `forward`, and foreground
+`reverse` connect directly to an explicit TCP or Linux USB target. Daemon-owned
+`forward --background`, `forward --list`, and `forward --remove*` talk to the
+local `adb-god` control socket; the daemon then opens explicit TCP ADB targets
+for background forward traffic. The `daemon` command also talks to `adb-god` but
+controls the process itself. The `version` command is host-only and performs no
+ADB or daemon I/O.
 
 ### `version`
 
@@ -454,10 +460,48 @@ adb-go daemon doctor
 ```
 
 Unsupported forwarding forms currently include host Unix sockets, Android local
-socket namespaces such as `localabstract:`, JDWP, vsock, reverse forwarding, raw
-advanced service targets, durable persistent mappings across daemon restarts,
-and daemon-owned USB/authenticated targets. The daemon-backed design background
-is in [`../../docs/persistent-forwarding-design.md`](../../docs/persistent-forwarding-design.md).
+socket namespaces such as `localabstract:`, JDWP, vsock, raw advanced service
+targets, durable persistent mappings across daemon restarts, and daemon-owned
+USB/authenticated targets. The daemon-backed design background is in
+[`../../docs/persistent-forwarding-design.md`](../../docs/persistent-forwarding-design.md).
+
+### `reverse`
+
+`adb-go reverse` starts a foreground reverse TCP forwarding session from a TCP
+listener on the selected device to a TCP port on host loopback:
+
+```sh
+adb-go reverse --addr 127.0.0.1:5555 tcp:8081 tcp:3000
+adb-go reverse --usb-path /dev/bus/usb/001/002 tcp:8081 tcp:3000
+adb-go reverse --auth-key ~/.android/adbkey --addr 127.0.0.1:5555 tcp:8081 tcp:3000
+```
+
+The first endpoint is the remote device listener and the second endpoint is the
+local host target. Both endpoints must be `tcp:PORT`. The host target is dialed
+as `127.0.0.1:PORT`; adb-go does not expose host-wide or Unix-socket targets in
+this slice. Device-side `tcp:0` is also unsupported because adb-go cannot yet
+report the selected device port reliably across supported `adbd` versions.
+
+After setup, adb-go prints:
+
+```text
+Reverse forwarding tcp:8081 -> host tcp:3000. Press Ctrl+C to stop and remove the device-side listener.
+```
+
+The command then remains running. While it is running, device-side clients can
+connect to the device's reverse listener. For each connection, `adbd` opens an
+ADB stream back to adb-go; adb-go accepts that device-initiated stream, dials the
+host loopback target, and copies bytes in both directions. Press Ctrl-C or stop
+the process to remove the device-side reverse registration and close active
+bridged connections.
+
+`adb-go reverse --list`, `--remove`, and `--remove-all` are intentionally
+deferred until daemon-owned reverse forwarding is implemented. The current
+command is process-scoped: when the CLI exits, the reverse is gone. Unsupported
+reverse forms include Android local socket namespaces, JDWP, vsock, host Unix
+sockets, generic service targets, and durable adb-server-style reverse tables.
+Design details are in
+[`../../docs/reverse-forwarding-design.md`](../../docs/reverse-forwarding-design.md).
 
 ### `daemon`
 

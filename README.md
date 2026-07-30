@@ -37,7 +37,7 @@ block-beta
 
   root["GITHUB.COM/DECTOR/ADB-GO<br/>(stable high-level API)"]:2
 
-  workflows["CLIENT WORKFLOWS<br/>(shell · push/pull · install · logcat · screencap · reboot · forward)"]:2
+  workflows["CLIENT WORKFLOWS<br/>(shell · push/pull · install · logcat · screencap · reboot · forward · reverse)"]:2
 
   client["CLIENT<br/>(connections, services, device operations)"]:2
 
@@ -62,6 +62,7 @@ block-beta
 | Reboot | Supports normal, bootloader, and recovery modes |
 | Local TCP forwarding | Device TCP targets only |
 | Daemon-owned TCP forwarding | Device TCP targets only |
+| Reverse TCP forwarding | Foreground process-scoped, device TCP to host loopback TCP |
 | File push/pull |  |
 | APK installation | Supports replace option |
 | Sample CLI | Showcasing library |
@@ -93,7 +94,8 @@ Use the root package for the high-level API. It re-exports the `client`
 package for connecting to a device, opening services, running shell commands,
 reading Android system properties, streaming Android logs, capturing screenshots,
 rebooting into supported modes, forwarding local TCP connections to device TCP
-ports, pushing or pulling one file, and installing one APK.
+ports, reverse forwarding device TCP connections to host loopback TCP ports,
+pushing or pulling one file, and installing one APK.
 
 ```go
 ctx := context.Background()
@@ -169,6 +171,23 @@ This is process-scoped foreground forwarding. It is useful for bridging local
 clients to a service listening on the device, but it is not an adb-server-backed
 persistent `adb forward` registration.
 
+Reverse device TCP connections to a host loopback TCP endpoint:
+
+```go
+remote, err := adb.ReverseDeviceTCP(8081)
+local, err := adb.ReverseHostTCP(3000)
+
+reverse, err := c.ReverseTCP(ctx, remote, local)
+defer reverse.Close()
+
+err = reverse.Wait()
+```
+
+This creates a device-side `tcp:8081` listener through adbd's reverse-forwarding
+service. When device code connects to that port, adbd opens an ADB stream back
+to adb-go and adb-go dials `127.0.0.1:3000` on the host. The reverse exists only
+while the process owns the returned handle.
+
 Install APK:
 
 ```go
@@ -231,6 +250,7 @@ adb-go screencap --addr 127.0.0.1:5555 ./screen.png
 adb-go reboot --addr 127.0.0.1:5555
 adb-go reboot --addr 127.0.0.1:5555 recovery
 adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+adb-go reverse --addr 127.0.0.1:5555 tcp:8081 tcp:3000
 ```
 
 `adb-go version` prints the adb-go build version, Go runtime version, target OS,
@@ -331,11 +351,12 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   normal, bootloader, and recovery modes through adb-go's `Reboot` helper and
   CLI `reboot` command; a successful request may close the ADB connection while
   the selected device restarts.
-- Forwarding support covers foreground process-scoped TCP forwards and
-  daemon-owned in-memory TCP forwards through `adb-go forward --background`,
-  `--list`, `--remove`, and `--remove-all`. It does not emulate the official adb
-  server's durable mapping store and does not support JDWP, Unix sockets,
-  reverse forwarding, or other endpoint families yet.
+- Forwarding support covers foreground process-scoped TCP forwards,
+  foreground process-scoped TCP reverse forwards, and daemon-owned in-memory TCP
+  forwards through `adb-go forward --background`, `--list`, `--remove`, and
+  `--remove-all`. It does not emulate the official adb server's durable mapping
+  store and does not support JDWP, Unix sockets, daemon-owned reverse
+  forwarding, or other endpoint families yet.
 
 More details are in the package READMEs and [`docs/README.md`](docs/README.md).
 

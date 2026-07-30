@@ -1522,6 +1522,115 @@ func TestRunForwardReportsSetupAndWaitErrors(t *testing.T) {
 	}
 }
 
+func TestRunReverseUsesConnectionFlagsAndStartsForegroundSession(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var gotTarget connectionTarget
+	restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		gotTarget = target
+		return fakeCLIClient{}, nil
+	})
+	defer restoreConnect()
+	var gotRemote adb.ReverseDeviceEndpoint
+	var gotLocal adb.ReverseHostEndpoint
+	restoreReverse := replaceStartReverse(func(ctx context.Context, client deviceClient, remote adb.ReverseDeviceEndpoint, local adb.ReverseHostEndpoint) (reverseSession, error) {
+		gotRemote = remote
+		gotLocal = local
+		return fakeReverseSession{}, nil
+	})
+	defer restoreReverse()
+
+	code := Run([]string{"reverse", "--addr", "127.0.0.1:5555", "tcp:8081", "tcp:3000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(reverse) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if gotTarget.tcpAddr != "127.0.0.1:5555" || gotTarget.usb {
+		t.Fatalf("connect target = %+v, want TCP addr", gotTarget)
+	}
+	if gotRemote == (adb.ReverseDeviceEndpoint{}) || gotLocal == (adb.ReverseHostEndpoint{}) {
+		t.Fatalf("reverse endpoints = %#v %#v, want parsed tcp endpoints", gotRemote, gotLocal)
+	}
+	if got := stdout.String(); !strings.Contains(got, "Reverse forwarding tcp:8081 -> host tcp:3000") || !strings.Contains(got, "remove the device-side listener") {
+		t.Fatalf("stdout = %q, want foreground reverse status", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunReverseRejectsInvalidArgumentsAndDeferredStateCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		args       []string
+		wantSubstr string
+	}{
+		{name: "wrong count", args: []string{"reverse", "--addr", "127.0.0.1:5555", "tcp:8081"}, wantSubstr: "requires exactly REMOTE and LOCAL"},
+		{name: "unsupported remote", args: []string{"reverse", "--addr", "127.0.0.1:5555", "localabstract:name", "tcp:3000"}, wantSubstr: "unsupported device endpoint"},
+		{name: "unsupported local", args: []string{"reverse", "--addr", "127.0.0.1:5555", "tcp:8081", "localabstract:name"}, wantSubstr: "unsupported host endpoint"},
+		{name: "tcp zero", args: []string{"reverse", "--addr", "127.0.0.1:5555", "tcp:0", "tcp:3000"}, wantSubstr: "out of range"},
+		{name: "deferred list", args: []string{"reverse", "--list"}, wantSubstr: "Reverse --list, --remove, and"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			code := Run(tc.args, &stdout, &stderr)
+
+			if code != 2 {
+				t.Fatalf("Run(%v) exit code = %d, want 2", tc.args, code)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty", stdout.String())
+			}
+			if got := stderr.String(); !strings.Contains(got, tc.wantSubstr) || !strings.Contains(got, "Usage:") {
+				t.Fatalf("stderr = %q, want %q and usage", got, tc.wantSubstr)
+			}
+		})
+	}
+}
+
+func TestRunReverseReportsConnectionSetupCleanupAndWaitErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		connectErr error
+		startErr   error
+		closeErr   error
+		waitErr    error
+		wantSubstr string
+	}{
+		{name: "connect", connectErr: errors.New("dial failed"), wantSubstr: "connect to 127.0.0.1:5555: dial failed"},
+		{name: "setup", startErr: errors.New("registration refused"), wantSubstr: "registration refused"},
+		{name: "wait", waitErr: errors.New("cleanup failed"), wantSubstr: "cleanup failed"},
+		{name: "deferred close", closeErr: errors.New("cleanup failed"), waitErr: errors.New("cleanup failed"), wantSubstr: "cleanup failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+				if tc.connectErr != nil {
+					return nil, tc.connectErr
+				}
+				return fakeCLIClient{}, nil
+			})
+			defer restoreConnect()
+			restoreReverse := replaceStartReverse(func(ctx context.Context, client deviceClient, remote adb.ReverseDeviceEndpoint, local adb.ReverseHostEndpoint) (reverseSession, error) {
+				if tc.startErr != nil {
+					return nil, tc.startErr
+				}
+				return fakeReverseSession{closeErr: tc.closeErr, waitErr: tc.waitErr}, nil
+			})
+			defer restoreReverse()
+
+			code := Run([]string{"reverse", "--addr", "127.0.0.1:5555", "tcp:8081", "tcp:3000"}, &stdout, &stderr)
+
+			if code != 1 {
+				t.Fatalf("Run(reverse %s error) exit code = %d, want 1", tc.name, code)
+			}
+			if got := stderr.String(); !strings.Contains(got, tc.wantSubstr) {
+				t.Fatalf("stderr = %q, want %q", got, tc.wantSubstr)
+			}
+		})
+	}
+}
+
 func TestParseRebootMode(t *testing.T) {
 	tests := []struct {
 		value string
@@ -2049,6 +2158,14 @@ func (f fakeForwardSession) LocalAddr() net.Addr { return f.addr }
 func (f fakeForwardSession) Close() error        { return nil }
 func (f fakeForwardSession) Wait() error         { return f.waitErr }
 
+type fakeReverseSession struct {
+	closeErr error
+	waitErr  error
+}
+
+func (f fakeReverseSession) Close() error { return f.closeErr }
+func (f fakeReverseSession) Wait() error  { return f.waitErr }
+
 type fakeCLIClient struct {
 	shellOutput           string
 	logcat                func(ctx context.Context, stdout io.Writer, opts adb.LogcatOptions) error
@@ -2162,6 +2279,12 @@ func replaceStartForward(fn func(context.Context, deviceClient, string, adb.Forw
 	old := startForward
 	startForward = fn
 	return func() { startForward = old }
+}
+
+func replaceStartReverse(fn func(context.Context, deviceClient, adb.ReverseDeviceEndpoint, adb.ReverseHostEndpoint) (reverseSession, error)) func() {
+	old := startReverse
+	startReverse = fn
+	return func() { startReverse = old }
 }
 
 func replaceSendDaemonRequest(fn func(context.Context, string, daemon.Request) (daemon.Response, error)) func() {

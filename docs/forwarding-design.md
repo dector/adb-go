@@ -5,6 +5,8 @@ official `adb forward` does, why adb-go initially implemented forwarding as a
 foreground direct-device bridge, and the small direct-device forwarding shape
 used by the current library and CLI. Future daemon-backed persistent forwarding
 is designed separately in [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
+Reverse forwarding is the opposite direction and is designed separately in
+[`reverse-forwarding-design.md`](reverse-forwarding-design.md).
 
 ## Official adb behavior
 
@@ -143,7 +145,9 @@ Potential later extensions, explicitly out of scope for the first code slice:
 - Daemon-backed `--list`, `--remove`, `--remove-all`, or persistent mappings
   after process exit. The persistent variant has a separate design in
   [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
-- Reverse forwarding.
+- Reverse forwarding in this historical forward-only design. adb-go now tracks
+  reverse TCP forwarding separately in
+  [`reverse-forwarding-design.md`](reverse-forwarding-design.md).
 
 ## Proposed CLI behavior
 

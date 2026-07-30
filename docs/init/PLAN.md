@@ -255,27 +255,27 @@ Done when:
 
 ### M70 — Add custom CLI reverse command
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add reverse command`
 
 Tasks:
 
-- [ ] Add `adb-go reverse [connection flags] tcp:REMOTE_PORT tcp:LOCAL_PORT` using the client reverse TCP API.
-- [ ] Make foreground lifetime and cleanup explicit in usage text and status output.
-- [ ] Add `--list`, `--remove`, and `--remove-all` only if the M67 design chooses daemon-backed or direct-device support for those operations in this slice; otherwise document them as deferred.
-- [ ] Keep unsupported endpoint families rejected with clear guidance.
-- [ ] Update README and forwarding documentation with examples and limitations.
+- [x] Add `adb-go reverse [connection flags] tcp:REMOTE_PORT tcp:LOCAL_PORT` using the client reverse TCP API.
+- [x] Make foreground lifetime and cleanup explicit in usage text and status output.
+- [x] Add `--list`, `--remove`, and `--remove-all` only if the M67 design chooses daemon-backed or direct-device support for those operations in this slice; otherwise document them as deferred.
+- [x] Keep unsupported endpoint families rejected with clear guidance.
+- [x] Update README and forwarding documentation with examples and limitations.
 
 Tests:
 
-- [ ] CLI tests cover success, argument validation, unsupported endpoint errors, connection errors, and cleanup/error reporting.
-- [ ] If list/remove are included, tests cover output shape and missing-forward behavior.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover success, argument validation, unsupported endpoint errors, connection errors, and cleanup/error reporting.
+- [x] List/remove output tests are not applicable because M70 documents those operations as deferred rather than including them.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can run a documented custom-mode reverse TCP forwarding workflow without relying on the official adb server.
+- [x] Users can run a documented custom-mode reverse TCP forwarding workflow without relying on the official adb server.
 
 ### M71 — Add daemon-owned reverse forwarding
 

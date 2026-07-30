@@ -38,6 +38,7 @@ Commands:
   screencap   Save a PNG screenshot from a connected device
   reboot      Reboot a connected device
   forward     Forward local TCP connections to a device TCP endpoint
+  reverse     Reverse device TCP connections to a host TCP endpoint
   daemon      Control the local adb-god daemon
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
@@ -105,6 +106,11 @@ type forwardSession interface {
 	Wait() error
 }
 
+type reverseSession interface {
+	Close() error
+	Wait() error
+}
+
 var startForward = func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
 	forwarder, ok := client.(interface {
 		ForwardLocalTCP(context.Context, string, adb.ForwardTarget) (*adb.Forward, error)
@@ -113,6 +119,16 @@ var startForward = func(ctx context.Context, client deviceClient, localAddr stri
 		return nil, fmt.Errorf("connected client does not support forwarding")
 	}
 	return forwarder.ForwardLocalTCP(ctx, localAddr, remote)
+}
+
+var startReverse = func(ctx context.Context, client deviceClient, remote adb.ReverseDeviceEndpoint, local adb.ReverseHostEndpoint) (reverseSession, error) {
+	reverser, ok := client.(interface {
+		ReverseTCP(context.Context, adb.ReverseDeviceEndpoint, adb.ReverseHostEndpoint) (*adb.Reverse, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("connected client does not support reverse forwarding")
+	}
+	return reverser.ReverseTCP(ctx, remote, local)
 }
 
 func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
@@ -325,6 +341,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runReboot(args[1:], stdout, stderr)
 	case "forward":
 		return runForward(args[1:], stdout, stderr)
+	case "reverse":
+		return runReverse(args[1:], stdout, stderr)
 	case "daemon":
 		return runDaemon(args[1:], stdout, stderr)
 	case "push":
@@ -1831,6 +1849,93 @@ func parseForwardTCPPort(kind, value string) (int, error) {
 		return 0, fmt.Errorf("%s tcp port %d out of range", kind, port)
 	}
 	return port, nil
+}
+
+const reverseUsage = `Usage:
+  adb-go reverse (--addr HOST[:PORT] | --usb [USB selection]) tcp:REMOTE_PORT tcp:LOCAL_PORT
+
+Starts foreground process-scoped reverse forwarding from a TCP listener on the
+selected device to a TCP endpoint on host loopback. The reverse exists only
+while this command keeps running. Press Ctrl+C to remove the device-side reverse
+registration, close active bridge streams, and exit.
+
+Only tcp:PORT endpoints are supported in this first slice. Device-side tcp:0,
+host Unix sockets, Android local socket namespaces, JDWP, vsock, and generic
+service endpoints are not supported yet. Reverse --list, --remove, and
+--remove-all are deferred until daemon-owned reverse forwarding is implemented.
+For example:
+
+  adb-go reverse --addr 127.0.0.1:5555 tcp:8081 tcp:3000
+  adb-go reverse --auth-key ~/.android/adbkey --usb-path /dev/bus/usb/001/002 tcp:8081 tcp:3000
+`
+
+func runReverse(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("reverse", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	conn := addConnectionFlags(fs)
+	fs.Usage = func() { fmt.Fprint(stderr, reverseUsage) }
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 2 {
+		fmt.Fprint(stderr, "adb-go reverse: requires exactly REMOTE and LOCAL targets\n\n")
+		fs.Usage()
+		return 2
+	}
+
+	target, err := conn.target(fs)
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	remote, err := adb.ParseReverseDeviceEndpoint(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+	local, err := adb.ParseReverseHostEndpoint(fs.Arg(1))
+	if err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: %v\n\n", err)
+		fs.Usage()
+		return 2
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	client, err := connectDevice(ctx, target)
+	if err != nil {
+		printConnectError(stderr, "reverse", target.description, err)
+		return 1
+	}
+	defer client.Close()
+
+	reverse, err := startReverse(ctx, client, remote, local)
+	if err != nil {
+		printCommandError(stderr, "reverse", err)
+		return 1
+	}
+	closed := false
+	defer func() {
+		if !closed {
+			_ = reverse.Close()
+		}
+	}()
+	fmt.Fprintf(stdout, "Reverse forwarding %s -> host %s. Press Ctrl+C to stop and remove the device-side listener.\n", fs.Arg(0), fs.Arg(1))
+
+	if err := reverse.Wait(); err != nil {
+		printCommandError(stderr, "reverse", err)
+		return 1
+	}
+	closed = true
+	if err := reverse.Close(); err != nil {
+		printCommandError(stderr, "reverse", err)
+		return 1
+	}
+	return 0
 }
 
 const pushUsage = `Usage:
