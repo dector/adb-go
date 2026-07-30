@@ -31,9 +31,9 @@ jobs:
           short_sha="${GITHUB_SHA::7}"
           version="$(./tools/git-version.sh)"
           mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${version}" -o "dist/adbgo-${short_sha}" ./cmd/adb-go
-          chmod +x "dist/adbgo-${short_sha}"
-          echo "binary=dist/adbgo-${short_sha}" >> "$GITHUB_ENV"
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${version}" -o "dist/adb-go-linux-x64" ./cmd/adb-go
+          chmod +x "dist/adb-go-linux-x64"
+          echo "binary=dist/adb-go-linux-x64" >> "$GITHUB_ENV"
 
       - name: Move snapshot tag
         run: |
@@ -52,7 +52,7 @@ jobs:
             gh release create snapshot --title snapshot --notes "Automated Linux CLI snapshot build." --prerelease --latest=false
           fi
 
-          old_assets="$(gh release view snapshot --json assets --jq '.assets[].name' | grep -E '^adbgo-' || true)"
+          old_assets="$(gh release view snapshot --json assets --jq '.assets[].name' | grep -E '^(adbgo-|adb-go-linux-x64$)' || true)"
           if [ -n "$old_assets" ]; then
             while IFS= read -r asset; do
               gh release delete-asset snapshot "$asset" --yes
