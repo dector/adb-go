@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M72 — Add compat adb reverse support.
-- Completed milestone range: Milestones 17–71 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, and daemon-owned reverse forwarding.
-- Active focus: implement reverse port forwarding in small slices. Start with protocol support for device-initiated ADB streams, then add a direct-device TCP reverse API, a foreground custom CLI command, daemon-owned reverse lifecycle, and finally adb-compatible `adb reverse` behavior for supported endpoint families.
+- Current milestone: None active; only deferred cross-platform USB research milestones remain.
+- Completed milestone range: Milestones 17–72 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, and adb-compatible reverse TCP forwarding.
+- Active focus: reverse port forwarding is complete for the planned v0 TCP endpoint slices. Future reverse work should be promoted from a new milestone if additional endpoint families or durable daemon state are desired.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -303,26 +303,26 @@ Done when:
 
 ### M72 — Add compat adb reverse support
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add adb reverse compat`
 
 Tasks:
 
-- [ ] Implement compat-mode `adb reverse` syntax and output shape for supported TCP endpoints using current platform-tools behavior as reference.
-- [ ] Route official target selectors from the compat target-selection foundation into reverse operations.
-- [ ] Map compat list/remove/remove-all semantics to the chosen direct or daemon-backed adb-go reverse implementation.
-- [ ] Keep unsupported endpoint families and unsupported devices reported in adb-shaped errors.
+- [x] Implement compat-mode `adb reverse` syntax and output shape for supported TCP endpoints using current platform-tools behavior as reference.
+- [x] Route official target selectors from the compat target-selection foundation into reverse operations.
+- [x] Map compat list/remove/remove-all semantics to the chosen direct or daemon-backed adb-go reverse implementation.
+- [x] Keep unsupported endpoint families and unsupported devices reported in adb-shaped errors.
 
 Tests:
 
-- [ ] Compat tests cover `adb reverse tcp:REMOTE tcp:LOCAL`, `--list`, `--remove`, `--remove-all`, selector handling, unsupported endpoints, and error output.
-- [ ] Reference-output snapshots cover important stdout/stderr and exit-code behavior.
-- [ ] `go test ./...` passes
+- [x] Compat tests cover `adb reverse tcp:REMOTE tcp:LOCAL`, `--list`, `--remove`, `--remove-all`, selector handling, unsupported endpoints, and error output.
+- [x] Reference-output snapshots cover important stdout/stderr and exit-code behavior.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Compat mode has adb-shaped reverse TCP forwarding for the endpoint families adb-go actually supports.
+- [x] Compat mode has adb-shaped reverse TCP forwarding for the endpoint families adb-go actually supports.
 
 ### Cross-platform USB
 

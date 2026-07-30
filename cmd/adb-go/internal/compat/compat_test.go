@@ -3,6 +3,7 @@ package compat
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -33,6 +34,7 @@ func TestRunHelpForms(t *testing.T) {
 			assertContains(t, stdout, " -e         use TCP/emulator device")
 			assertContains(t, stdout, " devices      list connected devices")
 			assertContains(t, stdout, " get-state    print selected device state")
+			assertContains(t, stdout, " reverse      manage device-to-host reverse socket connections")
 			assertNotContains(t, stdout, "targets")
 			assertNotContains(t, stdout, "install-apk")
 			assertNotContains(t, stdout, "ADB_GO_ADDR")
@@ -346,6 +348,89 @@ func TestRunDevicesPrintsDaemonTCPAndUSBDevices(t *testing.T) {
 	assertContains(t, stdout, "usb:001:002\tdevice\n")
 }
 
+func TestRunReverseCreateListRemoveAndRemoveAll(t *testing.T) {
+	fake := installFakeDaemon(t)
+	fake.running = true
+	fake.devices = []daemon.Device{{Serial: "emulator-5555", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+
+	stdout, stderr, code := runForTest("-s", "emulator-5555", "reverse", "tcp:8081", "tcp:3000")
+	if code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("create = code %d stdout %q stderr %q, want silent success", code, stdout, stderr)
+	}
+	if len(fake.reverses) != 1 || fake.reverses[0].Remote.Service != "tcp:8081" || fake.reverses[0].Local.Service != "tcp:3000" || fake.reverses[0].Target.Address != "127.0.0.1:5555" {
+		t.Fatalf("created reverses = %#v", fake.reverses)
+	}
+
+	stdout, stderr, code = runForTest("reverse", "--list")
+	if code != 0 || stderr != "" {
+		t.Fatalf("list = code %d stderr %q", code, stderr)
+	}
+	if stdout != "127.0.0.1:5555 tcp:8081 tcp:3000\n" {
+		t.Fatalf("list stdout = %q, want adb-shaped reverse row", stdout)
+	}
+
+	stdout, stderr, code = runForTest("-s", "emulator-5555", "reverse", "--remove", "tcp:8081")
+	if code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("remove = code %d stdout %q stderr %q, want silent success", code, stdout, stderr)
+	}
+	if len(fake.reverses) != 0 {
+		t.Fatalf("reverses after remove = %#v, want empty", fake.reverses)
+	}
+
+	_, _, _ = runForTest("-s", "emulator-5555", "reverse", "tcp:8082", "tcp:3001")
+	stdout, stderr, code = runForTest("reverse", "--remove-all")
+	if code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("remove-all = code %d stdout %q stderr %q, want silent success", code, stdout, stderr)
+	}
+	if len(fake.reverses) != 0 {
+		t.Fatalf("reverses after remove-all = %#v, want empty", fake.reverses)
+	}
+}
+
+func TestRunReverseSelectorAndValidationErrors(t *testing.T) {
+	t.Run("unsupported endpoint", func(t *testing.T) {
+		fake := installFakeDaemon(t)
+		fake.running = true
+		fake.devices = []daemon.Device{{Serial: "tcp-1", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+
+		stdout, stderr, code := runForTest("-s", "tcp-1", "reverse", "localabstract:name", "tcp:3000")
+		if code != 1 || stdout != "" {
+			t.Fatalf("code/stdout = %d/%q, want 1/empty", code, stdout)
+		}
+		assertContains(t, stderr, "adb: reverse: adb reverse unsupported device endpoint")
+	})
+
+	t.Run("usb target unsupported", func(t *testing.T) {
+		fake := installFakeDaemon(t)
+		fake.running = true
+		restoreUSB := replaceCompatListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+			return []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2}}, nil
+		})
+		defer restoreUSB()
+
+		stdout, stderr, code := runForTest("-d", "reverse", "tcp:8081", "tcp:3000")
+		if code != 1 || stdout != "" {
+			t.Fatalf("code/stdout = %d/%q, want 1/empty", code, stdout)
+		}
+		if stderr != "adb: reverse: USB reverse forwarding is not supported by adb-go compat yet\n" {
+			t.Fatalf("stderr = %q", stderr)
+		}
+	})
+
+	t.Run("no rebind maps daemon conflict", func(t *testing.T) {
+		fake := installFakeDaemon(t)
+		fake.running = true
+		fake.devices = []daemon.Device{{Serial: "tcp-1", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+		_, _, _ = runForTest("-s", "tcp-1", "reverse", "tcp:8081", "tcp:3000")
+
+		stdout, stderr, code := runForTest("-s", "tcp-1", "reverse", "--no-rebind", "tcp:8081", "tcp:3001")
+		if code != 1 || stdout != "" {
+			t.Fatalf("code/stdout = %d/%q, want 1/empty", code, stdout)
+		}
+		assertContains(t, stderr, "adb: reverse: rebind_disallowed")
+	})
+}
+
 func runForTest(args ...string) (stdout string, stderr string, code int) {
 	var out, err bytes.Buffer
 	code = Run(args, &out, &err)
@@ -353,9 +438,11 @@ func runForTest(args ...string) (stdout string, stderr string, code int) {
 }
 
 type fakeCompatDaemon struct {
-	running bool
-	starts  int
-	devices []daemon.Device
+	running  bool
+	starts   int
+	devices  []daemon.Device
+	reverses []daemon.Reverse
+	nextRev  int
 }
 
 func installFakeDaemon(t *testing.T) *fakeCompatDaemon {
@@ -378,6 +465,42 @@ func installFakeDaemon(t *testing.T) *fakeCompatDaemon {
 			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"message": "shutting_down"}}, nil
 		case daemon.CommandDeviceList:
 			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"devices": fake.devices}}, nil
+		case daemon.CommandReverseCreate:
+			var params daemon.ReverseCreateParams
+			if err := json.Unmarshal(req.Params, &params); err != nil {
+				return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorBadRequest, Message: err.Error()}}, nil
+			}
+			for i, r := range fake.reverses {
+				if r.Remote.Service == params.Remote.Service {
+					if params.Norebind {
+						return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorRebindDisallowed, Message: "reverse for remote endpoint " + params.Remote.Service + " already exists"}}, nil
+					}
+					fake.reverses = append(fake.reverses[:i], fake.reverses[i+1:]...)
+					break
+				}
+			}
+			fake.nextRev++
+			rev := daemon.Reverse{ID: "rev_" + string(rune('0'+fake.nextRev)), State: daemon.ReverseStateListening, Remote: params.Remote, Local: params.Local, Target: params.Target, Norebind: params.Norebind}
+			fake.reverses = append(fake.reverses, rev)
+			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverse": rev}}, nil
+		case daemon.CommandReverseList:
+			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": fake.reverses}}, nil
+		case daemon.CommandReverseRemove:
+			var params daemon.ReverseRemoveParams
+			if err := json.Unmarshal(req.Params, &params); err != nil {
+				return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorBadRequest, Message: err.Error()}}, nil
+			}
+			for i, r := range fake.reverses {
+				if (params.ID != "" && r.ID == params.ID) || (params.Remote != nil && r.Remote.Service == params.Remote.Service) {
+					fake.reverses = append(fake.reverses[:i], fake.reverses[i+1:]...)
+					return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, nil
+				}
+			}
+			return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorReverseNotFound, Message: "reverse not found"}}, nil
+		case daemon.CommandReverseRemoveAll:
+			removed := len(fake.reverses)
+			fake.reverses = nil
+			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": removed}}, nil
 		default:
 			return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorUnknownCommand, Message: "unknown"}}, nil
 		}

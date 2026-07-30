@@ -33,6 +33,7 @@ host commands:
  kill-server  stop adb-go daemon
  devices      list connected devices
  get-state    print selected device state
+ reverse      manage device-to-host reverse socket connections
 
 This adb-go compatibility mode is a host-side adb CLI skeleton. Unsupported
 commands will be added incrementally as adb-compatible behavior is implemented.
@@ -74,6 +75,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runDevices(commandArgs, opts, stdout, stderr)
 	case "get-state":
 		return runGetState(commandArgs, opts, stdout, stderr)
+	case "reverse":
+		return runReverse(commandArgs, opts, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "adb: unknown command %s\n", command)
 		return 1
