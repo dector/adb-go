@@ -28,7 +28,11 @@ func TestRunHelpForms(t *testing.T) {
 			assertContains(t, stdout, " help         show this help message")
 			assertContains(t, stdout, " version      show version num")
 			assertContains(t, stdout, " start-server ensure adb-go daemon is running")
+			assertContains(t, stdout, " -s SERIAL  use device with given serial")
+			assertContains(t, stdout, " -d         use USB device")
+			assertContains(t, stdout, " -e         use TCP/emulator device")
 			assertContains(t, stdout, " devices      list connected devices")
+			assertContains(t, stdout, " get-state    print selected device state")
 			assertNotContains(t, stdout, "targets")
 			assertNotContains(t, stdout, "install-apk")
 			assertNotContains(t, stdout, "ADB_GO_ADDR")
@@ -107,6 +111,62 @@ func TestRunRejectsCustomOnlyFlags(t *testing.T) {
 			assertContains(t, stderr, "adb: unknown option "+flag)
 		})
 	}
+}
+
+func TestParseTargetSelectors(t *testing.T) {
+	t.Setenv("ANDROID_SERIAL", "env-serial")
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantKind   targetSelectorKind
+		wantSerial string
+		wantCmd    string
+		wantErr    string
+	}{
+		{name: "serial separate", args: []string{"-s", "device-1", "get-state"}, wantKind: targetSelectorSerial, wantSerial: "device-1", wantCmd: "get-state"},
+		{name: "serial joined", args: []string{"-sdevice-2", "get-state"}, wantKind: targetSelectorSerial, wantSerial: "device-2", wantCmd: "get-state"},
+		{name: "usb", args: []string{"-d", "get-state"}, wantKind: targetSelectorUSB, wantCmd: "get-state"},
+		{name: "emulator", args: []string{"-e", "get-state"}, wantKind: targetSelectorEmulator, wantCmd: "get-state"},
+		{name: "android serial", args: []string{"get-state"}, wantKind: targetSelectorSerial, wantSerial: "env-serial", wantCmd: "get-state"},
+		{name: "serial beats android serial", args: []string{"-s", "flag-serial", "get-state"}, wantKind: targetSelectorSerial, wantSerial: "flag-serial", wantCmd: "get-state"},
+		{name: "no command still help with selector", args: []string{"-s", "device-1"}, wantKind: targetSelectorSerial, wantSerial: "device-1", wantCmd: ""},
+		{name: "missing serial", args: []string{"-s"}, wantErr: "option -s requires an argument"},
+		{name: "conflicting selectors", args: []string{"-d", "-e", "get-state"}, wantErr: "more than one device/emulator selector specified"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, cmd, _, err := parseGlobalOptions(tt.args)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("parseGlobalOptions() error = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseGlobalOptions() error = %v", err)
+			}
+			if cmd != tt.wantCmd {
+				t.Fatalf("command = %q, want %q", cmd, tt.wantCmd)
+			}
+			if opts.selector.kind != tt.wantKind || opts.selector.serial != tt.wantSerial {
+				t.Fatalf("selector = (%d, %q), want (%d, %q)", opts.selector.kind, opts.selector.serial, tt.wantKind, tt.wantSerial)
+			}
+		})
+	}
+}
+
+func TestRunSelectorWithoutCommandShowsHelp(t *testing.T) {
+	stdout, stderr, code := runForTest("-s", "device-1")
+
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	assertContains(t, stdout, "Usage: adb [global options] command [command options]")
 }
 
 func TestRunGlobalHostOptionRequiresValue(t *testing.T) {
@@ -193,6 +253,74 @@ func TestRunDevicesAutoStartsAndPrintsNoDeviceHeader(t *testing.T) {
 	}
 	if fake.starts != 1 {
 		t.Fatalf("daemon starts = %d, want 1", fake.starts)
+	}
+}
+
+func TestRunGetStateResolvesSelectedTargets(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		devices  []daemon.Device
+		usb      []adb.USBDevice
+		wantOut  string
+		wantErr  string
+		wantCode int
+	}{
+		{name: "serial selects tcp device", args: []string{"-s", "tcp-1", "get-state"}, devices: []daemon.Device{{Serial: "tcp-1", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "device\n"},
+		{name: "android serial selects tcp device", args: []string{"get-state"}, devices: []daemon.Device{{Serial: "env-serial", State: daemon.DeviceStateOffline, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "offline\n"},
+		{name: "usb selector selects usb device", args: []string{"-d", "get-state"}, usb: []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2}}, wantOut: "device\n"},
+		{name: "usb serial selects usb device", args: []string{"-s", "usb:001:002", "get-state"}, usb: []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2}}, wantOut: "device\n"},
+		{name: "emulator selector selects tcp device", args: []string{"-e", "get-state"}, devices: []daemon.Device{{Serial: "127.0.0.1:5555", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "device\n"},
+		{name: "missing selected serial", args: []string{"-s", "missing", "get-state"}, wantErr: "adb: get-state: device \"missing\" not found\n", wantCode: 1},
+		{name: "ambiguous default", args: []string{"get-state"}, devices: []daemon.Device{{Serial: "one", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}, {Serial: "two", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5556"}}, wantErr: "adb: get-state: more than one device/emulator\n", wantCode: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("ANDROID_SERIAL", "")
+			if strings.Contains(tt.name, "android serial") {
+				t.Setenv("ANDROID_SERIAL", "env-serial")
+			}
+			fake := installFakeDaemon(t)
+			fake.running = true
+			fake.devices = tt.devices
+			restoreUSB := replaceCompatListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) { return tt.usb, nil })
+			defer restoreUSB()
+
+			stdout, stderr, code := runForTest(tt.args...)
+
+			wantCode := tt.wantCode
+			if wantCode == 0 && tt.wantErr == "" {
+				wantCode = 0
+			}
+			if code != wantCode {
+				t.Fatalf("exit code = %d, want %d (stderr %q)", code, wantCode, stderr)
+			}
+			if stdout != tt.wantOut {
+				t.Fatalf("stdout = %q, want %q", stdout, tt.wantOut)
+			}
+			if stderr != tt.wantErr {
+				t.Fatalf("stderr = %q, want %q", stderr, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCompatIgnoresADBGoAddrForTargetSelection(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
+	fake := installFakeDaemon(t)
+	fake.running = true
+
+	stdout, stderr, code := runForTest("get-state")
+
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if stderr != "adb: get-state: no device/emulator found\n" {
+		t.Fatalf("stderr = %q, want no-device error proving ADB_GO_ADDR is ignored", stderr)
 	}
 }
 

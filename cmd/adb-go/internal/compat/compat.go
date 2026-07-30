@@ -3,6 +3,7 @@ package compat
 import (
 	"fmt"
 	"io"
+	"os"
 	"runtime"
 	"strings"
 )
@@ -21,6 +22,9 @@ global options:
  -P PORT    adb server port [default=5037]
  -h         show this help message
  --help     show this help message
+ -s SERIAL  use device with given serial
+ -d         use USB device (error if multiple devices connected)
+ -e         use TCP/emulator device (error if multiple devices connected)
 
 host commands:
  help         show this help message
@@ -28,15 +32,19 @@ host commands:
  start-server ensure adb-go daemon is running
  kill-server  stop adb-go daemon
  devices      list connected devices
+ get-state    print selected device state
 
 This adb-go compatibility mode is a host-side adb CLI skeleton. Unsupported
 commands will be added incrementally as adb-compatible behavior is implemented.
 `
 
 type globalOptions struct {
-	host string
-	port string
+	host     string
+	port     string
+	selector compatTargetSelector
 }
+
+var getEnv = os.Getenv
 
 // Run executes adb-compatible CLI mode. Compat mode is intentionally independent
 // from the custom adb-go UX so future commands can track the official adb CLI
@@ -64,6 +72,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runKillServer(commandArgs, opts, stdout, stderr)
 	case "devices":
 		return runDevices(commandArgs, opts, stdout, stderr)
+	case "get-state":
+		return runGetState(commandArgs, opts, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "adb: unknown command %s\n", command)
 		return 1
@@ -92,14 +102,46 @@ func parseGlobalOptions(args []string) (globalOptions, string, []string, error) 
 		case strings.HasPrefix(arg, "-P") && len(arg) > len("-P"):
 			opts.port = strings.TrimPrefix(arg, "-P")
 		case arg == "--help" || arg == "-h":
+			applyAndroidSerialDefault(&opts)
 			return opts, arg, args[i+1:], nil
+		case arg == "-s":
+			if i+1 >= len(args) || args[i+1] == "" {
+				return opts, "", nil, fmt.Errorf("option -s requires an argument")
+			}
+			if err := opts.selector.setSerial(args[i+1]); err != nil {
+				return opts, "", nil, err
+			}
+			i++
+		case strings.HasPrefix(arg, "-s") && len(arg) > len("-s"):
+			if err := opts.selector.setSerial(strings.TrimPrefix(arg, "-s")); err != nil {
+				return opts, "", nil, err
+			}
+		case arg == "-d":
+			if err := opts.selector.setUSB(); err != nil {
+				return opts, "", nil, err
+			}
+		case arg == "-e":
+			if err := opts.selector.setEmulator(); err != nil {
+				return opts, "", nil, err
+			}
 		case strings.HasPrefix(arg, "-"):
 			return opts, "", nil, fmt.Errorf("unknown option %s", arg)
 		default:
+			applyAndroidSerialDefault(&opts)
 			return opts, arg, args[i+1:], nil
 		}
 	}
+	applyAndroidSerialDefault(&opts)
 	return opts, "", nil, nil
+}
+
+func applyAndroidSerialDefault(opts *globalOptions) {
+	if opts.selector.kind != targetSelectorNone {
+		return
+	}
+	if serial := getEnv("ANDROID_SERIAL"); serial != "" {
+		opts.selector = compatTargetSelector{kind: targetSelectorSerial, serial: serial}
+	}
 }
 
 func runVersion(args []string, opts globalOptions, stdout, stderr io.Writer) int {

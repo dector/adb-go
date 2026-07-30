@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M66 — Add compat target selection foundation.
-- Completed milestone range: Milestones 17–65 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, the adb-compatible CLI skeleton, and the compat daemon/server foundation.
+- Current milestone: No active incomplete milestone; only deferred milestones remain.
+- Completed milestone range: Milestones 17–66 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground port forwarding support, the minimal adb-god daemon foundation, Linux systemd user-service install/lifecycle controls, Linux systemd user-service status reporting, daemon diagnostics, daemon service logs, daemon service reinstall, CLI version reporting, CLI error-message improvements, integration-test documentation, exported package documentation/examples, the daemon-backed persistent forwarding design, the daemon forwarding protocol model, daemon-owned forwarding listener registration, TCP target bridging for persistent forwards, CLI persistent forwarding controls, persistent forwarding diagnostics, the extracted custom CLI mode package, the CLI custom/compat mode router, the adb-compatible CLI skeleton, the compat daemon/server foundation, and the compat target selection foundation.
 - Active focus: split the CLI into clearly separated custom and adb-compatibility modes. Custom mode preserves the current adb-go UX. Compat mode will target current Android SDK Platform-Tools `adb` CLI behavior closely enough that a future `adb` symlink can use adb-go as a drop-in replacement for supported workflows.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -144,27 +144,27 @@ Done when:
 
 ## M66 — Add compat target selection foundation
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add compat target selection`
 
 Tasks:
 
-- [ ] Support official target selectors `-s SERIAL`, `-d`, and `-e` in compat mode.
-- [ ] Support `$ANDROID_SERIAL`, with `-s SERIAL` taking precedence.
-- [ ] Keep `ADB_GO_ADDR` ignored in compat mode.
-- [ ] Map selected compat transports onto daemon/device registry entries and adb-go TCP/USB connection options.
-- [ ] Defer transport IDs (`-t ID`) unless promoted into this milestone after additional reference capture.
+- [x] Support official target selectors `-s SERIAL`, `-d`, and `-e` in compat mode.
+- [x] Support `$ANDROID_SERIAL`, with `-s SERIAL` taking precedence.
+- [x] Keep `ADB_GO_ADDR` ignored in compat mode.
+- [x] Map selected compat transports onto daemon/device registry entries and adb-go TCP/USB connection options.
+- [x] Defer transport IDs (`-t ID`) unless promoted into this milestone after additional reference capture.
 
 Tests:
 
-- [ ] Compat parser tests cover selector precedence and no-command help/exit behavior for `-s`, `-d`, and `-e`.
-- [ ] Compat command tests cover selected-device resolution against fake daemon/device state.
-- [ ] `go test ./...` passes
+- [x] Compat parser tests cover selector precedence and no-command help/exit behavior for `-s`, `-d`, and `-e`.
+- [x] Compat command tests cover selected-device resolution against fake daemon/device state.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Compat commands can resolve devices using official adb selector mechanisms without exposing custom adb-go target flags.
+- [x] Compat commands can resolve devices using official adb selector mechanisms without exposing custom adb-go target flags.
 
 ## Deferred milestones
 
