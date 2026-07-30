@@ -8,6 +8,12 @@ import (
 	"sync"
 )
 
+// OpenHandler handles a peer-initiated ADB stream.
+//
+// The service argument is the peer's OPEN payload with one trailing NUL removed.
+// The handler owns the accepted stream and should close it when finished.
+type OpenHandler func(service string, stream *Stream)
+
 // Stream is one logical ADB stream multiplexed over a Connection.
 type Stream struct {
 	conn *Connection
@@ -23,6 +29,39 @@ type Stream struct {
 	closed bool
 	err    error
 	dataCh chan []byte
+}
+
+// HandleOpen registers h for peer-initiated OPEN packets with the given service
+// name. The service name is matched after trimming one trailing NUL from the
+// OPEN payload.
+//
+// Registering a handler starts the connection reader, because incoming OPEN
+// packets can arrive at any time after the ADB CNXN handshake. Passing nil
+// removes the handler.
+func (c *Connection) HandleOpen(service string, h OpenHandler) error {
+	service = strings.TrimSuffix(service, "\x00")
+
+	c.mu.Lock()
+	if h == nil {
+		delete(c.openHandlers, service)
+		c.mu.Unlock()
+		return nil
+	}
+	if c.openHandlers == nil {
+		c.openHandlers = make(map[string]OpenHandler)
+	}
+	c.openHandlers[service] = h
+	c.mu.Unlock()
+
+	return c.startReader()
+}
+
+// RemoveOpenHandler removes the peer-initiated OPEN handler for service.
+func (c *Connection) RemoveOpenHandler(service string) {
+	service = strings.TrimSuffix(service, "\x00")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.openHandlers, service)
 }
 
 // Open opens an ADB service stream using context.Background.
@@ -197,6 +236,11 @@ func (c *Connection) readLoop() {
 }
 
 func (c *Connection) handleStreamMessage(msg Message) {
+	if msg.Command == CommandOPEN {
+		c.handlePeerOpen(msg)
+		return
+	}
+
 	s := c.streamByLocalID(msg.Arg1)
 	switch msg.Command {
 	case CommandOKAY:
@@ -223,18 +267,53 @@ func (c *Connection) handleStreamMessage(msg Message) {
 	}
 }
 
+func (c *Connection) handlePeerOpen(msg Message) {
+	service := strings.TrimSuffix(string(msg.Payload), "\x00")
+	handler := c.openHandler(service)
+	if handler == nil {
+		_ = c.writeMessage(Message{Command: CommandCLSE, Arg1: msg.Arg0})
+		return
+	}
+
+	stream := c.newAcceptedStream(msg.Arg0)
+	if err := c.writeMessage(Message{Command: CommandOKAY, Arg0: stream.localID, Arg1: msg.Arg0}); err != nil {
+		c.closeStream(stream.localID, err)
+		return
+	}
+	go handler(service, stream)
+}
+
+func (c *Connection) openHandler(service string) OpenHandler {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.openHandlers[service]
+}
+
 func (c *Connection) newStream() *Stream {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.newStreamLocked(0)
+}
+
+func (c *Connection) newAcceptedStream(remoteID uint32) *Stream {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s := c.newStreamLocked(remoteID)
+	s.openOnce.Do(func() { s.openCh <- nil })
+	return s
+}
+
+func (c *Connection) newStreamLocked(remoteID uint32) *Stream {
 	if c.streams == nil {
 		c.streams = make(map[uint32]*Stream)
 	}
 	c.nextLocalID++
 	s := &Stream{
-		conn:    c,
-		localID: c.nextLocalID,
-		openCh:  make(chan error, 1),
-		dataCh:  make(chan []byte, 16),
+		conn:     c,
+		localID:  c.nextLocalID,
+		remoteID: remoteID,
+		openCh:   make(chan error, 1),
+		dataCh:   make(chan []byte, 16),
 	}
 	c.streams[s.localID] = s
 	return s

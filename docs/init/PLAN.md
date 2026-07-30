@@ -208,26 +208,26 @@ Done when:
 
 ### M68 — Add protocol support for reverse streams
 
-Status: Not started
+Status: Done
 
 Commit: `feat(protocol): support device initiated streams`
 
 Tasks:
 
-- [ ] Extend the protocol connection reader to handle peer-initiated `OPEN` packets instead of ignoring them.
-- [ ] Add an internal accept/handler mechanism that can route device-initiated reverse streams by service name to a host-side bridge.
-- [ ] Preserve existing client-initiated `OpenService` stream behavior and error semantics.
-- [ ] Ensure connection close, stream close, backpressure, and concurrent read/write behavior remain safe.
+- [x] Extend the protocol connection reader to handle peer-initiated `OPEN` packets instead of ignoring them.
+- [x] Add an internal accept/handler mechanism that can route device-initiated reverse streams by service name to a host-side bridge.
+- [x] Preserve existing client-initiated `OpenService` stream behavior and error semantics.
+- [x] Ensure connection close, stream close, backpressure, and concurrent read/write behavior remain safe.
 
 Tests:
 
-- [ ] Protocol tests cover receiving peer `OPEN`, replying `OKAY`, reading/writing payloads, and closing both accepted and initiated streams.
-- [ ] Existing protocol/client forwarding tests continue to pass.
-- [ ] `go test ./...` passes
+- [x] Protocol tests cover receiving peer `OPEN`, replying `OKAY`, reading/writing payloads, and closing both accepted and initiated streams.
+- [x] Existing protocol/client forwarding tests continue to pass.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] adb-go can safely accept and service streams opened by `adbd` without breaking existing client-initiated services.
+- [x] adb-go can safely accept and service streams opened by `adbd` without breaking existing client-initiated services.
 
 ### M69 — Add client reverse TCP API
 

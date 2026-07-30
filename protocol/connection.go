@@ -50,6 +50,7 @@ type Connection struct {
 
 	mu            sync.Mutex
 	streams       map[uint32]*Stream
+	openHandlers  map[string]OpenHandler
 	nextLocalID   uint32
 	readerStarted bool
 	readerErr     error

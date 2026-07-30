@@ -103,6 +103,98 @@ func TestStreamReadReceivesWRTEFromCorrectStream(t *testing.T) {
 	assertReadAll(t, two, "second")
 }
 
+func TestPeerOPENIsAcceptedAndRoutedToHandler(t *testing.T) {
+	clientConn, deviceConn := net.Pipe()
+	defer clientConn.Close()
+	defer deviceConn.Close()
+
+	conn := protocol.NewConnection(clientConn)
+	handled := make(chan error, 1)
+	if err := conn.HandleOpen("tcp:8081", func(service string, stream *protocol.Stream) {
+		if service != "tcp:8081" {
+			handled <- errors.New("handler received unexpected service")
+			return
+		}
+		buf := make([]byte, len("ping"))
+		if _, err := io.ReadFull(stream, buf); err != nil {
+			handled <- err
+			return
+		}
+		if string(buf) != "ping" {
+			handled <- errors.New("handler read unexpected payload")
+			return
+		}
+		if _, err := stream.Write([]byte("pong")); err != nil {
+			handled <- err
+			return
+		}
+		handled <- stream.Close()
+	}); err != nil {
+		t.Fatalf("HandleOpen: %v", err)
+	}
+
+	writeMessage(t, deviceConn, protocol.Message{Command: protocol.CommandOPEN, Arg0: 99, Payload: []byte("tcp:8081\x00")})
+	okay, err := protocol.ReadMessage(deviceConn)
+	if err != nil {
+		t.Fatalf("read OKAY: %v", err)
+	}
+	if okay.Command != protocol.CommandOKAY || okay.Arg1 != 99 || okay.Arg0 == 0 {
+		t.Fatalf("OKAY = %#v, want host local id and device id 99", okay)
+	}
+
+	writeMessage(t, deviceConn, protocol.Message{Command: protocol.CommandWRTE, Arg0: 99, Arg1: okay.Arg0, Payload: []byte("ping")})
+	ack, err := protocol.ReadMessage(deviceConn)
+	if err != nil {
+		t.Fatalf("read WRTE ACK: %v", err)
+	}
+	if ack.Command != protocol.CommandOKAY || ack.Arg0 != okay.Arg0 || ack.Arg1 != 99 {
+		t.Fatalf("WRTE ACK = %#v, want OKAY for accepted stream", ack)
+	}
+	reply, err := protocol.ReadMessage(deviceConn)
+	if err != nil {
+		t.Fatalf("read handler reply: %v", err)
+	}
+	if reply.Command != protocol.CommandWRTE || reply.Arg0 != okay.Arg0 || reply.Arg1 != 99 || string(reply.Payload) != "pong" {
+		t.Fatalf("handler reply = %#v, want WRTE pong", reply)
+	}
+	closeMsg, err := protocol.ReadMessage(deviceConn)
+	if err != nil {
+		t.Fatalf("read handler close: %v", err)
+	}
+	if closeMsg.Command != protocol.CommandCLSE || closeMsg.Arg0 != okay.Arg0 || closeMsg.Arg1 != 99 {
+		t.Fatalf("handler close = %#v, want CLSE for accepted stream", closeMsg)
+	}
+
+	select {
+	case err := <-handled:
+		if err != nil {
+			t.Fatalf("handler error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for handler")
+	}
+}
+
+func TestPeerOPENWithoutHandlerIsClosed(t *testing.T) {
+	clientConn, deviceConn := net.Pipe()
+	defer clientConn.Close()
+	defer deviceConn.Close()
+
+	conn := protocol.NewConnection(clientConn)
+	if err := conn.HandleOpen("tcp:registered", func(string, *protocol.Stream) {}); err != nil {
+		t.Fatalf("HandleOpen: %v", err)
+	}
+
+	writeMessage(t, deviceConn, protocol.Message{Command: protocol.CommandOPEN, Arg0: 123, Payload: []byte("tcp:missing\x00")})
+	msg, err := protocol.ReadMessage(deviceConn)
+	if err != nil {
+		t.Fatalf("read CLSE: %v", err)
+	}
+	if msg.Command != protocol.CommandCLSE || msg.Arg1 != 123 {
+		t.Fatalf("message = %#v, want CLSE for remote stream 123", msg)
+	}
+}
+
 func TestRemoteCLSEClosesStream(t *testing.T) {
 	server := fakeadb.Start(t)
 	server.Handle("close:", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
