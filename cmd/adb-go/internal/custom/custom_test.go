@@ -1419,6 +1419,7 @@ func TestRunForwardDaemonListAndRemoveCommands(t *testing.T) {
 		wantStdout  string
 	}{
 		{name: "list", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandForwardList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"forwards": []daemon.Forward{{ID: "fwd-1", State: daemon.ForwardStateListening, Local: daemon.ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:9000"}, Remote: daemon.ForwardRemoteEndpoint{Service: "tcp:8000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "fwd-1  listening  127.0.0.1:9000  tcp:8000  tcp:127.0.0.1:5555  2       -"},
+		{name: "list-empty", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandForwardList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"forwards": []daemon.Forward{}}}, wantStdout: "No daemon-owned forwards.\nCreate one with: adb-go forward --background --addr HOST[:PORT] tcp:LOCAL_PORT tcp:REMOTE_PORT"},
 		{name: "remove-local", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove", "tcp:9000"}, wantCommand: daemon.CommandForwardRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned forward(s)."},
 		{name: "remove-id", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove-id", "fwd-1"}, wantCommand: daemon.CommandForwardRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned forward(s)."},
 		{name: "remove-all", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove-all"}, wantCommand: daemon.CommandForwardRemoveAll, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 3}}, wantStdout: "Removed 3 daemon-owned forward(s)."},
@@ -1487,6 +1488,7 @@ func TestRunReverseDaemonListAndRemoveCommands(t *testing.T) {
 		wantStdout  string
 	}{
 		{name: "list", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandReverseList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": []daemon.Reverse{{ID: "rev-1", State: daemon.ReverseStateListening, Remote: daemon.ReverseRemoteEndpoint{Service: "tcp:8081"}, Local: daemon.ReverseLocalEndpoint{Service: "tcp:3000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "rev-1  listening  tcp:8081  tcp:3000  tcp:127.0.0.1:5555  2       -"},
+		{name: "list-empty", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandReverseList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": []daemon.Reverse{}}}, wantStdout: "No daemon-owned reverse forwards.\nCreate one with: adb-go reverse --background --addr HOST[:PORT] tcp:REMOTE_PORT tcp:LOCAL_PORT"},
 		{name: "remove-remote", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove", "tcp:8081"}, wantCommand: daemon.CommandReverseRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned reverse(s)."},
 		{name: "remove-id", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove-id", "rev-1"}, wantCommand: daemon.CommandReverseRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned reverse(s)."},
 		{name: "remove-all", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove-all"}, wantCommand: daemon.CommandReverseRemoveAll, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 3}}, wantStdout: "Removed 3 daemon-owned reverse(s)."},
@@ -1564,6 +1566,9 @@ func TestRunForwardReportsDaemonUnavailableAndTooOld(t *testing.T) {
 
 			if code != 1 {
 				t.Fatalf("Run(forward --list %s) exit code = %d, want 1", tc.name, code)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty for daemon error", stdout.String())
 			}
 			if !strings.Contains(stderr.String(), tc.wantSubstr) || !strings.Contains(stderr.String(), "daemon doctor") {
 				t.Fatalf("stderr = %q, want daemon guidance %q", stderr.String(), tc.wantSubstr)
@@ -1695,6 +1700,9 @@ func TestRunReverseReportsDaemonUnavailableAndTooOld(t *testing.T) {
 
 			if code != 1 {
 				t.Fatalf("Run(reverse --list %s) exit code = %d, want 1", tc.name, code)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("stdout = %q, want empty for daemon error", stdout.String())
 			}
 			if !strings.Contains(stderr.String(), tc.wantSubstr) || !strings.Contains(stderr.String(), "daemon doctor") {
 				t.Fatalf("stderr = %q, want daemon guidance %q", stderr.String(), tc.wantSubstr)

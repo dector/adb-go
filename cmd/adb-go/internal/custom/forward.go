@@ -314,6 +314,7 @@ func runForwardDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 	}
 	if len(result.Forwards) == 0 {
 		fmt.Fprintln(stdout, "No daemon-owned forwards.")
+		fmt.Fprintln(stdout, "Create one with: adb-go forward --background --addr HOST[:PORT] tcp:LOCAL_PORT tcp:REMOTE_PORT")
 		return 0
 	}
 	rows := make([]tableRow, 0, len(result.Forwards))

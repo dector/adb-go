@@ -260,7 +260,8 @@ func runReverseDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 		return 0
 	}
 	if len(result.Reverses) == 0 {
-		fmt.Fprintln(stdout, "No daemon-owned reverses.")
+		fmt.Fprintln(stdout, "No daemon-owned reverse forwards.")
+		fmt.Fprintln(stdout, "Create one with: adb-go reverse --background --addr HOST[:PORT] tcp:REMOTE_PORT tcp:LOCAL_PORT")
 		return 0
 	}
 	rows := make([]tableRow, 0, len(result.Reverses))
