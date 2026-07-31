@@ -126,9 +126,14 @@ support is Linux-only initially. For example:
 `
 
 func runGetProp(args []string, stdout, stderr io.Writer) int {
+	return runGetPropWithJSON(args, false, stdout, stderr)
+}
+
+func runGetPropWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("getprop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
+	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON")
 	fs.Usage = func() { fmt.Fprint(stderr, getPropUsage) }
 
 	if err := fs.Parse(args); err != nil {
@@ -140,6 +145,7 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
+	jsonOutput = *jsonFlag
 	if fs.NArg() > 1 {
 		fmt.Fprint(stderr, "adb-go getprop: accepts at most one PROPERTY argument\n\n")
 		fs.Usage()
@@ -159,6 +165,13 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 			printCommandError(stderr, "getprop", err)
 			return 1
 		}
+		if jsonOutput {
+			if err := writeJSON(stdout, map[string]string{"name": fs.Arg(0), "value": value}); err != nil {
+				fmt.Fprintf(stderr, "adb-go getprop: encode JSON: %v\n", err)
+				return 1
+			}
+			return 0
+		}
 		fmt.Fprintln(stdout, value)
 		return 0
 	}
@@ -167,6 +180,13 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		printCommandError(stderr, "getprop", err)
 		return 1
+	}
+	if jsonOutput {
+		if err := writeJSON(stdout, props); err != nil {
+			fmt.Fprintf(stderr, "adb-go getprop: encode JSON: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 	names := make([]string, 0, len(props))
 	for name := range props {

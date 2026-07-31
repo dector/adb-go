@@ -22,9 +22,25 @@ USB interfaces discovered under /dev/bus/usb. With --scan, it also scans local
 emulator TCP ports 127.0.0.1:5555..5585, odd ports only.
 `
 
+type targetsOutput struct {
+	Targets        []targetOutput `json:"targets"`
+	USBUnsupported bool           `json:"usbUnsupported,omitempty"`
+}
+
+type targetOutput struct {
+	Transport string `json:"transport"`
+	Selector  string `json:"selector"`
+	Details   string `json:"details"`
+}
+
 func runTargets(args []string, stdout, stderr io.Writer) int {
+	return runTargetsWithJSON(args, false, stdout, stderr)
+}
+
+func runTargetsWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("targets", flag.ContinueOnError)
 	scan := fs.Bool("scan", false, "scan localhost emulator TCP ports 5555..5585, odd ports only")
+	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON")
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, targetsUsage) }
 	if err := fs.Parse(args); err != nil {
@@ -36,9 +52,10 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	rows := []string{}
+	jsonOutput = *jsonFlag
+	rows := []targetOutput{}
 	if addr := strings.TrimSpace(os.Getenv("ADB_GO_ADDR")); addr != "" {
-		rows = append(rows, fmt.Sprintf("tcp\t--addr %s\tfrom ADB_GO_ADDR", addr))
+		rows = append(rows, targetOutput{Transport: "tcp", Selector: "--addr " + addr, Details: "from ADB_GO_ADDR"})
 	}
 	if *scan {
 		targets, err := scanTCPTargets(context.Background(), adb.TCPScanOptions{})
@@ -51,7 +68,7 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 			if target.AuthRequired {
 				details += ", auth required"
 			}
-			rows = append(rows, fmt.Sprintf("tcp\t--addr %s\t%s", target.Addr, details))
+			rows = append(rows, targetOutput{Transport: "tcp", Selector: "--addr " + target.Addr, Details: details})
 		}
 	}
 
@@ -70,8 +87,7 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	for _, device := range devices {
-		rows = append(rows, fmt.Sprintf("usb\t--usb-path %s\tbus=%03d device=%03d vid:pid=%04x:%04x interface=%d endpoints=in:%#02x,out:%#02x",
-			device.DevicePath,
+		details := fmt.Sprintf("bus=%03d device=%03d vid:pid=%04x:%04x interface=%d endpoints=in:%#02x,out:%#02x",
 			device.BusNumber,
 			device.DeviceNumber,
 			device.VendorID,
@@ -79,7 +95,16 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 			device.InterfaceNumber,
 			device.BulkInEndpoint,
 			device.BulkOutEndpoint,
-		))
+		)
+		rows = append(rows, targetOutput{Transport: "usb", Selector: "--usb-path " + device.DevicePath, Details: details})
+	}
+
+	if jsonOutput {
+		if err := writeJSON(stdout, targetsOutput{Targets: rows, USBUnsupported: usbUnsupported}); err != nil {
+			fmt.Fprintf(stderr, "adb-go targets: encode JSON: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 
 	if len(rows) == 0 {
@@ -95,7 +120,7 @@ func runTargets(args []string, stdout, stderr io.Writer) int {
 
 	fmt.Fprintln(stdout, "TRANSPORT\tSELECTOR\tDETAILS")
 	for _, row := range rows {
-		fmt.Fprintln(stdout, row)
+		fmt.Fprintf(stdout, "%s\t%s\t%s\n", row.Transport, row.Selector, row.Details)
 	}
 	return 0
 }

@@ -45,6 +45,11 @@ thin wrapper around the adb-go library and will grow command coverage gradually.
 var Version = "dev"
 
 func Run(args []string, stdout, stderr io.Writer) int {
+	jsonOutput := false
+	for len(args) > 0 && args[0] == "--json" {
+		jsonOutput = true
+		args = args[1:]
+	}
 	if len(args) == 0 {
 		fmt.Fprint(stdout, usage)
 		return 0
@@ -57,23 +62,23 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		return runVersion(args[1:], stdout, stderr)
 	case "targets":
-		return runTargets(args[1:], stdout, stderr)
+		return runTargetsWithJSON(args[1:], jsonOutput, stdout, stderr)
 	case "shell":
 		return runShell(args[1:], stdout, stderr)
 	case "logcat":
 		return runLogcat(args[1:], stdout, stderr)
 	case "getprop":
-		return runGetProp(args[1:], stdout, stderr)
+		return runGetPropWithJSON(args[1:], jsonOutput, stdout, stderr)
 	case "screencap":
 		return runScreencap(args[1:], stdout, stderr)
 	case "reboot":
 		return runReboot(args[1:], stdout, stderr)
 	case "forward":
-		return runForward(args[1:], stdout, stderr)
+		return runForwardWithJSON(args[1:], jsonOutput, stdout, stderr)
 	case "reverse":
-		return runReverse(args[1:], stdout, stderr)
+		return runReverseWithJSON(args[1:], jsonOutput, stdout, stderr)
 	case "daemon":
-		return runDaemon(args[1:], stdout, stderr)
+		return runDaemonWithJSON(args[1:], jsonOutput, stdout, stderr)
 	case "push":
 		return runPush(args[1:], stdout, stderr)
 	case "pull":
