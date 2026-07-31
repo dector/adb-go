@@ -21,6 +21,11 @@ initially. For example:
 `
 
 func runPush(args []string, stdout, stderr io.Writer) int {
+	return runPushWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runPushWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("push", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -42,7 +47,8 @@ func runPush(args []string, stdout, stderr io.Writer) int {
 	}
 
 	localPath, remotePath := fs.Arg(0), fs.Arg(1)
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("push transferring %s to %s\n", localPath, remotePath)
+	client, err := connectTarget(context.Background(), "push", target, out)
 	if err != nil {
 		printConnectError(stderr, "push", target.description, err)
 		return 1
@@ -84,6 +90,11 @@ example:
 `
 
 func runInstallAPK(args []string, stdout, stderr io.Writer) int {
+	return runInstallAPKWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runInstallAPKWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("install-apk", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -106,7 +117,8 @@ func runInstallAPK(args []string, stdout, stderr io.Writer) int {
 	}
 
 	localPath := fs.Arg(0)
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("install-apk installing %s (replace=%t)\n", localPath, *replace)
+	client, err := connectTarget(context.Background(), "install-apk", target, out)
 	if err != nil {
 		printConnectError(stderr, "install-apk", target.description, err)
 		return 1
@@ -126,6 +138,11 @@ func runInstallAPK(args []string, stdout, stderr io.Writer) int {
 }
 
 func runPull(args []string, stdout, stderr io.Writer) int {
+	return runPullWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runPullWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("pull", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -148,7 +165,8 @@ func runPull(args []string, stdout, stderr io.Writer) int {
 	}
 
 	remotePath, localPath := fs.Arg(0), fs.Arg(1)
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("pull transferring %s to %s (overwrite=%t)\n", remotePath, localPath, *overwrite)
+	client, err := connectTarget(context.Background(), "pull", target, out)
 	if err != nil {
 		printConnectError(stderr, "pull", target.description, err)
 		return 1

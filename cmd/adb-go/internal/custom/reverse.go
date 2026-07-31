@@ -53,7 +53,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 
 func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 	jsonOutput := opts.JSON
-	out := newOutputPolicy(stdout, opts.Quiet)
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("reverse", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -186,13 +186,15 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	client, err := connectDevice(ctx, target)
+	out.Verbosef("reverse parsed device listener %s and host target %s\n", fs.Arg(0), fs.Arg(1))
+	client, err := connectTarget(ctx, "reverse", target, out)
 	if err != nil {
 		printConnectError(stderr, "reverse", target.description, err)
 		return 1
 	}
 	defer client.Close()
 
+	out.Verbosef("reverse registering device-side listener and host bridge\n")
 	reverse, err := startReverse(ctx, client, remote, local)
 	if err != nil {
 		printCommandError(stderr, "reverse", err)
@@ -219,6 +221,7 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 }
 
 func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	out.Verbosef("reverse sending daemon create request to %s for %s -> %s via tcp:%s (norebind=%t)\n", socketPath, remoteService, localService, targetAddr, norebind)
 	params := daemon.ReverseCreateParams{
 		Remote:   daemon.ReverseRemoteEndpoint{Service: remoteService},
 		Local:    daemon.ReverseLocalEndpoint{Service: localService},

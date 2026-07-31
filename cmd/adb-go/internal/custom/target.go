@@ -56,6 +56,31 @@ var connectDevice = func(ctx context.Context, target connectionTarget) (deviceCl
 	return adb.ConnectWithOptions(ctx, target.tcpAddr, adb.ConnectOptions{AuthCredentials: target.auth})
 }
 
+func connectTarget(ctx context.Context, command string, target connectionTarget, out outputPolicy) (deviceClient, error) {
+	out.Verbosef("%s selected %s target %s%s\n", command, target.transportName(), target.description, target.authSummary())
+	out.Verbosef("%s connecting to %s\n", command, target.description)
+	client, err := connectDevice(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	out.Verbosef("%s connected to %s\n", command, target.description)
+	return client, nil
+}
+
+func (t connectionTarget) transportName() string {
+	if t.usb {
+		return "USB"
+	}
+	return "TCP"
+}
+
+func (t connectionTarget) authSummary() string {
+	if len(t.auth) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" using %d auth credential(s)", len(t.auth))
+}
+
 var listUSBDevices = adb.ListUSBDevices
 var scanTCPTargets = adb.ScanTCPTargets
 var currentTime = time.Now

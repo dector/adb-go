@@ -97,17 +97,20 @@ func tableCells(row tableRow, width int) []string {
 }
 
 type cliOptions struct {
-	JSON  bool
-	Quiet bool
+	JSON    bool
+	Quiet   bool
+	Verbose bool
 }
 
 type outputPolicy struct {
-	quiet bool
-	info  io.Writer
+	quiet   bool
+	verbose bool
+	info    io.Writer
+	debug   io.Writer
 }
 
-func newOutputPolicy(stdout io.Writer, quiet bool) outputPolicy {
-	return outputPolicy{quiet: quiet, info: stdout}
+func newOutputPolicy(stdout, stderr io.Writer, opts cliOptions) outputPolicy {
+	return outputPolicy{quiet: opts.Quiet, verbose: opts.Verbose, info: stdout, debug: stderr}
 }
 
 func (p outputPolicy) Infof(format string, args ...any) {
@@ -122,4 +125,12 @@ func (p outputPolicy) Infoln(args ...any) {
 		return
 	}
 	fmt.Fprintln(p.info, args...)
+}
+
+func (p outputPolicy) Verbosef(format string, args ...any) {
+	if !p.verbose {
+		return
+	}
+	fmt.Fprintf(p.debug, "adb-go: ")
+	fmt.Fprintf(p.debug, format, args...)
 }

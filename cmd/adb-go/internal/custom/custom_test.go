@@ -607,6 +607,43 @@ func TestRunQuietLeavesErrorsVisible(t *testing.T) {
 	}
 }
 
+func TestRunVerboseShellWritesDiagnosticsToStderrAndKeepsPayloadStdout(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:echo hello", writeCLIShellOutput(t, "hello\n"))
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"--verbose", "shell", "--addr", server.Addr(), "echo", "hello"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(--verbose shell) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "hello\n" {
+		t.Fatalf("stdout = %q, want shell payload output only", stdout.String())
+	}
+	got := stderr.String()
+	for _, want := range []string{"adb-go: shell opening service shell:echo hello", "adb-go: shell selected TCP target", "adb-go: shell connected to"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stderr = %q, want verbose diagnostic %q", got, want)
+		}
+	}
+}
+
+func TestRunRejectsQuietAndVerboseTogether(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"--quiet", "--verbose", "version"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("Run(--quiet --verbose) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "choose only one output mode") || !strings.Contains(got, "--quiet") || !strings.Contains(got, "--verbose") {
+		t.Fatalf("stderr = %q, want quiet/verbose conflict guidance", got)
+	}
+}
+
 func TestRunShellJoinsCommandArguments(t *testing.T) {
 	server := fakeadb.Start(t)
 	opened := make(chan string, 1)
@@ -1522,6 +1559,33 @@ func TestRunQuietForwardSuppressesForegroundStatus(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunVerboseForwardAddsProgressDiagnosticsWithoutChangingStatusStdout(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{}, nil
+	})
+	defer restoreConnect()
+	restoreForward := replaceStartForward(func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+		return fakeForwardSession{addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000}}, nil
+	})
+	defer restoreForward()
+
+	code := Run([]string{"--verbose", "forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(--verbose forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "Forwarding 127.0.0.1:9000 -> tcp:8000") {
+		t.Fatalf("stdout = %q, want normal foreground status", got)
+	}
+	got := stderr.String()
+	for _, want := range []string{"adb-go: forward parsed local listener", "adb-go: forward selected TCP target", "adb-go: forward starting foreground listener"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stderr = %q, want verbose diagnostic %q", got, want)
+		}
 	}
 }
 

@@ -104,6 +104,21 @@ target/device listings, JSON/plain output, `version`, and screencap's chosen
 local path continue to print. Errors, warnings, usage failures, and daemon/device
 diagnostics continue to write to stderr.
 
+Pass global `--verbose` before the command name to opt into additional human
+progress and decision diagnostics on stderr:
+
+```sh
+adb-go --verbose shell --addr 127.0.0.1:5555 echo hello
+adb-go --verbose forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+```
+
+Verbose mode leaves stdout stable for payloads and script-facing output. For
+example, `adb-go --verbose shell ... echo hello` still prints only `hello` to
+stdout, while stderr records details such as the selected TCP or USB target, the
+connection attempt, and the service or transfer boundary being started. `--quiet`
+and `--verbose` are mutually exclusive because one asks adb-go to hide human
+status output and the other asks for more of it.
+
 ## USB targets
 
 On Linux, pass USB selection flags instead of `--addr`:

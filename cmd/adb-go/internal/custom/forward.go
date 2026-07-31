@@ -85,7 +85,7 @@ func runForwardWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 
 func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 	jsonOutput := opts.JSON
-	out := newOutputPolicy(stdout, opts.Quiet)
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("forward", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -218,13 +218,15 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	client, err := connectDevice(ctx, target)
+	out.Verbosef("forward parsed local listener %s and remote service %s\n", localAddr, fs.Arg(1))
+	client, err := connectTarget(ctx, "forward", target, out)
 	if err != nil {
 		printConnectError(stderr, "forward", target.description, err)
 		return 1
 	}
 	defer client.Close()
 
+	out.Verbosef("forward starting foreground listener and ADB service bridge\n")
 	forward, err := startForward(ctx, client, localAddr, remote)
 	if err != nil {
 		printCommandError(stderr, "forward", err)
@@ -272,6 +274,7 @@ func normalizeForwardTargetTCPAddr(addr string) (string, error) {
 }
 
 func runForwardDaemonCreate(socketPath, localAddr, remoteService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	out.Verbosef("forward sending daemon create request to %s for %s -> %s via tcp:%s (norebind=%t)\n", socketPath, localAddr, remoteService, targetAddr, norebind)
 	params := daemon.ForwardCreateParams{
 		Local:    daemon.ForwardLocalEndpoint{Network: "tcp", Address: localAddr},
 		Remote:   daemon.ForwardRemoteEndpoint{Service: remoteService},

@@ -17,7 +17,7 @@ import (
 const usage = `adb-go is a pure-Go Android Debug Bridge client.
 
 Usage:
-  adb-go [--quiet] <command> [arguments]
+  adb-go [--quiet | --verbose] <command> [arguments]
 
 Commands:
   help        Show this help message
@@ -40,6 +40,8 @@ Global options:
   --quiet     Suppress non-error informational status messages. Command payloads
               such as shell/logcat stdout, listings, JSON/plain output, version
               information, and chosen file paths still print.
+  --verbose   Print extra human-facing diagnostics to stderr without changing
+              command payload stdout. Cannot be combined with --quiet.
   --json      Print machine-readable JSON for supported commands.
 
 adb-go is not a full replacement for the official adb binary yet. The CLI is a
@@ -63,18 +65,20 @@ var commandRunners = map[string]commandRunner{
 	"devices": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 		return runDevicesWithJSON(args, opts.JSON, stdout, stderr)
 	},
-	"shell": func(args []string, _ cliOptions, stdout, stderr io.Writer) int { return runShell(args, stdout, stderr) },
-	"logcat": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
-		return runLogcat(args, stdout, stderr)
+	"shell": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runShellWithOptions(args, opts, stdout, stderr)
+	},
+	"logcat": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runLogcatWithOptions(args, opts, stdout, stderr)
 	},
 	"getprop": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
-		return runGetPropWithJSON(args, opts.JSON, stdout, stderr)
+		return runGetPropWithOptions(args, opts, stdout, stderr)
 	},
-	"screencap": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
-		return runScreencap(args, stdout, stderr)
+	"screencap": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runScreencapWithOptions(args, opts, stdout, stderr)
 	},
-	"reboot": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
-		return runReboot(args, stdout, stderr)
+	"reboot": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runRebootWithOptions(args, opts, stdout, stderr)
 	},
 	"forward": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 		return runForwardWithOptions(args, opts, stdout, stderr)
@@ -85,10 +89,14 @@ var commandRunners = map[string]commandRunner{
 	"daemon": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 		return runDaemonWithJSON(args, opts.JSON, stdout, stderr)
 	},
-	"push": func(args []string, _ cliOptions, stdout, stderr io.Writer) int { return runPush(args, stdout, stderr) },
-	"pull": func(args []string, _ cliOptions, stdout, stderr io.Writer) int { return runPull(args, stdout, stderr) },
-	"install-apk": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
-		return runInstallAPK(args, stdout, stderr)
+	"push": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runPushWithOptions(args, opts, stdout, stderr)
+	},
+	"pull": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runPullWithOptions(args, opts, stdout, stderr)
+	},
+	"install-apk": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runInstallAPKWithOptions(args, opts, stdout, stderr)
 	},
 }
 
@@ -97,6 +105,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	jsonOutput := fs.Bool("json", false, "print machine-readable JSON for supported commands")
 	quietOutput := fs.Bool("quiet", false, "suppress non-error informational status messages")
+	verboseOutput := fs.Bool("verbose", false, "print extra diagnostics to stderr")
 	helpOutput := fs.Bool("help", false, "show this help message")
 	shortHelpOutput := fs.Bool("h", false, "show this help message")
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
@@ -106,6 +115,11 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if *helpOutput || *shortHelpOutput {
 		fmt.Fprint(stdout, usage)
 		return 0
+	}
+	if *quietOutput && *verboseOutput {
+		fmt.Fprint(stderr, "adb-go: choose only one output mode: --quiet or --verbose\n\n")
+		fs.Usage()
+		return 2
 	}
 
 	command, commandArgs, ok := splitFlagSetCommand(fs)
@@ -124,7 +138,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
-	return runner(commandArgs, cliOptions{JSON: *jsonOutput, Quiet: *quietOutput}, stdout, stderr)
+	return runner(commandArgs, cliOptions{JSON: *jsonOutput, Quiet: *quietOutput, Verbose: *verboseOutput}, stdout, stderr)
 }
 
 type versionInfo struct {

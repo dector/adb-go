@@ -28,6 +28,11 @@ with spaces and sent as one shell command string, for example:
 `
 
 func runShell(args []string, stdout, stderr io.Writer) int {
+	return runShellWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runShellWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("shell", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -49,7 +54,8 @@ func runShell(args []string, stdout, stderr io.Writer) int {
 	}
 
 	cmd := strings.Join(fs.Args(), " ")
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("shell opening service shell:%s\n", cmd)
+	client, err := connectTarget(context.Background(), "shell", target, out)
 	if err != nil {
 		printConnectError(stderr, "shell", target.description, err)
 		return 1
@@ -77,6 +83,11 @@ request logcat's dump-and-exit mode, equivalent to logcat -d. For example:
 `
 
 func runLogcat(args []string, stdout, stderr io.Writer) int {
+	return runLogcatWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runLogcatWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("logcat", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -98,7 +109,8 @@ func runLogcat(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("logcat starting stream (dump=%t)\n", *dump)
+	client, err := connectTarget(context.Background(), "logcat", target, out)
 	if err != nil {
 		printConnectError(stderr, "logcat", target.description, err)
 		return 1
@@ -131,6 +143,12 @@ func runGetProp(args []string, stdout, stderr io.Writer) int {
 }
 
 func runGetPropWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+	return runGetPropWithOptions(args, cliOptions{JSON: jsonOutput}, stdout, stderr)
+}
+
+func runGetPropWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	jsonOutput := opts.JSON
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("getprop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -153,7 +171,12 @@ func runGetPropWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 		return 2
 	}
 
-	client, err := connectDevice(context.Background(), target)
+	if fs.NArg() == 1 {
+		out.Verbosef("getprop reading property %s\n", fs.Arg(0))
+	} else {
+		out.Verbosef("getprop reading all properties\n")
+	}
+	client, err := connectTarget(context.Background(), "getprop", target, out)
 	if err != nil {
 		printConnectError(stderr, "getprop", target.description, err)
 		return 1
@@ -230,6 +253,11 @@ By default, screencap refuses to replace an existing local file. Pass
 `
 
 func runScreencap(args []string, stdout, stderr io.Writer) int {
+	return runScreencapWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runScreencapWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("screencap", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -256,7 +284,8 @@ func runScreencap(args []string, stdout, stderr io.Writer) int {
 		localPath = fs.Arg(0)
 	}
 
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("screencap capturing PNG to %s (overwrite=%t)\n", localPath, *overwrite)
+	client, err := connectTarget(context.Background(), "screencap", target, out)
 	if err != nil {
 		printConnectError(stderr, "screencap", target.description, err)
 		return 1
@@ -325,6 +354,11 @@ support is Linux-only initially. For example:
 `
 
 func runReboot(args []string, stdout, stderr io.Writer) int {
+	return runRebootWithOptions(args, cliOptions{}, stdout, stderr)
+}
+
+func runRebootWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	out := newOutputPolicy(stdout, stderr, opts)
 	fs := flag.NewFlagSet("reboot", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -356,7 +390,8 @@ func runReboot(args []string, stdout, stderr io.Writer) int {
 		mode = parsed
 	}
 
-	client, err := connectDevice(context.Background(), target)
+	out.Verbosef("reboot requesting mode %s\n", mode)
+	client, err := connectTarget(context.Background(), "reboot", target, out)
 	if err != nil {
 		printConnectError(stderr, "reboot", target.description, err)
 		return 1
