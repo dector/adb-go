@@ -23,7 +23,7 @@ clone of the official `adb` command.
   - [`reboot`](#reboot)
   - [`forward`](#forward)
   - [`reverse`](#reverse)
-  - [`daemon`](#daemon)
+  - [`server`](#server)
 - [Troubleshooting common errors](#troubleshooting-common-errors)
 - [Limitations](#limitations)
 - [Testing](#testing)
@@ -34,11 +34,11 @@ clone of the official `adb` command.
 go install github.com/dector/adb-go/cmd/adb-go@latest
 ```
 
-The optional daemon control commands talk to the separate foreground `adb-god`
-binary. Install it when you want to try the daemon foundation:
+The optional server control commands talk to the separate foreground `adb-gos`
+binary. Install it when you want to try the server foundation:
 
 ```sh
-go install github.com/dector/adb-go/cmd/adb-god@latest
+go install github.com/dector/adb-go/cmd/adb-gos@latest
 ```
 
 From a local checkout, run the CLI without installing:
@@ -101,7 +101,7 @@ adb-go --quiet shell --addr 127.0.0.1:5555 echo hello
 Quiet mode does not mute requested command payloads or outputs whose absence
 would be ambiguous for scripts and humans: shell/logcat stdout, getprop values,
 target/device listings, JSON/plain output, `version`, and screencap's chosen
-local path continue to print. Errors, warnings, usage failures, and daemon/device
+local path continue to print. Errors, warnings, usage failures, and server/device
 diagnostics continue to write to stderr.
 
 Pass global `--verbose` before the command name to opt into additional human
@@ -167,12 +167,12 @@ The CLI does not create or modify key files.
 
 Device workflow commands such as `shell`, `push`, `pull`, `install-apk`,
 `getprop`, `logcat`, `screencap`, `reboot`, foreground `forward`, and foreground
-`reverse` connect directly to an explicit TCP or Linux USB target. Daemon-owned
+`reverse` connect directly to an explicit TCP or Linux USB target. Server-owned
 `forward --background`/`reverse --background`, `--list`, and `--remove*` talk to
-the local `adb-god` control socket; the daemon then opens explicit TCP ADB
-targets for background forwarding traffic. The `daemon` command also talks to
-`adb-god` but controls the process itself. The `version` command is host-only
-and performs no ADB or daemon I/O.
+the local `adb-gos` control socket; the server then opens explicit TCP ADB
+targets for background forwarding traffic. The `server` command also talks to
+`adb-gos` but controls the process itself. The `version` command is host-only
+and performs no ADB or server I/O.
 
 ### `version`
 
@@ -419,7 +419,7 @@ rejected before adb-go connects to the device; use `normal`, `bootloader`, or
 Reboot is intentionally disruptive. It affects the selected device immediately,
 can interrupt apps and tests running on that device, and commonly closes the ADB
 connection while Android or the bootloader restarts. A successful command means
-that the ADB daemon accepted the reboot request; it does not wait for the device
+that the device adbd accepted the reboot request; it does not wait for the device
 to come back online.
 
 ### `forward`
@@ -448,28 +448,28 @@ connection is accepted by adb-go, adb-go opens a fresh device `tcp:PORT` ADB
 service stream, and bytes are copied in both directions. Press Ctrl-C or stop
 the process to close the local listener and any active bridged connections.
 
-For persistent background forwarding, start `adb-god` and pass `--background`:
+For persistent background forwarding, start `adb-gos` and pass `--background`:
 
 ```sh
 adb-go forward --background --addr 127.0.0.1:5555 tcp:9000 tcp:8000
 adb-go forward --background --addr 127.0.0.1:5555 tcp:0 tcp:8000
 ```
 
-This sends a `forward_create` request to the daemon and exits after registration.
-The daemon owns the loopback listener, accepts future host connections, connects
+This sends a `forward_create` request to the server and exits after registration.
+The server owns the loopback listener, accepts future host connections, connects
 to the explicit TCP ADB target (`--addr` or `ADB_GO_ADDR`) for each connection,
 opens the configured device `tcp:PORT` service, and copies bytes in both
-directions. `tcp:0` is resolved by the daemon, so the command prints the actual
-bound local address returned by `adb-god`.
+directions. `tcp:0` is resolved by the server, so the command prints the actual
+bound local address returned by `adb-gos`.
 
-Daemon-owned forwards are in-memory only. They survive the creating CLI process,
-but they do not survive `adb-god` shutdown, restart, crash, logout, or service
+Server-owned forwards are in-memory only. They survive the creating CLI process,
+but they do not survive `adb-gos` shutdown, restart, crash, logout, or service
 reinstall. They also deliberately do not persist USB target handles or
 `--auth-key` material yet, so `--background` currently supports explicit TCP ADB
 targets only. Use foreground forwarding for Linux USB targets or authenticated
 connections for now.
 
-Inspect and remove daemon-owned forwards with:
+Inspect and remove server-owned forwards with:
 
 ```sh
 adb-go forward --list
@@ -480,29 +480,29 @@ adb-go forward --remove-all
 
 `--list` prints an aligned table with the generated ID, state, local endpoint,
 remote service, target, active connection count, and last setup error if the
-daemon has observed one. Pass `--plain` for a tab-separated table or `--json` for
+server has observed one. Pass `--plain` for a tab-separated table or `--json` for
 JSON. Use `--norebind` with `--background` to fail instead of replacing an
 existing mapping for the same local endpoint. By default, creating a new
-daemon-owned forward on the same local endpoint replaces the old daemon-owned
+server-owned forward on the same local endpoint replaces the old server-owned
 mapping.
 
-If a daemon command reports that the socket is unavailable or the daemon is too
-old for forwarding commands, start or inspect the daemon with:
+If a server command reports that the socket is unavailable or the server is too
+old for forwarding commands, start or inspect the server with:
 
 ```sh
-adb-go daemon service start
-adb-go daemon doctor
+adb-go server service start
+adb-go server doctor
 ```
 
 Unsupported forwarding forms currently include host Unix sockets, Android local
 socket namespaces such as `localabstract:`, JDWP, vsock, raw advanced service
-targets, durable persistent mappings across daemon restarts, and daemon-owned
-USB/authenticated targets. The daemon-backed design background is in
+targets, durable persistent mappings across server restarts, and server-owned
+USB/authenticated targets. The server-backed design background is in
 [`../../docs/persistent-forwarding-design.md`](../../docs/persistent-forwarding-design.md).
 
 ### `reverse`
 
-`adb-go reverse` starts either a foreground or daemon-owned reverse TCP
+`adb-go reverse` starts either a foreground or server-owned reverse TCP
 forwarding session from a TCP listener on the selected device to a TCP port on
 host loopback:
 
@@ -534,10 +534,10 @@ host loopback target, and copies bytes in both directions. Press Ctrl-C or stop
 the process to remove the device-side reverse registration and close active
 bridged connections.
 
-For persistent background reverse forwarding, start `adb-god` and pass
-`--background`. Daemon-owned reverses are in-memory: they survive the creating
+For persistent background reverse forwarding, start `adb-gos` and pass
+`--background`. Server-owned reverses are in-memory: they survive the creating
 CLI process, but they are removed by `adb-go reverse --remove`,
-`adb-go reverse --remove-all`, or `adb-god` shutdown. `--list` uses the same
+`adb-go reverse --remove-all`, or `adb-gos` shutdown. `--list` uses the same
 aligned table style as `forward --list`; pass `--plain` for tabs or `--json` for
 JSON. Background reverse currently supports explicit unauthenticated TCP ADB
 targets only; USB targets and `--auth-key` persistence are intentionally
@@ -548,38 +548,38 @@ host Unix sockets, generic service targets, durable on-disk reverse tables, and
 adb-compatible `adb reverse` mode. Design details are in
 [`../../docs/reverse-forwarding-design.md`](../../docs/reverse-forwarding-design.md).
 
-### `daemon`
+### `server`
 
-`adb-go daemon` controls the local `adb-god` process over adb-go's Unix domain
+`adb-go server` controls the local `adb-gos` process over adb-go's Unix domain
 socket control protocol:
 
 ```sh
-adb-go daemon doctor
-adb-go daemon ping
-adb-go daemon status
-adb-go daemon stop
-adb-go daemon service install
-adb-go daemon service reinstall
-adb-go daemon service start
-adb-go daemon service stop
-adb-go daemon service restart
-adb-go daemon service status
-adb-go daemon service logs
-adb-go daemon service uninstall
+adb-go server doctor
+adb-go server ping
+adb-go server status
+adb-go server stop
+adb-go server service install
+adb-go server service reinstall
+adb-go server service start
+adb-go server service stop
+adb-go server service restart
+adb-go server service status
+adb-go server service logs
+adb-go server service uninstall
 ```
 
 `doctor` is a read-only diagnostics command. It prints the socket path resolved
-by the same rules as the other daemon commands, whether that path exists,
-whether a compatible daemon responds to the daemon socket protocol, and Linux
+by the same rules as the other server commands, whether that path exists,
+whether a compatible server responds to the server socket protocol, and Linux
 systemd user-service active/enabled state when `systemctl` is available:
 
 ```text
-socketPath: /run/user/1000/adb-go/adb-god.sock
+socketPath: /run/user/1000/adb-go/adb-gos.sock
 socketExists: true
 socketType: unix
-daemonProtocol: responding
-daemonState: running
-daemonProtocolVersion: 1
+serverProtocol: responding
+serverState: running
+serverProtocolVersion: 1
 systemdActive: active
 systemdEnabled: enabled
 hints: none
@@ -588,8 +588,8 @@ hints: none
 When something looks wrong, `doctor` keeps diagnosing instead of starting,
 stopping, installing, or uninstalling anything. For example, a missing socket or
 inactive systemd service produces actionable hints such as starting the service
-or checking that `adb-go` and `adb-god` agree on the socket path. It also prints
-concise daemon-owned forwarding counts. If any forward is degraded, `doctor`
+or checking that `adb-go` and `adb-gos` agree on the socket path. It also prints
+concise server-owned forwarding counts. If any forward is degraded, `doctor`
 points you to `adb-go forward --list`, which is where detailed mappings and last
 setup errors live:
 
@@ -599,10 +599,10 @@ forwardListening: 1
 forwardDegraded: 1
 forwardActiveConnections: 0
 hints:
-  - One or more daemon-owned forwards are degraded; run adb-go forward --list to see the mapping IDs, targets, and last setup errors.
+  - One or more server-owned forwards are degraded; run adb-go forward --list to see the mapping IDs, targets, and last setup errors.
 ```
 
-A degraded forward means the daemon still owns the local listener, but the most
+A degraded forward means the server still owns the local listener, but the most
 recent host connection could not be bridged to the target device or remote TCP
 service. Common causes are a disconnected TCP ADB target, a rebooted emulator, a
 device-side service that stopped listening, or an authentication requirement
@@ -614,18 +614,18 @@ port. A successful later bridge clears the degraded state.
 Pass `--systemctl PATH` after `doctor` to test or use a non-default systemctl binary:
 
 ```sh
-adb-go daemon doctor --systemctl /usr/bin/systemctl
+adb-go server doctor --systemctl /usr/bin/systemctl
 ```
 
 `ping` is a liveness check. It sends a protocol `ping` request and prints
-`pong` when a compatible daemon responds.
+`pong` when a compatible server responds.
 
 `status` prints basic process metadata plus concise forwarding counters only:
 
 ```text
 state: running
 pid: 12345
-socketPath: /run/user/1000/adb-go/adb-god.sock
+socketPath: /run/user/1000/adb-go/adb-gos.sock
 protocolVersion: 1
 uptimeMillis: 2500
 forwardTotal: 2
@@ -634,78 +634,78 @@ forwardDegraded: 1
 forwardActiveConnections: 0
 ```
 
-These fields describe the daemon process, protocol endpoint, and aggregate
+These fields describe the server process, protocol endpoint, and aggregate
 forwarding health. They are not a device list and do not include transport
 state, sessions, full forwarding mappings, authentication state, or payload data.
 Use `adb-go forward --list` for the detailed forward table. Because mappings are
-in-memory, `forwardTotal: 0` after an `adb-god` restart usually means old
-persistent forwards were lost with the daemon process and need to be recreated.
+in-memory, `forwardTotal: 0` after an `adb-gos` restart usually means old
+persistent forwards were lost with the server process and need to be recreated.
 
 `stop` sends the protocol `shutdown` request. A successful response means the
-daemon accepted graceful shutdown; the daemon then stops accepting new control
+server accepted graceful shutdown; the server then stops accepting new control
 connections, closes its listener, and removes its socket file on the normal
 shutdown path.
 
-By default, `adb-go daemon ...` and `adb-god` use the same socket path selection
+By default, `adb-go server ...` and `adb-gos` use the same socket path selection
 rules:
 
-1. `ADB_GO_DAEMON_SOCKET`, when set to an absolute path.
-2. `$XDG_RUNTIME_DIR/adb-go/adb-god.sock`, when `XDG_RUNTIME_DIR` is absolute.
-3. `$TMPDIR/adb-go-$UID/adb-god.sock`, using Go's `os.TempDir()` and the current
+1. `ADB_GO_SERVER_SOCKET`, when set to an absolute path.
+2. `$XDG_RUNTIME_DIR/adb-go/adb-gos.sock`, when `XDG_RUNTIME_DIR` is absolute.
+3. `$TMPDIR/adb-go-$UID/adb-gos.sock`, using Go's `os.TempDir()` and the current
    Unix user ID.
 
 For tests, development, or non-default installations, pass an explicit absolute
 socket path to the CLI:
 
 ```sh
-adb-go daemon --socket /tmp/adb-go-demo/adb-god.sock status
+adb-go server --socket /tmp/adb-go-demo/adb-gos.sock status
 ```
 
-Start the daemon itself separately with the matching path:
+Start the server itself separately with the matching path:
 
 ```sh
-adb-god --socket /tmp/adb-go-demo/adb-god.sock
+adb-gos --socket /tmp/adb-go-demo/adb-gos.sock
 ```
 
 On Linux systems that use systemd user services, `service install` writes
-`~/.config/systemd/user/adb-god.service`, runs `systemctl --user daemon-reload`,
+`~/.config/systemd/user/adb-gos.service`, runs `systemctl --user daemon-reload`,
 and enables/starts the service with `systemctl --user enable --now
-adb-god.service`:
+adb-gos.service`:
 
 ```sh
-adb-go daemon service install
+adb-go server service install
 ```
 
-Use `--adb-god PATH` when `adb-god` is not on `PATH`, and use `--socket PATH` to
+Use `--adb-gos PATH` when `adb-gos` is not on `PATH`, and use `--socket PATH` to
 bake a non-default socket path into the unit:
 
 ```sh
-adb-go daemon --socket /tmp/adb-go-demo/adb-god.sock service install --adb-god /usr/local/bin/adb-god
+adb-go server --socket /tmp/adb-go-demo/adb-gos.sock service install --adb-gos /usr/local/bin/adb-gos
 ```
 
 The service group also wraps unit refreshes and common systemd user lifecycle
 operations:
 
 ```sh
-adb-go daemon service reinstall
-adb-go daemon service start
-adb-go daemon service stop
-adb-go daemon service restart
-adb-go daemon service status
-adb-go daemon service logs
-adb-go daemon service uninstall
+adb-go server service reinstall
+adb-go server service start
+adb-go server service stop
+adb-go server service restart
+adb-go server service status
+adb-go server service logs
+adb-go server service uninstall
 ```
 
 Use `service reinstall` when the installed unit should be rewritten, for example
-after installing `adb-god` at a different path, choosing a different daemon
+after installing `adb-gos` at a different path, choosing a different server
 socket path with top-level `--socket`, or replacing a local development build.
-It uses the same `--adb-god PATH`, `--unit-dir DIR`, `--socket PATH`, and
+It uses the same `--adb-gos PATH`, `--unit-dir DIR`, `--socket PATH`, and
 `--systemctl PATH` overrides as the install/lifecycle commands where relevant,
 then runs `systemctl --user daemon-reload`, `systemctl --user enable
-adb-god.service`, and `systemctl --user restart adb-god.service`.
+adb-gos.service`, and `systemctl --user restart adb-gos.service`.
 
-`service status` runs `systemctl --user is-active adb-god.service` and
-`systemctl --user is-enabled adb-god.service`, then prints concise fields:
+`service status` runs `systemctl --user is-active adb-gos.service` and
+`systemctl --user is-enabled adb-gos.service`, then prints concise fields:
 
 ```text
 active: active
@@ -714,36 +714,36 @@ enabled: enabled
 
 Inactive or disabled services are reported the same way, for example
 `active: inactive` or `enabled: disabled`. This command reports systemd's host
-service-manager view. It is intentionally separate from `adb-go daemon status`,
-which talks to a running daemon through the adb-go daemon socket protocol.
+service-manager view. It is intentionally separate from `adb-go server status`,
+which talks to a running server through the adb-go server socket protocol.
 
 `service logs` reads recent host-service output through the current user's
 systemd journal:
 
 ```sh
-adb-go daemon service logs
-adb-go daemon service logs --lines 25
-adb-go daemon service logs --follow
-adb-go daemon service logs --journalctl /usr/bin/journalctl
+adb-go server service logs
+adb-go server service logs --lines 25
+adb-go server service logs --follow
+adb-go server service logs --journalctl /usr/bin/journalctl
 ```
 
 The default invocation is intentionally small and predictable:
-`journalctl --user -u adb-god.service -n 100 --no-pager`. `--lines N` changes
+`journalctl --user -u adb-gos.service -n 100 --no-pager`. `--lines N` changes
 the `-n` value, `--follow` adds journalctl's follow mode, and `--journalctl PATH`
 is available for tests or installations where the binary is not found as plain
 `journalctl`.
 
-`service uninstall` runs `systemctl --user disable --now adb-god.service`,
+`service uninstall` runs `systemctl --user disable --now adb-gos.service`,
 removes the user unit file, then runs `systemctl --user daemon-reload`. These
 service commands manage the host systemd unit. They are different from
-`adb-go daemon stop`, which sends a graceful shutdown request to the currently
-running daemon over the daemon socket protocol.
+`adb-go server stop`, which sends a graceful shutdown request to the currently
+running server over the server socket protocol.
 
-The daemon is not the official adb server. It can currently keep in-memory
+The server is not the official adb server. It can currently keep in-memory
 TCP-to-device-TCP forwarding listeners alive after the creating CLI exits, but it
 still does not keep general ADB devices, USB transports, foreground forwards,
 shell sessions, install state, logcat streams, screenshots, reboots, durable
-forwarding tables, or authentication keys alive across daemon restarts. Those
+forwarding tables, or authentication keys alive across server restarts. Those
 remain future design areas built on this process and socket foundation.
 
 ## Troubleshooting common errors
@@ -774,8 +774,8 @@ persistent forwarding, and most official flags are not implemented. Use
 `getprop` for adb-go's limited property inspection workflow, `screencap` for
 one-shot PNG screenshot capture, `reboot` for explicit disruptive reboot
 requests, `forward` for foreground local-TCP-to-device-TCP forwarding,
-`daemon` for local `adb-god` process control, daemon-owned in-memory TCP
-forwards for persistent forwarding within one daemon lifetime, and `install-apk`
+`server` for local `adb-gos` process control, server-owned in-memory TCP
+forwards for persistent forwarding within one server lifetime, and `install-apk`
 for adb-go's limited one-APK installation workflow.
 
 ## Testing

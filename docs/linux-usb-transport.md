@@ -19,7 +19,7 @@ same transport seam without changing the ADB protocol layer.
 
 ## Non-goals for the first USB slice
 
-- No automatic ADB key discovery, generation, persistence, or daemon-managed
+- No automatic ADB key discovery, generation, persistence, or server-managed
   authentication state. USB uses the same explicit credential model as TCP:
   callers can pass trusted RSA keys, otherwise authenticated devices return
   `ErrAuthRequired`.

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	adb "github.com/dector/adb-go"
-	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/cmd/adb-go/internal/cliserver"
+	"github.com/dector/adb-go/internal/server"
 )
 
 type forwardSession interface {
@@ -56,14 +56,14 @@ const forwardUsage = `Usage:
   adb-go forward [--socket PATH] --remove-id ID
   adb-go forward [--socket PATH] --remove-all
 
-Without daemon flags, starts foreground process-scoped forwarding from a local
+Without server flags, starts foreground process-scoped forwarding from a local
 TCP listener to a TCP endpoint on the selected device. This behavior is
 unchanged: the forward exists only while this command keeps running.
 
-With --background, registers a daemon-owned in-memory forward in adb-god. The
+With --background, registers a server-owned in-memory forward in adb-gos. The
 background path currently supports explicit TCP ADB targets only; USB targets
 and authentication-key persistence are intentionally out of scope. List and
-remove flags inspect or remove daemon-owned forwards without selecting a device.
+remove flags inspect or remove server-owned forwards without selecting a device.
 
 Use tcp:0 as LOCAL_PORT to ask the OS for an available local port. adb-go
 prints the bound local listener address before it starts waiting. For example:
@@ -89,14 +89,14 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 	fs := flag.NewFlagSet("forward", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
-	socketPathFlag := fs.String("socket", "", "absolute adb-god Unix domain socket path for daemon-owned forwards")
-	backgroundFlag := fs.Bool("background", false, "create a daemon-owned in-memory forward and exit")
-	norebindFlag := fs.Bool("norebind", false, "fail instead of replacing an existing daemon-owned forward with the same local endpoint")
-	listFlag := fs.Bool("list", false, "list daemon-owned forwards")
-	removeFlag := fs.String("remove", "", "remove the daemon-owned forward with this local endpoint, for example tcp:9000")
-	removeIDFlag := fs.String("remove-id", "", "remove the daemon-owned forward with this generated ID")
-	removeAllFlag := fs.Bool("remove-all", false, "remove all daemon-owned forwards")
-	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON for daemon list/create/remove operations")
+	socketPathFlag := fs.String("socket", "", "absolute adb-gos Unix domain socket path for server-owned forwards")
+	backgroundFlag := fs.Bool("background", false, "create a server-owned in-memory forward and exit")
+	norebindFlag := fs.Bool("norebind", false, "fail instead of replacing an existing server-owned forward with the same local endpoint")
+	listFlag := fs.Bool("list", false, "list server-owned forwards")
+	removeFlag := fs.String("remove", "", "remove the server-owned forward with this local endpoint, for example tcp:9000")
+	removeIDFlag := fs.String("remove-id", "", "remove the server-owned forward with this generated ID")
+	removeAllFlag := fs.Bool("remove-all", false, "remove all server-owned forwards")
+	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON for server list/create/remove operations")
 	plainFlag := fs.Bool("plain", false, "print tab-separated plain output for --list")
 	fs.Usage = func() { fmt.Fprint(stderr, forwardUsage) }
 
@@ -111,14 +111,14 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 		fs.Usage()
 		return 2
 	}
-	daemonOps := 0
+	serverOps := 0
 	for _, enabled := range []bool{*backgroundFlag, *listFlag, strings.TrimSpace(*removeFlag) != "", strings.TrimSpace(*removeIDFlag) != "", *removeAllFlag} {
 		if enabled {
-			daemonOps++
+			serverOps++
 		}
 	}
-	if daemonOps > 1 {
-		fmt.Fprint(stderr, "adb-go forward: choose only one daemon operation: --background, --list, --remove, --remove-id, or --remove-all\n\n")
+	if serverOps > 1 {
+		fmt.Fprint(stderr, "adb-go forward: choose only one server operation: --background, --list, --remove, --remove-id, or --remove-all\n\n")
 		fs.Usage()
 		return 2
 	}
@@ -129,9 +129,9 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 		return 2
 	}
 	socketPath := ""
-	if daemonOps > 0 {
+	if serverOps > 0 {
 		var err error
-		socketPath, err = forwardDaemonSocketPath(strings.TrimSpace(*socketPathFlag))
+		socketPath, err = forwardServerSocketPath(strings.TrimSpace(*socketPathFlag))
 		if err != nil {
 			fmt.Fprintf(stderr, "adb-go forward: %v\n", err)
 			return 1
@@ -143,7 +143,7 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 			fs.Usage()
 			return 2
 		}
-		return runForwardDaemonList(socketPath, jsonOutput, plainOutput, stdout, stderr)
+		return runForwardServerList(socketPath, jsonOutput, plainOutput, stdout, stderr)
 	}
 	if strings.TrimSpace(*removeFlag) != "" {
 		if fs.NArg() != 0 {
@@ -157,7 +157,7 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 			fs.Usage()
 			return 2
 		}
-		return runForwardDaemonRemove(socketPath, daemon.ForwardRemoveParams{Local: &daemon.ForwardLocalEndpoint{Network: "tcp", Address: localAddr}}, jsonOutput, out, stdout, stderr)
+		return runForwardServerRemove(socketPath, server.ForwardRemoveParams{Local: &server.ForwardLocalEndpoint{Network: "tcp", Address: localAddr}}, jsonOutput, out, stdout, stderr)
 	}
 	if strings.TrimSpace(*removeIDFlag) != "" {
 		if fs.NArg() != 0 {
@@ -165,7 +165,7 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 			fs.Usage()
 			return 2
 		}
-		return runForwardDaemonRemove(socketPath, daemon.ForwardRemoveParams{ID: strings.TrimSpace(*removeIDFlag)}, jsonOutput, out, stdout, stderr)
+		return runForwardServerRemove(socketPath, server.ForwardRemoveParams{ID: strings.TrimSpace(*removeIDFlag)}, jsonOutput, out, stdout, stderr)
 	}
 	if *removeAllFlag {
 		if fs.NArg() != 0 {
@@ -173,7 +173,7 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 			fs.Usage()
 			return 2
 		}
-		return runForwardDaemonRemoveAll(socketPath, jsonOutput, out, stdout, stderr)
+		return runForwardServerRemoveAll(socketPath, jsonOutput, out, stdout, stderr)
 	}
 
 	target, err := conn.target(fs)
@@ -212,7 +212,7 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 			fs.Usage()
 			return 2
 		}
-		return runForwardDaemonCreate(socketPath, localAddr, fs.Arg(1), targetAddr, *norebindFlag, jsonOutput, out, stdout, stderr)
+		return runForwardServerCreate(socketPath, localAddr, fs.Arg(1), targetAddr, *norebindFlag, jsonOutput, out, stdout, stderr)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -242,11 +242,11 @@ func runForwardWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 	return 0
 }
 
-func forwardDaemonSocketPath(configured string) (string, error) {
+func forwardServerSocketPath(configured string) (string, error) {
 	if configured != "" {
 		return configured, nil
 	}
-	return daemon.DefaultSocketPath()
+	return server.DefaultSocketPath()
 }
 
 func normalizeForwardTargetTCPAddr(addr string) (string, error) {
@@ -273,22 +273,22 @@ func normalizeForwardTargetTCPAddr(addr string) (string, error) {
 	return net.JoinHostPort(addr, "5555"), nil
 }
 
-func runForwardDaemonCreate(socketPath, localAddr, remoteService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
-	out.Verbosef("forward sending daemon create request to %s for %s -> %s via tcp:%s (norebind=%t)\n", socketPath, localAddr, remoteService, targetAddr, norebind)
-	params := daemon.ForwardCreateParams{
-		Local:    daemon.ForwardLocalEndpoint{Network: "tcp", Address: localAddr},
-		Remote:   daemon.ForwardRemoteEndpoint{Service: remoteService},
-		Target:   daemon.ForwardTarget{Transport: "tcp", Address: targetAddr},
+func runForwardServerCreate(socketPath, localAddr, remoteService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	out.Verbosef("forward sending server create request to %s for %s -> %s via tcp:%s (norebind=%t)\n", socketPath, localAddr, remoteService, targetAddr, norebind)
+	params := server.ForwardCreateParams{
+		Local:    server.ForwardLocalEndpoint{Network: "tcp", Address: localAddr},
+		Remote:   server.ForwardRemoteEndpoint{Service: remoteService},
+		Target:   server.ForwardTarget{Transport: "tcp", Address: targetAddr},
 		Norebind: norebind,
 	}
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandForwardCreate, params)
+	resp, err := sendForwardServerRequest(socketPath, server.CommandForwardCreate, params)
 	if err != nil || !resp.OK {
-		printForwardDaemonError(stderr, "create background forward", socketPath, resp, err)
+		printForwardServerError(stderr, "create background forward", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ForwardCreateResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: decode daemon create response: %v\n", err)
+	var result server.ForwardCreateResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: decode server create response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -299,19 +299,19 @@ func runForwardDaemonCreate(socketPath, localAddr, remoteService, targetAddr str
 		return 0
 	}
 	out.Infof("Forward %s listening on %s -> %s via tcp:%s\n", result.Forward.ID, result.Forward.Local.Address, result.Forward.Remote.Service, result.Forward.Target.Address)
-	out.Infoln("Lifecycle: in-memory daemon-owned forward; it is removed by --remove/--remove-all or adb-god shutdown.")
+	out.Infoln("Lifecycle: in-memory server-owned forward; it is removed by --remove/--remove-all or adb-gos shutdown.")
 	return 0
 }
 
-func runForwardDaemonList(socketPath string, jsonOutput bool, plainOutput bool, stdout, stderr io.Writer) int {
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandForwardList, nil)
+func runForwardServerList(socketPath string, jsonOutput bool, plainOutput bool, stdout, stderr io.Writer) int {
+	resp, err := sendForwardServerRequest(socketPath, server.CommandForwardList, nil)
 	if err != nil || !resp.OK {
-		printForwardDaemonError(stderr, "list background forwards", socketPath, resp, err)
+		printForwardServerError(stderr, "list background forwards", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ForwardListResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: decode daemon list response: %v\n", err)
+	var result server.ForwardListResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: decode server list response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -322,7 +322,7 @@ func runForwardDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 		return 0
 	}
 	if len(result.Forwards) == 0 {
-		fmt.Fprintln(stdout, "No daemon-owned forwards.")
+		fmt.Fprintln(stdout, "No server-owned forwards.")
 		fmt.Fprintln(stdout, "Create one with: adb-go forward --background --addr HOST[:PORT] tcp:LOCAL_PORT tcp:REMOTE_PORT")
 		return 0
 	}
@@ -349,15 +349,15 @@ func runForwardDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 	return 0
 }
 
-func runForwardDaemonRemove(socketPath string, params daemon.ForwardRemoveParams, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandForwardRemove, params)
+func runForwardServerRemove(socketPath string, params server.ForwardRemoveParams, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	resp, err := sendForwardServerRequest(socketPath, server.CommandForwardRemove, params)
 	if err != nil || !resp.OK {
-		printForwardDaemonError(stderr, "remove background forward", socketPath, resp, err)
+		printForwardServerError(stderr, "remove background forward", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ForwardRemoveResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: decode daemon remove response: %v\n", err)
+	var result server.ForwardRemoveResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: decode server remove response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -367,19 +367,19 @@ func runForwardDaemonRemove(socketPath string, params daemon.ForwardRemoveParams
 		}
 		return 0
 	}
-	out.Infof("Removed %d daemon-owned forward(s).\n", result.Removed)
+	out.Infof("Removed %d server-owned forward(s).\n", result.Removed)
 	return 0
 }
 
-func runForwardDaemonRemoveAll(socketPath string, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandForwardRemoveAll, nil)
+func runForwardServerRemoveAll(socketPath string, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	resp, err := sendForwardServerRequest(socketPath, server.CommandForwardRemoveAll, nil)
 	if err != nil || !resp.OK {
-		printForwardDaemonError(stderr, "remove all background forwards", socketPath, resp, err)
+		printForwardServerError(stderr, "remove all background forwards", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ForwardRemoveAllResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: decode daemon remove-all response: %v\n", err)
+	var result server.ForwardRemoveAllResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: decode server remove-all response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -389,34 +389,34 @@ func runForwardDaemonRemoveAll(socketPath string, jsonOutput bool, out outputPol
 		}
 		return 0
 	}
-	out.Infof("Removed %d daemon-owned forward(s).\n", result.Removed)
+	out.Infof("Removed %d server-owned forward(s).\n", result.Removed)
 	return 0
 }
 
-func sendForwardDaemonRequest(socketPath, command string, params any) (daemon.Response, error) {
+func sendForwardServerRequest(socketPath, command string, params any) (server.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	return clidaemon.Send(ctx, socketPath, command, params, sendDaemonRequest)
+	return cliserver.Send(ctx, socketPath, command, params, sendServerRequest)
 }
 
-func decodeDaemonResult(result map[string]any, out any) error {
-	return clidaemon.DecodeResult(result, out)
+func decodeServerResult(result map[string]any, out any) error {
+	return cliserver.DecodeResult(result, out)
 }
 
-func printForwardDaemonError(stderr io.Writer, action, socketPath string, resp daemon.Response, err error) {
+func printForwardServerError(stderr io.Writer, action, socketPath string, resp server.Response, err error) {
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go forward: cannot %s: adb-god is not running or socket is unavailable at %s: %v\n", action, socketPath, err)
-		fmt.Fprintln(stderr, "Hint: start the daemon with `adb-go daemon service start` or inspect it with `adb-go daemon doctor`.")
+		fmt.Fprintf(stderr, "adb-go forward: cannot %s: adb-gos is not running or socket is unavailable at %s: %v\n", action, socketPath, err)
+		fmt.Fprintln(stderr, "Hint: start the server process with `adb-go server service start` or inspect it with `adb-go server doctor`.")
 		return
 	}
 	if resp.Error != nil {
-		fmt.Fprintf(stderr, "adb-go forward: cannot %s: daemon error %s: %s\n", action, resp.Error.Code, resp.Error.Message)
-		if resp.Error.Code == daemon.ErrorUnknownCommand {
-			fmt.Fprintln(stderr, "Hint: adb-god is too old for persistent forwarding; upgrade adb-god or inspect it with `adb-go daemon doctor`.")
+		fmt.Fprintf(stderr, "adb-go forward: cannot %s: server error %s: %s\n", action, resp.Error.Code, resp.Error.Message)
+		if resp.Error.Code == server.ErrorUnknownCommand {
+			fmt.Fprintln(stderr, "Hint: adb-gos is too old for persistent forwarding; upgrade adb-gos or inspect it with `adb-go server doctor`.")
 		}
 		return
 	}
-	fmt.Fprintf(stderr, "adb-go forward: cannot %s: daemon returned an unsuccessful response\n", action)
+	fmt.Fprintf(stderr, "adb-go forward: cannot %s: server returned an unsuccessful response\n", action)
 }
 
 func parseForwardLocalTCP(value string) (string, error) {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	adb "github.com/dector/adb-go"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/internal/server"
 )
 
 type deviceClient interface {
@@ -84,7 +84,7 @@ func (t connectionTarget) authSummary() string {
 var listUSBDevices = adb.ListUSBDevices
 var scanTCPTargets = adb.ScanTCPTargets
 var currentTime = time.Now
-var sendDaemonRequest = daemon.Send
+var sendServerRequest = server.Send
 
 func addConnectionFlags(fs *flag.FlagSet) connectionOptions {
 	return connectionOptions{

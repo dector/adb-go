@@ -39,7 +39,7 @@ func TestRunRejectsRelativeSocketPath(t *testing.T) {
 }
 
 func TestRunRefusesExistingRegularFileSocketPath(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "adb-god.sock")
+	path := filepath.Join(t.TempDir(), "adb-gos.sock")
 	if err := os.WriteFile(path, []byte("not a socket"), 0o600); err != nil {
 		t.Fatal(err)
 	}

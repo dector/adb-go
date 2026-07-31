@@ -25,7 +25,7 @@ Initial package layout:
 ├── adb.go                 # root package; re-exports high-level API
 ├── client/                # high-level client API
 ├── protocol/              # low-level ADB protocol API
-└── internal/fakeadb/      # in-process fake ADB daemon/server for tests
+└── internal/fakeadb/      # in-process fake ADB server for tests
 ```
 
 ## Scope for v0
@@ -162,7 +162,7 @@ Testing strategy:
 
 - Unit tests for packet encoding/decoding and checksums
 - Unit tests for stream lifecycle and demux behavior
-- In-process fake ADB daemon/server under `internal/fakeadb` for reliable tests
+- In-process fake ADB server under `internal/fakeadb` for reliable tests
 - Optional integration tests against a real emulator/device
 
 Integration tests:

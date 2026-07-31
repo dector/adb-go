@@ -1,4 +1,4 @@
-package daemon
+package server
 
 import (
 	"bufio"
@@ -20,11 +20,11 @@ func Send(ctx context.Context, socketPath string, req Request) (Response, error)
 		_ = conn.SetDeadline(deadline)
 	}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return Response{}, fmt.Errorf("write daemon request: %w", err)
+		return Response{}, fmt.Errorf("write server request: %w", err)
 	}
 	var resp Response
 	if err := json.NewDecoder(bufio.NewReader(conn)).Decode(&resp); err != nil {
-		return Response{}, fmt.Errorf("read daemon response: %w", err)
+		return Response{}, fmt.Errorf("read server response: %w", err)
 	}
 	return resp, nil
 }

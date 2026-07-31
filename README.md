@@ -13,7 +13,7 @@
 - [Linux USB support](#linux-usb-support)
 - [Authentication helpers](#authentication-helpers)
 - [Experimental CLI](#experimental-cli)
-- [adb-god daemon foundation](#adb-god-daemon-foundation)
+- [adb-gos server foundation](#adb-gos-server-foundation)
 - [Low-level protocol package](#low-level-protocol-package)
 - [Implementation notes](#implementation-notes)
 - [Current limitations](#current-limitations)
@@ -24,7 +24,7 @@ History of changes is available in [`CHANGELOG.md`](CHANGELOG.md).
 ## Overview
 
 `adb-go` is layered from low-level ADB protocol primitives up to high-level
-library workflows, with the CLI and daemon built on top.
+library workflows, with the CLI and server built on top.
 
 Most probably you are here for [high-level client API](#high-level-client-api).
 
@@ -33,7 +33,7 @@ block-beta
   columns 2
 
   cli["CMD/ADB-GO<br/>(experimental CLI)"]
-  daemon["CMD/ADB-GOD<br/>(daemon foundation)"]
+  server["CMD/ADB-GOS<br/>(server foundation)"]
 
   root["GITHUB.COM/DECTOR/ADB-GO<br/>(stable high-level API)"]:2
 
@@ -61,12 +61,12 @@ block-beta
 | Screencap |  |
 | Reboot | Supports normal, bootloader, and recovery modes |
 | Local TCP forwarding | Device TCP targets only |
-| Daemon-owned TCP forwarding | Device TCP targets only |
+| Server-owned TCP forwarding | Device TCP targets only |
 | Reverse TCP forwarding | Foreground process-scoped, device TCP to host loopback TCP |
 | File push/pull |  |
 | APK installation | Supports replace option |
 | Sample CLI | Showcasing library |
-| adb-god daemon foundation | Unix-socket daemon |
+| adb-gos server foundation | Unix-socket server |
 
 ## Install
 
@@ -280,34 +280,34 @@ CLI docs, including troubleshooting for common connection, authentication,
 unsupported-platform, overwrite, and local-path errors:
 [`cmd/adb-go/README.md`](cmd/adb-go/README.md).
 
-## adb-god daemon foundation
+## adb-gos server foundation
 
-`adb-god` is the first adb-go daemon process. It listens on a Unix domain socket
+`adb-gos` is the first adb-go server process. It listens on a Unix domain socket
 and supports `ping`, `status`, graceful `shutdown`, service diagnostics, and
-in-memory daemon-owned TCP forwarding registrations. It does not persist devices,
+in-memory server-owned TCP forwarding registrations. It does not persist devices,
 transports, forwards, shell sessions, authentication state, or other ADB workflow
-state across daemon restarts yet.
+state across server restarts yet.
 
 ```sh
-go install github.com/dector/adb-go/cmd/adb-god@latest
-adb-god
+go install github.com/dector/adb-go/cmd/adb-gos@latest
+adb-gos
 
-adb-go daemon doctor
-adb-go daemon status
+adb-go server doctor
+adb-go server status
 ```
 
-On Linux with systemd user services, the CLI can install and manage `adb-god` as
+On Linux with systemd user services, the CLI can install and manage `adb-gos` as
 a per-user service:
 
 ```sh
-adb-go daemon service install
-adb-go daemon service status
-adb-go daemon service logs
+adb-go server service install
+adb-go server service status
+adb-go server service logs
 ```
 
-Daemon design, socket selection, control protocol, troubleshooting, forwarding
+Server design, socket selection, control protocol, troubleshooting, forwarding
 health counters, and service management details:
-[`docs/daemon-foundation.md`](docs/daemon-foundation.md). Daemon-backed
+[`docs/server-foundation.md`](docs/server-foundation.md). Server-backed
 persistent forwarding behavior is described in
 [`docs/persistent-forwarding-design.md`](docs/persistent-forwarding-design.md).
 
@@ -338,8 +338,8 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   files; adb-go does not auto-discover, generate, or persist keys.
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
-- `adb-god` can own in-memory TCP forwarding listeners, but it does not persist
-  devices, transports, forwards, sessions, or authentication state across daemon
+- `adb-gos` can own in-memory TCP forwarding listeners, but it does not persist
+  devices, transports, forwards, sessions, or authentication state across server
   restarts yet.
 - Incomplete command coverage: shell, shell streaming, generic service opening,
   Android property lookup, logcat streaming/dump, screenshot capture, reboot,
@@ -362,7 +362,7 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
   CLI `reboot` command; a successful request may close the ADB connection while
   the selected device restarts.
 - Forwarding support covers foreground process-scoped TCP forwards/reverses and
-  daemon-owned in-memory TCP forwards/reverses through `adb-go forward` and
+  server-owned in-memory TCP forwards/reverses through `adb-go forward` and
   `adb-go reverse` background/list/remove commands. It does not emulate the
   official adb server's durable mapping store and does not support JDWP, Unix
   sockets, or other endpoint families yet.
@@ -379,7 +379,7 @@ go test ./...
 
 Optional integration tests are skipped by default. Set
 `ADB_GO_INTEGRATION_ADDR` to run TCP tests against an already-running emulator,
-TCP-enabled device, or manually started test daemon:
+TCP-enabled device, or manually started test server:
 
 ```sh
 ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...

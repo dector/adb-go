@@ -6,7 +6,7 @@ adb-go's regular test suite is self-contained:
 go test ./...
 ```
 
-Tests that talk to a real ADB daemon, emulator, device, USB transport, or
+Tests that talk to a real ADB server, emulator, device, USB transport, or
 container runtime are opt-in. They are skipped unless you set the environment
 variables described below.
 
@@ -68,7 +68,7 @@ ADB TCP port as device-control access.
 
 The repository includes an optional Linux `adbd` container image under
 [`../docker/linux-adbd`](../docker/linux-adbd). This workflow is useful when you
-want a repeatable daemon for protocol-level testing without relying on a physical
+want a repeatable server for protocol-level testing without relying on a physical
 Android device.
 
 Build the image once with Podman:
@@ -130,7 +130,7 @@ A skip usually means the relevant opt-in environment variable was not set. This
 is expected for normal `go test ./...` runs. Set one of these when you want the
 corresponding integration path:
 
-- `ADB_GO_INTEGRATION_ADDR` for an existing TCP daemon, emulator, or device.
+- `ADB_GO_INTEGRATION_ADDR` for an existing TCP server, emulator, or device.
 - `ADB_GO_CONTAINER_INTEGRATION=1` for the containerized Linux `adbd` workflow.
 - `ADB_GO_USB_INTEGRATION=1` for Linux USB transport tests.
 
@@ -138,7 +138,7 @@ corresponding integration path:
 
 `connection refused` means the host was reachable but nothing accepted the TCP
 connection on that port. Check that the emulator/device/container is running,
-that the selected port is correct, and that the daemon is bound to an interface
+that the selected port is correct, and that the server is bound to an interface
 reachable from the test host. For local emulators, `adb-go targets --scan` can
 help find the usual localhost ADB ports.
 

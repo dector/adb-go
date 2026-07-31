@@ -29,8 +29,8 @@ global options:
 host commands:
  help         show this help message
  version      show version num
- start-server ensure adb-go daemon is running
- kill-server  stop adb-go daemon
+ start-server ensure adb-go server is running
+ kill-server  stop adb-go server
  devices      list connected devices
  get-state    print selected device state
  reverse      manage device-to-host reverse socket connections

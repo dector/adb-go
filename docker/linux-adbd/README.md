@@ -50,9 +50,9 @@ ADB_GO_INTEGRATION_ADDR=127.0.0.1:5555 go test ./...
 ## Run instrumented tests automatically
 
 The root test suite can also start this image automatically as an optional
-instrumented integration test. It publishes the daemon on a random localhost
+instrumented integration test. It publishes the server on a random localhost
 port, waits for `adb.Connect` to succeed, and then verifies shell, shell
-streaming, raw service opening, push, and pull against the real daemon. The test
+streaming, raw service opening, push, and pull against the real server. The test
 prefers Podman and falls back to Docker; set `ADB_GO_CONTAINER_RUNTIME` to choose
 explicitly.
 
@@ -65,4 +65,4 @@ Set `ADB_GO_CONTAINER_IMAGE` to use a custom image tag. Omit
 
 ## Security
 
-This daemon is unauthenticated. Bind it only to trusted local interfaces. Do not expose port 5555 to public or untrusted networks.
+This server is unauthenticated. Bind it only to trusted local interfaces. Do not expose port 5555 to public or untrusted networks.

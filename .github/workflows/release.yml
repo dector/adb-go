@@ -77,7 +77,7 @@ jobs:
           set -euo pipefail
           mkdir -p "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}"
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w -X main.version=${version}" -o "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/adb-go${{ matrix.exe_ext }}" ./cmd/adb-go
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/adb-god${{ matrix.exe_ext }}" ./cmd/adb-god
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags="-s -w" -o "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/adb-gos${{ matrix.exe_ext }}" ./cmd/adb-gos
           cp README.md "dist/adb-go-${version}-${{ matrix.goos }}-${{ matrix.goarch }}/"
 
       - name: Package tar.gz asset

@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/cmd/adb-go/internal/cliserver"
+	"github.com/dector/adb-go/internal/server"
 )
 
 const devicesUsage = `Usage:
   adb-go devices [--socket PATH] [--plain]
 
-Lists devices known by the local adb-god daemon. This command asks the daemon
+Lists devices known by the local adb-gos server. This command asks the server
 for its registered device table; it is not active USB/TCP discovery. To discover
 locally visible connection targets, use:
 
@@ -24,7 +24,7 @@ locally visible connection targets, use:
 `
 
 type devicesOutput struct {
-	Devices []daemon.Device `json:"devices"`
+	Devices []server.Device `json:"devices"`
 }
 
 func runDevices(args []string, stdout, stderr io.Writer) int {
@@ -34,7 +34,7 @@ func runDevices(args []string, stdout, stderr io.Writer) int {
 func runDevicesWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("devices", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	socketPathFlag := fs.String("socket", "", "absolute adb-god Unix domain socket path")
+	socketPathFlag := fs.String("socket", "", "absolute adb-gos Unix domain socket path")
 	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON")
 	plainFlag := fs.Bool("plain", false, "print tab-separated plain output")
 	fs.Usage = func() { fmt.Fprint(stderr, devicesUsage) }
@@ -52,19 +52,19 @@ func runDevicesWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 		return 2
 	}
 
-	socketPath, err := devicesDaemonSocketPath(strings.TrimSpace(*socketPathFlag))
+	socketPath, err := devicesServerSocketPath(strings.TrimSpace(*socketPathFlag))
 	if err != nil {
 		fmt.Fprintf(stderr, "adb-go devices: %v\n", err)
 		return 1
 	}
-	resp, err := sendDevicesDaemonRequest(socketPath)
+	resp, err := sendDevicesServerRequest(socketPath)
 	if err != nil || !resp.OK {
-		printDevicesDaemonError(stderr, socketPath, resp, err)
+		printDevicesServerError(stderr, socketPath, resp, err)
 		return 1
 	}
 	var result devicesOutput
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go devices: decode daemon response: %v\n", err)
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go devices: decode server response: %v\n", err)
 		return 1
 	}
 	if *jsonFlag {
@@ -85,8 +85,8 @@ func runDevicesWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 		return 0
 	}
 	if len(rows) == 0 {
-		fmt.Fprintln(stdout, "No daemon-known devices.")
-		fmt.Fprintln(stdout, "The daemon is reachable, but it has no registered devices. Use `adb-go targets` to see local connection targets.")
+		fmt.Fprintln(stdout, "No server-known devices.")
+		fmt.Fprintln(stdout, "The server is reachable, but it has no registered devices. Use `adb-go targets` to see local connection targets.")
 		return 0
 	}
 	if err := writeAlignedTable(stdout, headers, rows); err != nil {
@@ -96,20 +96,20 @@ func runDevicesWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	return 0
 }
 
-func devicesDaemonSocketPath(configured string) (string, error) {
+func devicesServerSocketPath(configured string) (string, error) {
 	if configured != "" {
 		return configured, nil
 	}
-	return daemon.DefaultSocketPath()
+	return server.DefaultSocketPath()
 }
 
-func sendDevicesDaemonRequest(socketPath string) (daemon.Response, error) {
+func sendDevicesServerRequest(socketPath string) (server.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	return clidaemon.Send(ctx, socketPath, daemon.CommandDeviceList, nil, sendDaemonRequest)
+	return cliserver.Send(ctx, socketPath, server.CommandDeviceList, nil, sendServerRequest)
 }
 
-func deviceTableRows(devices []daemon.Device) []tableRow {
+func deviceTableRows(devices []server.Device) []tableRow {
 	rows := make([]tableRow, 0, len(devices))
 	for _, device := range devices {
 		address := device.Address
@@ -121,15 +121,15 @@ func deviceTableRows(devices []daemon.Device) []tableRow {
 	return rows
 }
 
-func printDevicesDaemonError(stderr io.Writer, socketPath string, resp daemon.Response, err error) {
+func printDevicesServerError(stderr io.Writer, socketPath string, resp server.Response, err error) {
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go devices: cannot list daemon-known devices: adb-god is not running or socket is unavailable at %s: %v\n", socketPath, err)
-		fmt.Fprintln(stderr, "Hint: start the daemon with `adb-go daemon service start` or inspect it with `adb-go daemon doctor`.")
+		fmt.Fprintf(stderr, "adb-go devices: cannot list server-known devices: adb-gos is not running or socket is unavailable at %s: %v\n", socketPath, err)
+		fmt.Fprintln(stderr, "Hint: start the server process with `adb-go server service start` or inspect it with `adb-go server doctor`.")
 		return
 	}
 	if resp.Error != nil {
-		fmt.Fprintf(stderr, "adb-go devices: cannot list daemon-known devices: daemon error %s: %s\n", resp.Error.Code, resp.Error.Message)
+		fmt.Fprintf(stderr, "adb-go devices: cannot list server-known devices: server error %s: %s\n", resp.Error.Code, resp.Error.Message)
 		return
 	}
-	fmt.Fprintln(stderr, "adb-go devices: cannot list daemon-known devices: daemon returned an unsuccessful response")
+	fmt.Fprintln(stderr, "adb-go devices: cannot list server-known devices: server returned an unsuccessful response")
 }

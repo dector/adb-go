@@ -1,6 +1,6 @@
 //go:build !windows
 
-package daemon
+package server
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 )
 
 func TestDefaultSocketPathUsesAbsoluteOverride(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "adb-god.sock")
+	path := filepath.Join(t.TempDir(), "adb-gos.sock")
 	t.Setenv(EnvSocket, path)
 	got, err := DefaultSocketPath()
 	if err != nil {
@@ -44,7 +44,7 @@ func TestServerPingStatusShutdownAndCleanup(t *testing.T) {
 	defer cancel()
 	ping, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "p1", Command: CommandPing})
 	if err != nil {
-		t.Fatalf("ping daemon: %v", err)
+		t.Fatalf("ping server: %v", err)
 	}
 	if !ping.OK || ping.ID != "p1" || ping.Result["message"] != "pong" {
 		t.Fatalf("ping response = %#v, want pong with echoed id", ping)
@@ -52,7 +52,7 @@ func TestServerPingStatusShutdownAndCleanup(t *testing.T) {
 
 	status, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "s1", Command: CommandStatus})
 	if err != nil {
-		t.Fatalf("status daemon: %v", err)
+		t.Fatalf("status server: %v", err)
 	}
 	if !status.OK || status.ID != "s1" {
 		t.Fatalf("status response = %#v, want ok with echoed id", status)
@@ -75,7 +75,7 @@ func TestServerPingStatusShutdownAndCleanup(t *testing.T) {
 
 	shutdown, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "q1", Command: CommandShutdown})
 	if err != nil {
-		t.Fatalf("shutdown daemon: %v", err)
+		t.Fatalf("shutdown server: %v", err)
 	}
 	if !shutdown.OK || shutdown.Result["message"] != "shutting_down" {
 		t.Fatalf("shutdown response = %#v, want accepted shutdown", shutdown)
@@ -98,7 +98,7 @@ func TestServerHandlesDeviceListAndRegister(t *testing.T) {
 
 	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "empty", Command: CommandDeviceList})
 	if err != nil {
-		t.Fatalf("device_list daemon: %v", err)
+		t.Fatalf("device_list server: %v", err)
 	}
 	if !list.OK || list.ID != "empty" {
 		t.Fatalf("device_list response = %#v, want ok with echoed id", list)
@@ -110,7 +110,7 @@ func TestServerHandlesDeviceListAndRegister(t *testing.T) {
 	params := mustJSON(t, DeviceRegisterParams{Transport: "tcp", Address: "127.0.0.1:5555"})
 	registered, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "reg", Command: CommandDeviceRegister, Params: params})
 	if err != nil {
-		t.Fatalf("device_register daemon: %v", err)
+		t.Fatalf("device_register server: %v", err)
 	}
 	if !registered.OK || registered.ID != "reg" {
 		t.Fatalf("device_register response = %#v, want ok with echoed id", registered)
@@ -125,7 +125,7 @@ func TestServerHandlesDeviceListAndRegister(t *testing.T) {
 
 	list, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "list", Command: CommandDeviceList})
 	if err != nil {
-		t.Fatalf("device_list daemon: %v", err)
+		t.Fatalf("device_list server: %v", err)
 	}
 	devices, ok := list.Result["devices"].([]any)
 	if !ok || len(devices) != 1 {
@@ -142,7 +142,7 @@ func TestServerRejectsInvalidDeviceRegister(t *testing.T) {
 	params := mustJSON(t, DeviceRegisterParams{Transport: "tcp", Address: "127.0.0.1"})
 	resp, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandDeviceRegister, Params: params})
 	if err != nil {
-		t.Fatalf("device_register daemon: %v", err)
+		t.Fatalf("device_register server: %v", err)
 	}
 	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorBadRequest {
 		t.Fatalf("device_register response = %#v, want bad_request", resp)
@@ -163,7 +163,7 @@ func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 	})
 	created, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "c1", Command: CommandForwardCreate, Params: createParams})
 	if err != nil {
-		t.Fatalf("forward_create daemon: %v", err)
+		t.Fatalf("forward_create server: %v", err)
 	}
 	if !created.OK || created.ID != "c1" {
 		t.Fatalf("forward_create response = %#v, want ok with echoed id", created)
@@ -173,12 +173,12 @@ func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 		t.Fatalf("forward_create result = %#v, want forward object", created.Result)
 	}
 	if forward["state"] != ForwardStateListening || forward["id"] == "" || forward["lastError"] != nil {
-		t.Fatalf("forward_create forward = %#v, want daemon-owned listening forward", forward)
+		t.Fatalf("forward_create forward = %#v, want server-owned listening forward", forward)
 	}
 
 	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "l1", Command: CommandForwardList})
 	if err != nil {
-		t.Fatalf("forward_list daemon: %v", err)
+		t.Fatalf("forward_list server: %v", err)
 	}
 	if !list.OK || list.ID != "l1" {
 		t.Fatalf("forward_list response = %#v, want ok with echoed id", list)
@@ -189,7 +189,7 @@ func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 
 	remove, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "r1", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{ID: "fwd_missing"})})
 	if err != nil {
-		t.Fatalf("forward_remove daemon: %v", err)
+		t.Fatalf("forward_remove server: %v", err)
 	}
 	if remove.OK || remove.Error == nil || remove.Error.Code != ErrorForwardNotFound {
 		t.Fatalf("forward_remove response = %#v, want forward_not_found", remove)
@@ -197,14 +197,14 @@ func TestServerHandlesForwardingProtocolModel(t *testing.T) {
 
 	removeAll, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "ra1", Command: CommandForwardRemoveAll})
 	if err != nil {
-		t.Fatalf("forward_remove_all daemon: %v", err)
+		t.Fatalf("forward_remove_all server: %v", err)
 	}
 	if !removeAll.OK || removeAll.Result["removed"] != float64(1) {
 		t.Fatalf("forward_remove_all response = %#v, want removed 1", removeAll)
 	}
 }
 
-func TestServerManagesDaemonForwardListeners(t *testing.T) {
+func TestServerManagesServerForwardListeners(t *testing.T) {
 	_, socketPath, wait := startTestServer(t)
 	defer wait()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -216,7 +216,7 @@ func TestServerManagesDaemonForwardListeners(t *testing.T) {
 		Target: ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"},
 	})})
 	if err != nil {
-		t.Fatalf("forward_create daemon: %v", err)
+		t.Fatalf("forward_create server: %v", err)
 	}
 	if !created.OK {
 		t.Fatalf("forward_create response = %#v, want ok", created)
@@ -230,13 +230,13 @@ func TestServerManagesDaemonForwardListeners(t *testing.T) {
 
 	conn, err := net.DialTimeout("tcp", local["address"].(string), time.Second)
 	if err != nil {
-		t.Fatalf("dial daemon-owned forward listener: %v", err)
+		t.Fatalf("dial server-owned forward listener: %v", err)
 	}
 	_ = conn.Close()
 
 	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "l1", Command: CommandForwardList})
 	if err != nil {
-		t.Fatalf("forward_list daemon: %v", err)
+		t.Fatalf("forward_list server: %v", err)
 	}
 	forwards, ok := list.Result["forwards"].([]any)
 	if !list.OK || !ok || len(forwards) != 1 {
@@ -246,7 +246,7 @@ func TestServerManagesDaemonForwardListeners(t *testing.T) {
 	removeByLocalEndpoint := ForwardLocalEndpoint{Network: "tcp", Address: local["address"].(string)}
 	removeByLocal, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "rl1", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{Local: &removeByLocalEndpoint})})
 	if err != nil {
-		t.Fatalf("forward_remove by local daemon: %v", err)
+		t.Fatalf("forward_remove by local server: %v", err)
 	}
 	if !removeByLocal.OK || removeByLocal.Result["removed"] != float64(1) {
 		t.Fatalf("forward_remove by local response = %#v, want removed 1", removeByLocal)
@@ -267,7 +267,7 @@ func TestServerManagesDaemonForwardListeners(t *testing.T) {
 	id, _ = resultForward(t, recreated)["id"].(string)
 	removeByID, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "ri1", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{ID: id})})
 	if err != nil {
-		t.Fatalf("forward_remove by id daemon: %v", err)
+		t.Fatalf("forward_remove by id server: %v", err)
 	}
 	if !removeByID.OK || removeByID.Result["removed"] != float64(1) {
 		t.Fatalf("forward_remove by id response = %#v, want removed 1", removeByID)
@@ -327,7 +327,7 @@ func TestServerForwardRebindNorebindAddressInUseAndRemoveAll(t *testing.T) {
 
 	removeAll, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, Command: CommandForwardRemoveAll})
 	if err != nil {
-		t.Fatalf("forward_remove_all daemon: %v", err)
+		t.Fatalf("forward_remove_all server: %v", err)
 	}
 	if !removeAll.OK || removeAll.Result["removed"] != float64(1) {
 		t.Fatalf("forward_remove_all response = %#v, want removed 1", removeAll)
@@ -548,7 +548,7 @@ func TestServerForwardRemoveAndShutdownCloseActiveBridgeConnections(t *testing.T
 		t.Fatalf("Shutdown() error = %v", err)
 	}
 	if _, err := host.Read(buf); err == nil {
-		t.Fatal("read after daemon shutdown succeeded, want closed connection")
+		t.Fatal("read after server shutdown succeeded, want closed connection")
 	}
 	_ = host.Close()
 }
@@ -566,7 +566,7 @@ func TestServerForwardingProtocolValidationErrors(t *testing.T) {
 	})
 	resp, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "bad-local", Command: CommandForwardCreate, Params: badLocal})
 	if err != nil {
-		t.Fatalf("forward_create bad local daemon: %v", err)
+		t.Fatalf("forward_create bad local server: %v", err)
 	}
 	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorUnsupportedEndpoint {
 		t.Fatalf("bad local response = %#v, want unsupported_endpoint", resp)
@@ -579,7 +579,7 @@ func TestServerForwardingProtocolValidationErrors(t *testing.T) {
 	})
 	resp, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "bad-target", Command: CommandForwardCreate, Params: badTarget})
 	if err != nil {
-		t.Fatalf("forward_create bad target daemon: %v", err)
+		t.Fatalf("forward_create bad target server: %v", err)
 	}
 	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorBadTarget {
 		t.Fatalf("bad target response = %#v, want bad_target", resp)
@@ -587,7 +587,7 @@ func TestServerForwardingProtocolValidationErrors(t *testing.T) {
 
 	resp, err = Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "bad-remove", Command: CommandForwardRemove, Params: mustJSON(t, ForwardRemoveParams{})})
 	if err != nil {
-		t.Fatalf("forward_remove bad selector daemon: %v", err)
+		t.Fatalf("forward_remove bad selector server: %v", err)
 	}
 	if resp.OK || resp.Error == nil || resp.Error.Code != ErrorBadRequest {
 		t.Fatalf("bad remove response = %#v, want bad_request", resp)
@@ -618,7 +618,7 @@ func TestServerReturnsStructuredProtocolErrors(t *testing.T) {
 
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
-		t.Fatalf("dial daemon: %v", err)
+		t.Fatalf("dial server: %v", err)
 	}
 	if _, err := conn.Write([]byte("not-json\n")); err != nil {
 		t.Fatalf("write malformed request: %v", err)
@@ -633,7 +633,7 @@ func TestServerReturnsStructuredProtocolErrors(t *testing.T) {
 	}
 }
 
-func TestServerStartupHandlesStaleSocketAndRefusesFilesOrRunningDaemon(t *testing.T) {
+func TestServerStartupHandlesStaleSocketAndRefusesFilesOrRunningServer(t *testing.T) {
 	dir := shortSocketTempDir(t)
 	stalePath := filepath.Join(dir, "stale.sock")
 	ln, err := net.Listen("unix", stalePath)

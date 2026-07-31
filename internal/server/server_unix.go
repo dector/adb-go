@@ -1,6 +1,6 @@
 //go:build !windows
 
-package daemon
+package server
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var ErrAlreadyRunning = errors.New("adb-god daemon already running")
+var ErrAlreadyRunning = errors.New("adb-gos server already running")
 
 type Options struct {
 	SocketPath string
@@ -42,7 +42,7 @@ func NewServer(opts Options) (*Server, error) {
 		}
 	}
 	if !filepath.IsAbs(path) {
-		return nil, fmt.Errorf("daemon socket path must be absolute")
+		return nil, fmt.Errorf("server socket path must be absolute")
 	}
 	return &Server{socketPath: path, forwards: newForwardRegistry(), reverses: newReverseRegistry(), devices: newDeviceRegistry(), done: make(chan struct{})}, nil
 }
@@ -51,14 +51,14 @@ func (s *Server) SocketPath() string { return s.socketPath }
 
 func (s *Server) Listen() error {
 	if err := os.MkdirAll(filepath.Dir(s.socketPath), 0o700); err != nil {
-		return fmt.Errorf("create daemon socket directory: %w", err)
+		return fmt.Errorf("create server socket directory: %w", err)
 	}
 	if err := s.prepareSocketPath(); err != nil {
 		return err
 	}
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {
-		return fmt.Errorf("listen on daemon socket %q: %w", s.socketPath, err)
+		return fmt.Errorf("listen on server socket %q: %w", s.socketPath, err)
 	}
 	s.listener = ln
 	s.start = time.Now()
@@ -67,7 +67,7 @@ func (s *Server) Listen() error {
 
 func (s *Server) Serve(ctx context.Context) error {
 	if s.listener == nil {
-		return fmt.Errorf("daemon server is not listening")
+		return fmt.Errorf("server is not listening")
 	}
 	go func() {
 		<-ctx.Done()
@@ -84,7 +84,7 @@ func (s *Server) Serve(ctx context.Context) error {
 				return nil
 			default:
 			}
-			return fmt.Errorf("accept daemon connection: %w", err)
+			return fmt.Errorf("accept server connection: %w", err)
 		}
 		go s.handleConn(conn)
 	}
@@ -120,10 +120,10 @@ func (s *Server) prepareSocketPath() error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("inspect daemon socket path: %w", err)
+		return fmt.Errorf("inspect server socket path: %w", err)
 	}
 	if stat.Mode()&os.ModeSocket == 0 {
-		return fmt.Errorf("daemon socket path %q exists and is not a Unix socket", s.socketPath)
+		return fmt.Errorf("server socket path %q exists and is not a Unix socket", s.socketPath)
 	}
 	ctx, cancel := probeContext()
 	defer cancel()
@@ -132,10 +132,10 @@ func (s *Server) prepareSocketPath() error {
 		return fmt.Errorf("%w at %s", ErrAlreadyRunning, s.socketPath)
 	}
 	if err == nil {
-		return fmt.Errorf("daemon socket path %q is in use by an incompatible listener", s.socketPath)
+		return fmt.Errorf("server socket path %q is in use by an incompatible listener", s.socketPath)
 	}
 	if removeErr := os.Remove(s.socketPath); removeErr != nil {
-		return fmt.Errorf("remove stale daemon socket %q: %w", s.socketPath, removeErr)
+		return fmt.Errorf("remove stale server socket %q: %w", s.socketPath, removeErr)
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func (s *Server) handleRequest(req Request) Response {
 		return resp
 	}
 	if req.Version != ProtocolVersion {
-		resp.Error = &Error{Code: ErrorUnsupportedVersion, Message: fmt.Sprintf("unsupported daemon protocol version %d", req.Version)}
+		resp.Error = &Error{Code: ErrorUnsupportedVersion, Message: fmt.Sprintf("unsupported server protocol version %d", req.Version)}
 		return resp
 	}
 	switch req.Command {
@@ -265,7 +265,7 @@ func (s *Server) handleRequest(req Request) Response {
 		resp.OK = true
 		resp.Result = map[string]any{"removed": s.reverses.removeAll()}
 	default:
-		resp.Error = &Error{Code: ErrorUnknownCommand, Message: fmt.Sprintf("unknown daemon command %q", req.Command)}
+		resp.Error = &Error{Code: ErrorUnknownCommand, Message: fmt.Sprintf("unknown server command %q", req.Command)}
 	}
 	return resp
 }

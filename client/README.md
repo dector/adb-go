@@ -241,7 +241,7 @@ be allowed to block indefinitely.
 
 ## Reboot
 
-`Reboot` requests an immediate device reboot through Android's ADB daemon. The
+`Reboot` requests an immediate device reboot through Android's ADB server. The
 mode is explicit so applications cannot accidentally smuggle arbitrary service
 names through the high-level API:
 
@@ -258,7 +258,7 @@ Supported modes are:
 adb-go implements this helper with the ADB `reboot:` service rather than a shell
 command. A normal reboot opens `reboot:`, while the named modes open
 `reboot:bootloader` or `reboot:recovery`. That service path matches the direct
-ADB daemon operation used by adb-style clients and avoids depending on a device
+ADB server operation used by adb-style clients and avoids depending on a device
 shell being available after the request is accepted.
 
 Reboot is disruptive. A successful call affects the selected device immediately,
@@ -311,7 +311,7 @@ This is intentionally different from official `adb forward`. Official adb
 stores forwarding mappings in the host ADB server, so a command such as
 `adb forward tcp:9000 tcp:8080` can return while the server keeps listening in
 the background and can later answer `adb forward --list` or remove mappings. adb-go does not run an ADB
-server-compatible daemon in v0; the forward exists only while this process and
+server-compatible server in v0; the forward exists only while this process and
 its `Forward` handle are alive.
 
 Currently supported forward endpoint forms are local TCP listeners and remote
@@ -354,7 +354,7 @@ device-side registration with `reverse:killforward:REMOTE`, unregisters the
 accepted-stream handler, and closes active streams and host TCP connections.
 Canceling the context passed to `ReverseTCP`, closing the `Client`, or exiting
 the process also ends the forwarding session. Like foreground forward mappings,
-this is not an adb-server-compatible persistent registration; daemon-owned and
+this is not an adb-server-compatible persistent registration; server-owned and
 adb-compatible reverse behavior is planned separately.
 
 ## File transfer

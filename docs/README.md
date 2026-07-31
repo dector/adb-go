@@ -15,7 +15,7 @@ transport behavior.
 
 - [`authentication.md`](authentication.md) - ADB `AUTH` flow, supported key
   formats, and explicit credential handling.
-- [`daemon-foundation.md`](daemon-foundation.md) - `adb-god` Unix socket path,
+- [`server-foundation.md`](server-foundation.md) - `adb-gos` Unix socket path,
   control protocol, lifecycle semantics, and initial non-goals.
 - [`forwarding-design.md`](forwarding-design.md) - direct-device forwarding
   design, official `adb forward` differences, and proposed library/CLI shape.
@@ -24,7 +24,7 @@ transport behavior.
 - [`linux-usb-transport.md`](linux-usb-transport.md) - Linux usbfs discovery,
   endpoint selection, permissions, and transport details.
 - [`persistent-forwarding-design.md`](persistent-forwarding-design.md) - future
-  daemon-owned forwarding representation, daemon protocol additions, CLI shape,
+  server-owned forwarding representation, server protocol additions, CLI shape,
   and lifecycle semantics.
 
 ## Architecture
@@ -42,8 +42,8 @@ The codebase is split into a small set of packages:
   handshake support, and stream demultiplexing. It is useful for tests,
   debugging, and advanced protocol work, but it may be less stable than the
   root/client API during v0 development.
-- Future command package `cmd/adb-god` will contain the minimal daemon process
-  described in [`daemon-foundation.md`](daemon-foundation.md). The first daemon
+- Future command package `cmd/adb-gos` will contain the minimal server process
+  described in [`server-foundation.md`](server-foundation.md). The first server
   slice is only a local control process and does not own devices, transports,
   forwards, sessions, or authentication state.
 - Package `internal/usb` contains the Linux usbfs discovery and bulk endpoint
@@ -96,9 +96,9 @@ callers can set deadlines or cancel work.
 - Push and pull are single-file APIs; directory-aware behavior is reserved for
   future APIs.
 - Forwarding supports foreground process-scoped local listeners and in-memory
-  daemon-owned TCP listeners. Daemon-owned forwards are not durable across
-  `adb-god` restarts and are described in
+  server-owned TCP listeners. Server-owned forwards are not durable across
+  `adb-gos` restarts and are described in
   [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
-- The `adb-god` daemon defines a Unix socket control channel for ping, status,
+- The `adb-gos` server defines a Unix socket control channel for ping, status,
   shutdown, diagnostics, service management, and in-memory TCP forwarding. It
   does not yet persist ADB device/session/authentication state.

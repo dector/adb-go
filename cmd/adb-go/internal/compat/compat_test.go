@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	adb "github.com/dector/adb-go"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/internal/server"
 )
 
 func TestRunHelpForms(t *testing.T) {
@@ -28,7 +28,7 @@ func TestRunHelpForms(t *testing.T) {
 			assertContains(t, stdout, " -H HOST    adb server host name [default=localhost]")
 			assertContains(t, stdout, " help         show this help message")
 			assertContains(t, stdout, " version      show version num")
-			assertContains(t, stdout, " start-server ensure adb-go daemon is running")
+			assertContains(t, stdout, " start-server ensure adb-go server is running")
 			assertContains(t, stdout, " -s SERIAL  use device with given serial")
 			assertContains(t, stdout, " -d         use USB device")
 			assertContains(t, stdout, " -e         use TCP/emulator device")
@@ -185,27 +185,27 @@ func TestRunGlobalHostOptionRequiresValue(t *testing.T) {
 	}
 }
 
-func TestRunStartServerStartsAbsentDaemon(t *testing.T) {
-	fake := installFakeDaemon(t)
+func TestRunStartServerStartsAbsentServer(t *testing.T) {
+	fake := installFakeServer(t)
 
 	stdout, stderr, code := runForTest("start-server")
 
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0 (stderr %q)", code, stderr)
 	}
-	if stdout != "* daemon started successfully\n" {
+	if stdout != "* server started successfully\n" {
 		t.Fatalf("stdout = %q, want start message", stdout)
 	}
 	if stderr != "" {
 		t.Fatalf("stderr = %q, want empty", stderr)
 	}
 	if fake.starts != 1 {
-		t.Fatalf("daemon starts = %d, want 1", fake.starts)
+		t.Fatalf("server starts = %d, want 1", fake.starts)
 	}
 }
 
-func TestRunStartServerIsQuietWhenDaemonAlreadyRunning(t *testing.T) {
-	fake := installFakeDaemon(t)
+func TestRunStartServerIsQuietWhenServerAlreadyRunning(t *testing.T) {
+	fake := installFakeServer(t)
 	fake.running = true
 
 	stdout, stderr, code := runForTest("start-server")
@@ -217,12 +217,12 @@ func TestRunStartServerIsQuietWhenDaemonAlreadyRunning(t *testing.T) {
 		t.Fatalf("stdout/stderr = %q/%q, want empty", stdout, stderr)
 	}
 	if fake.starts != 0 {
-		t.Fatalf("daemon starts = %d, want 0", fake.starts)
+		t.Fatalf("server starts = %d, want 0", fake.starts)
 	}
 }
 
-func TestRunKillServerStopsDaemonAndAllowsAbsentDaemon(t *testing.T) {
-	fake := installFakeDaemon(t)
+func TestRunKillServerStopsServerAndAllowsAbsentServer(t *testing.T) {
+	fake := installFakeServer(t)
 	fake.running = true
 
 	stdout, stderr, code := runForTest("kill-server")
@@ -230,7 +230,7 @@ func TestRunKillServerStopsDaemonAndAllowsAbsentDaemon(t *testing.T) {
 		t.Fatalf("kill running = code %d stdout %q stderr %q, want silent success", code, stdout, stderr)
 	}
 	if fake.running {
-		t.Fatal("daemon still running after kill-server")
+		t.Fatal("server still running after kill-server")
 	}
 
 	stdout, stderr, code = runForTest("kill-server")
@@ -240,7 +240,7 @@ func TestRunKillServerStopsDaemonAndAllowsAbsentDaemon(t *testing.T) {
 }
 
 func TestRunDevicesAutoStartsAndPrintsNoDeviceHeader(t *testing.T) {
-	fake := installFakeDaemon(t)
+	fake := installFakeServer(t)
 
 	stdout, stderr, code := runForTest("devices")
 
@@ -254,7 +254,7 @@ func TestRunDevicesAutoStartsAndPrintsNoDeviceHeader(t *testing.T) {
 		t.Fatalf("stdout = %q, want official no-device shape", stdout)
 	}
 	if fake.starts != 1 {
-		t.Fatalf("daemon starts = %d, want 1", fake.starts)
+		t.Fatalf("server starts = %d, want 1", fake.starts)
 	}
 }
 
@@ -262,19 +262,19 @@ func TestRunGetStateResolvesSelectedTargets(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		devices  []daemon.Device
+		devices  []server.Device
 		usb      []adb.USBDevice
 		wantOut  string
 		wantErr  string
 		wantCode int
 	}{
-		{name: "serial selects tcp device", args: []string{"-s", "tcp-1", "get-state"}, devices: []daemon.Device{{Serial: "tcp-1", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "device\n"},
-		{name: "android serial selects tcp device", args: []string{"get-state"}, devices: []daemon.Device{{Serial: "env-serial", State: daemon.DeviceStateOffline, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "offline\n"},
+		{name: "serial selects tcp device", args: []string{"-s", "tcp-1", "get-state"}, devices: []server.Device{{Serial: "tcp-1", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "device\n"},
+		{name: "android serial selects tcp device", args: []string{"get-state"}, devices: []server.Device{{Serial: "env-serial", State: server.DeviceStateOffline, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "offline\n"},
 		{name: "usb selector selects usb device", args: []string{"-d", "get-state"}, usb: []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2}}, wantOut: "device\n"},
 		{name: "usb serial selects usb device", args: []string{"-s", "usb:001:002", "get-state"}, usb: []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2}}, wantOut: "device\n"},
-		{name: "emulator selector selects tcp device", args: []string{"-e", "get-state"}, devices: []daemon.Device{{Serial: "127.0.0.1:5555", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "device\n"},
+		{name: "emulator selector selects tcp device", args: []string{"-e", "get-state"}, devices: []server.Device{{Serial: "127.0.0.1:5555", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}, wantOut: "device\n"},
 		{name: "missing selected serial", args: []string{"-s", "missing", "get-state"}, wantErr: "adb: get-state: device \"missing\" not found\n", wantCode: 1},
-		{name: "ambiguous default", args: []string{"get-state"}, devices: []daemon.Device{{Serial: "one", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}, {Serial: "two", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5556"}}, wantErr: "adb: get-state: more than one device/emulator\n", wantCode: 1},
+		{name: "ambiguous default", args: []string{"get-state"}, devices: []server.Device{{Serial: "one", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}, {Serial: "two", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5556"}}, wantErr: "adb: get-state: more than one device/emulator\n", wantCode: 1},
 	}
 
 	for _, tt := range tests {
@@ -283,7 +283,7 @@ func TestRunGetStateResolvesSelectedTargets(t *testing.T) {
 			if strings.Contains(tt.name, "android serial") {
 				t.Setenv("ANDROID_SERIAL", "env-serial")
 			}
-			fake := installFakeDaemon(t)
+			fake := installFakeServer(t)
 			fake.running = true
 			fake.devices = tt.devices
 			restoreUSB := replaceCompatListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) { return tt.usb, nil })
@@ -310,7 +310,7 @@ func TestRunGetStateResolvesSelectedTargets(t *testing.T) {
 
 func TestCompatIgnoresADBGoAddrForTargetSelection(t *testing.T) {
 	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
-	fake := installFakeDaemon(t)
+	fake := installFakeServer(t)
 	fake.running = true
 
 	stdout, stderr, code := runForTest("get-state")
@@ -326,10 +326,10 @@ func TestCompatIgnoresADBGoAddrForTargetSelection(t *testing.T) {
 	}
 }
 
-func TestRunDevicesPrintsDaemonTCPAndUSBDevices(t *testing.T) {
-	fake := installFakeDaemon(t)
+func TestRunDevicesPrintsServerTCPAndUSBDevices(t *testing.T) {
+	fake := installFakeServer(t)
 	fake.running = true
-	fake.devices = []daemon.Device{{Serial: "127.0.0.1:5555", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+	fake.devices = []server.Device{{Serial: "127.0.0.1:5555", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
 	restoreUSB := replaceCompatListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
 		return []adb.USBDevice{{BusNumber: 1, DeviceNumber: 2}}, nil
 	})
@@ -349,9 +349,9 @@ func TestRunDevicesPrintsDaemonTCPAndUSBDevices(t *testing.T) {
 }
 
 func TestRunReverseCreateListRemoveAndRemoveAll(t *testing.T) {
-	fake := installFakeDaemon(t)
+	fake := installFakeServer(t)
 	fake.running = true
-	fake.devices = []daemon.Device{{Serial: "emulator-5555", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+	fake.devices = []server.Device{{Serial: "emulator-5555", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
 
 	stdout, stderr, code := runForTest("-s", "emulator-5555", "reverse", "tcp:8081", "tcp:3000")
 	if code != 0 || stdout != "" || stderr != "" {
@@ -389,9 +389,9 @@ func TestRunReverseCreateListRemoveAndRemoveAll(t *testing.T) {
 
 func TestRunReverseSelectorAndValidationErrors(t *testing.T) {
 	t.Run("unsupported endpoint", func(t *testing.T) {
-		fake := installFakeDaemon(t)
+		fake := installFakeServer(t)
 		fake.running = true
-		fake.devices = []daemon.Device{{Serial: "tcp-1", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+		fake.devices = []server.Device{{Serial: "tcp-1", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
 
 		stdout, stderr, code := runForTest("-s", "tcp-1", "reverse", "localabstract:name", "tcp:3000")
 		if code != 1 || stdout != "" {
@@ -401,7 +401,7 @@ func TestRunReverseSelectorAndValidationErrors(t *testing.T) {
 	})
 
 	t.Run("usb target unsupported", func(t *testing.T) {
-		fake := installFakeDaemon(t)
+		fake := installFakeServer(t)
 		fake.running = true
 		restoreUSB := replaceCompatListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
 			return []adb.USBDevice{{DevicePath: "/dev/bus/usb/001/002", BusNumber: 1, DeviceNumber: 2}}, nil
@@ -417,10 +417,10 @@ func TestRunReverseSelectorAndValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("no rebind maps daemon conflict", func(t *testing.T) {
-		fake := installFakeDaemon(t)
+	t.Run("no rebind maps server conflict", func(t *testing.T) {
+		fake := installFakeServer(t)
 		fake.running = true
-		fake.devices = []daemon.Device{{Serial: "tcp-1", State: daemon.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
+		fake.devices = []server.Device{{Serial: "tcp-1", State: server.DeviceStateDevice, Transport: "tcp", Address: "127.0.0.1:5555"}}
 		_, _, _ = runForTest("-s", "tcp-1", "reverse", "tcp:8081", "tcp:3000")
 
 		stdout, stderr, code := runForTest("-s", "tcp-1", "reverse", "--no-rebind", "tcp:8081", "tcp:3001")
@@ -437,84 +437,84 @@ func runForTest(args ...string) (stdout string, stderr string, code int) {
 	return out.String(), err.String(), code
 }
 
-type fakeCompatDaemon struct {
+type fakeCompatServer struct {
 	running  bool
 	starts   int
-	devices  []daemon.Device
-	reverses []daemon.Reverse
+	devices  []server.Device
+	reverses []server.Reverse
 	nextRev  int
 }
 
-func installFakeDaemon(t *testing.T) *fakeCompatDaemon {
+func installFakeServer(t *testing.T) *fakeCompatServer {
 	t.Helper()
-	fake := &fakeCompatDaemon{}
-	oldDefault := defaultDaemonSocketPath
-	oldSend := sendDaemonRequest
-	oldStart := startDaemonProcess
+	fake := &fakeCompatServer{}
+	oldDefault := defaultServerSocketPath
+	oldSend := sendServerRequest
+	oldStart := startServerProcess
 	oldUSB := listUSBDevices
-	defaultDaemonSocketPath = func() (string, error) { return "/tmp/adb-go-test.sock", nil }
-	sendDaemonRequest = func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+	defaultServerSocketPath = func() (string, error) { return "/tmp/adb-go-test.sock", nil }
+	sendServerRequest = func(ctx context.Context, socketPath string, req server.Request) (server.Response, error) {
 		if !fake.running {
-			return daemon.Response{}, errors.New("daemon unavailable")
+			return server.Response{}, errors.New("server unavailable")
 		}
 		switch req.Command {
-		case daemon.CommandPing:
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"message": "pong"}}, nil
-		case daemon.CommandShutdown:
+		case server.CommandPing:
+			return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"message": "pong"}}, nil
+		case server.CommandShutdown:
 			fake.running = false
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"message": "shutting_down"}}, nil
-		case daemon.CommandDeviceList:
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"devices": fake.devices}}, nil
-		case daemon.CommandReverseCreate:
-			var params daemon.ReverseCreateParams
+			return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"message": "shutting_down"}}, nil
+		case server.CommandDeviceList:
+			return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"devices": fake.devices}}, nil
+		case server.CommandReverseCreate:
+			var params server.ReverseCreateParams
 			if err := json.Unmarshal(req.Params, &params); err != nil {
-				return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorBadRequest, Message: err.Error()}}, nil
+				return server.Response{Version: server.ProtocolVersion, OK: false, Error: &server.Error{Code: server.ErrorBadRequest, Message: err.Error()}}, nil
 			}
 			for i, r := range fake.reverses {
 				if r.Remote.Service == params.Remote.Service {
 					if params.Norebind {
-						return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorRebindDisallowed, Message: "reverse for remote endpoint " + params.Remote.Service + " already exists"}}, nil
+						return server.Response{Version: server.ProtocolVersion, OK: false, Error: &server.Error{Code: server.ErrorRebindDisallowed, Message: "reverse for remote endpoint " + params.Remote.Service + " already exists"}}, nil
 					}
 					fake.reverses = append(fake.reverses[:i], fake.reverses[i+1:]...)
 					break
 				}
 			}
 			fake.nextRev++
-			rev := daemon.Reverse{ID: "rev_" + string(rune('0'+fake.nextRev)), State: daemon.ReverseStateListening, Remote: params.Remote, Local: params.Local, Target: params.Target, Norebind: params.Norebind}
+			rev := server.Reverse{ID: "rev_" + string(rune('0'+fake.nextRev)), State: server.ReverseStateListening, Remote: params.Remote, Local: params.Local, Target: params.Target, Norebind: params.Norebind}
 			fake.reverses = append(fake.reverses, rev)
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverse": rev}}, nil
-		case daemon.CommandReverseList:
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": fake.reverses}}, nil
-		case daemon.CommandReverseRemove:
-			var params daemon.ReverseRemoveParams
+			return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"reverse": rev}}, nil
+		case server.CommandReverseList:
+			return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"reverses": fake.reverses}}, nil
+		case server.CommandReverseRemove:
+			var params server.ReverseRemoveParams
 			if err := json.Unmarshal(req.Params, &params); err != nil {
-				return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorBadRequest, Message: err.Error()}}, nil
+				return server.Response{Version: server.ProtocolVersion, OK: false, Error: &server.Error{Code: server.ErrorBadRequest, Message: err.Error()}}, nil
 			}
 			for i, r := range fake.reverses {
 				if (params.ID != "" && r.ID == params.ID) || (params.Remote != nil && r.Remote.Service == params.Remote.Service) {
 					fake.reverses = append(fake.reverses[:i], fake.reverses[i+1:]...)
-					return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, nil
+					return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, nil
 				}
 			}
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorReverseNotFound, Message: "reverse not found"}}, nil
-		case daemon.CommandReverseRemoveAll:
+			return server.Response{Version: server.ProtocolVersion, OK: false, Error: &server.Error{Code: server.ErrorReverseNotFound, Message: "reverse not found"}}, nil
+		case server.CommandReverseRemoveAll:
 			removed := len(fake.reverses)
 			fake.reverses = nil
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": removed}}, nil
+			return server.Response{Version: server.ProtocolVersion, OK: true, Result: map[string]any{"removed": removed}}, nil
 		default:
-			return daemon.Response{Version: daemon.ProtocolVersion, OK: false, Error: &daemon.Error{Code: daemon.ErrorUnknownCommand, Message: "unknown"}}, nil
+			return server.Response{Version: server.ProtocolVersion, OK: false, Error: &server.Error{Code: server.ErrorUnknownCommand, Message: "unknown"}}, nil
 		}
 	}
-	startDaemonProcess = func(ctx context.Context, socketPath string) error {
+	startServerProcess = func(ctx context.Context, socketPath string) error {
 		fake.starts++
 		fake.running = true
 		return nil
 	}
 	listUSBDevices = func(ctx context.Context) ([]adb.USBDevice, error) { return nil, adb.ErrUnsupported }
 	t.Cleanup(func() {
-		defaultDaemonSocketPath = oldDefault
-		sendDaemonRequest = oldSend
-		startDaemonProcess = oldStart
+		defaultServerSocketPath = oldDefault
+		sendServerRequest = oldSend
+		startServerProcess = oldStart
 		listUSBDevices = oldUSB
 	})
 	return fake

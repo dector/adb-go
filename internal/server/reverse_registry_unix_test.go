@@ -1,6 +1,6 @@
 //go:build !windows
 
-package daemon
+package server
 
 import (
 	"context"
@@ -21,15 +21,15 @@ func TestServerHandlesReverseProtocolModel(t *testing.T) {
 	registered := make(chan struct{}, 1)
 	cleaned := make(chan struct{}, 1)
 	registerHandler := func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 10, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 10, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 10, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 10, Arg1: open.Arg0})
 		registered <- struct{}{}
 	}
 	fake.Handle("reverse:forward:norebind:tcp:8081;tcp:3000", registerHandler)
 	fake.Handle("reverse:forward:tcp:8081;tcp:3000", registerHandler)
 	fake.Handle("reverse:killforward:tcp:8081", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 11, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 11, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 11, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 11, Arg1: open.Arg0})
 		cleaned <- struct{}{}
 	})
 	_, socketPath, wait := startTestServer(t)
@@ -44,7 +44,7 @@ func TestServerHandlesReverseProtocolModel(t *testing.T) {
 		Norebind: true,
 	})})
 	if err != nil || !created.OK {
-		t.Fatalf("reverse_create daemon = %#v, err = %v; want ok", created, err)
+		t.Fatalf("reverse_create server = %#v, err = %v; want ok", created, err)
 	}
 	select {
 	case <-registered:
@@ -59,7 +59,7 @@ func TestServerHandlesReverseProtocolModel(t *testing.T) {
 
 	list, err := Send(ctx, socketPath, Request{Version: ProtocolVersion, ID: "l1", Command: CommandReverseList})
 	if err != nil {
-		t.Fatalf("reverse_list daemon: %v", err)
+		t.Fatalf("reverse_list server: %v", err)
 	}
 	if reverses, ok := list.Result["reverses"].([]any); !list.OK || !ok || len(reverses) != 1 {
 		t.Fatalf("reverse_list response = %#v, want one reverse", list)
@@ -126,13 +126,13 @@ func TestServerShutdownClosesReverseRegistrations(t *testing.T) {
 	registered := make(chan struct{}, 1)
 	cleaned := make(chan struct{}, 1)
 	fake.Handle("reverse:forward:tcp:8081;tcp:3000", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 30, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 30, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 30, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 30, Arg1: open.Arg0})
 		registered <- struct{}{}
 	})
 	fake.Handle("reverse:killforward:tcp:8081", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 31, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 31, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 31, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 31, Arg1: open.Arg0})
 		cleaned <- struct{}{}
 	})
 	server, socketPath, wait := startTestServer(t)
@@ -192,17 +192,17 @@ func TestServerReverseBridgeTracksActive(t *testing.T) {
 	bridged := make(chan error, 1)
 	localService := fmt.Sprintf("tcp:%d", hostPort)
 	fake.Handle("reverse:forward:tcp:8081;"+localService, func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 20, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 20, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 20, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 20, Arg1: open.Arg0})
 		registered <- struct{}{}
 
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOPEN, Arg0: 77, Payload: []byte(localService + "\x00")})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOPEN, Arg0: 77, Payload: []byte(localService + "\x00")})
 		okay, err := protocol.ReadMessage(conn)
 		if err != nil {
 			bridged <- fmt.Errorf("read accepted OKAY: %w", err)
 			return
 		}
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: 77, Arg1: okay.Arg0, Payload: []byte("hello-host")})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandWRTE, Arg0: 77, Arg1: okay.Arg0, Payload: []byte("hello-host")})
 		if ack, err := protocol.ReadMessage(conn); err != nil || ack.Command != protocol.CommandOKAY {
 			bridged <- fmt.Errorf("read WRTE ack = %#v, %v", ack, err)
 			return
@@ -219,8 +219,8 @@ func TestServerReverseBridgeTracksActive(t *testing.T) {
 		bridged <- nil
 	})
 	fake.Handle("reverse:killforward:tcp:8081", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 21, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 21, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 21, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 21, Arg1: open.Arg0})
 	})
 	_, socketPath, wait := startTestServer(t)
 	defer wait()
@@ -276,14 +276,14 @@ func TestServerReverseHostDialFailureMarksDegraded(t *testing.T) {
 	}
 	localService := "tcp:" + closedPortText
 	fake.Handle("reverse:forward:tcp:8081;"+localService, func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 40, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 40, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 40, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 40, Arg1: open.Arg0})
 		registered <- struct{}{}
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOPEN, Arg0: 88, Payload: []byte(localService + "\x00")})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOPEN, Arg0: 88, Payload: []byte(localService + "\x00")})
 	})
 	fake.Handle("reverse:killforward:tcp:8081", func(ctx context.Context, conn io.ReadWriter, open protocol.Message) {
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 41, Arg1: open.Arg0})
-		writeDaemonReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 41, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandOKAY, Arg0: 41, Arg1: open.Arg0})
+		writeServerReverseTestMessage(t, conn, protocol.Message{Command: protocol.CommandCLSE, Arg0: 41, Arg1: open.Arg0})
 	})
 	_, socketPath, wait := startTestServer(t)
 	defer wait()
@@ -354,7 +354,7 @@ func resultReverse(t testing.TB, resp Response) map[string]any {
 	return reverse
 }
 
-func writeDaemonReverseTestMessage(t testing.TB, w io.Writer, msg protocol.Message) {
+func writeServerReverseTestMessage(t testing.TB, w io.Writer, msg protocol.Message) {
 	t.Helper()
 	if err := protocol.WriteMessage(w, msg); err != nil && !errors.Is(err, net.ErrClosed) {
 		t.Errorf("write message: %v", err)

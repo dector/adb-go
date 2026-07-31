@@ -78,7 +78,7 @@ func ParseReverseHostEndpoint(endpoint string) (ReverseHostEndpoint, error) {
 }
 
 // ReverseOptions tunes reverse forwarding behavior for advanced callers such as
-// the adb-go daemon. Most callers should use Client.ReverseTCP.
+// the adb-go server. Most callers should use Client.ReverseTCP.
 type ReverseOptions struct {
 	// Norebind asks adbd to fail registration if the device-side endpoint already
 	// has a reverse mapping.

@@ -1,8 +1,8 @@
-# Daemon-backed persistent forwarding design
+# Server-backed persistent forwarding design
 
-This document records the M56 design for future daemon-owned forwarding. It is a
+This document records the M56 design for future server-owned forwarding. It is a
 documentation-only milestone: the existing `adb-go forward` command remains a
-foreground, process-scoped local TCP forward, and `adb-god` still does not own
+foreground, process-scoped local TCP forward, and `adb-gos` still does not own
 ADB devices, transports, or forwards until later implementation milestones add
 that behavior.
 
@@ -14,18 +14,18 @@ target, and opens a fresh device `tcp:PORT` service for each accepted host
 connection. When that process exits, the listener and active bridges disappear.
 
 Persistent forwarding needs a different owner. The only adb-go process designed
-to outlive a CLI invocation is `adb-god`, so background forwards should be
-represented as daemon state and controlled through explicit daemon protocol
+to outlive a CLI invocation is `adb-gos`, so background forwards should be
+represented as server state and controlled through explicit server protocol
 commands. This keeps adb-go honest about lifetime: a forward is persistent only
-when the daemon owns the listener and the target connection policy.
+when the server owns the listener and the target connection policy.
 
 ## Goals
 
-- Add a concrete design for daemon-owned forwards that can keep listening after
+- Add a concrete design for server-owned forwards that can keep listening after
   `adb-go forward --background ...` exits.
 - Preserve the current foreground `adb-go forward LOCAL REMOTE` behavior.
 - Define how forwards are represented, listed, removed, and diagnosed.
-- Define daemon protocol extensions without implementing them yet.
+- Define server protocol extensions without implementing them yet.
 - Keep target selection explicit; do not introduce broad adb-server-compatible
   discovery or global transport ownership in this design.
 
@@ -36,13 +36,13 @@ when the daemon owns the listener and the target connection policy.
 - No reverse forwarding.
 - No host Unix sockets, JDWP, vsock, Android local socket namespaces, or raw
   advanced service targets in the first persistent-forwarding slice.
-- No daemon-managed authentication key discovery or persistence. Any future
+- No server-managed authentication key discovery or persistence. Any future
   authenticated persistent forward must use explicit credentials or a separately
   designed auth store.
 
 ## Forward representation
 
-The daemon should store a small in-memory table of forwarding registrations. A
+The server should store a small in-memory table of forwarding registrations. A
 registration describes desired listener state, not just one active connection.
 
 Suggested logical fields:
@@ -74,12 +74,12 @@ Definitions:
   a separate slice because device paths and permissions can change across
   reconnects.
 - `state` should distinguish at least `listening`, `degraded`, and `stopped` in
-  daemon responses. Removed forwards do not need to stay in the table.
+  server responses. Removed forwards do not need to stay in the table.
 - `lastError` is diagnostic text for the most recent listener, target, or bridge
   setup failure. It is informational and not a stable API field.
 
-The table should be in-memory for the first daemon-backed implementation.
-Systemd can keep `adb-god` running, but restarting the daemon intentionally drops
+The table should be in-memory for the first server-backed implementation.
+Systemd can keep `adb-gos` running, but restarting the server intentionally drops
 all registered forwards unless a later milestone designs durable state.
 
 ## CLI command shape
@@ -101,16 +101,16 @@ Behavior:
 
 - Without `--background`, the command continues to run in the foreground exactly
   as it does today.
-- With `--background`, the CLI sends a daemon request and exits after the daemon
+- With `--background`, the CLI sends a server request and exits after the server
   has bound the listener or returned a setup error.
-- `--norebind` rejects creation when another daemon-owned forward already uses
+- `--norebind` rejects creation when another server-owned forward already uses
   the same local endpoint. Without `--norebind`, adb-go may replace an existing
-  daemon-owned forward for that local endpoint, but it must never steal an
+  server-owned forward for that local endpoint, but it must never steal an
   unrelated listener owned by another process.
-- If the local port is `tcp:0`, the daemon binds an ephemeral port and returns
+- If the local port is `tcp:0`, the server binds an ephemeral port and returns
   the actual address so the CLI can print it.
 
-Listing and removal should be daemon-backed commands, not foreground-client
+Listing and removal should be server-backed commands, not foreground-client
 commands:
 
 ```sh
@@ -130,23 +130,23 @@ fwd_01JABC 127.0.0.1:9000    tcp:9000  tcp:127.0.0.1:5555  listening  2
 
 Removal semantics:
 
-- `--remove LOCAL` removes the daemon-owned registration for the local endpoint.
-- `--remove-id ID` removes exactly one registration by daemon ID and is safest
+- `--remove LOCAL` removes the server-owned registration for the local endpoint.
+- `--remove-id ID` removes exactly one registration by server ID and is safest
   for scripts.
-- `--remove-all` closes all daemon-owned forwarding listeners.
+- `--remove-all` closes all server-owned forwarding listeners.
 - Removing a forward closes its listener and all active bridged connections.
 - Removing a missing forward should return a clear not-found error.
 
-The command should make daemon dependence visible. If `adb-god` is unreachable,
+The command should make server dependence visible. If `adb-gos` is unreachable,
 background/list/remove operations should fail with a hint to run
-`adb-go daemon doctor` or start/install the daemon service.
+`adb-go server doctor` or start/install the server service.
 
-## Daemon protocol additions
+## Server protocol additions
 
-The daemon control protocol can remain newline-delimited JSON with
+The server control protocol can remain newline-delimited JSON with
 `version: 1` if these commands are added as optional request/response shapes.
-Older daemons will return `unknown_command`, which the CLI can turn into a clear
-"daemon is too old" message.
+Older servers will return `unknown_command`, which the CLI can turn into a clear
+"server is too old" message.
 
 Suggested commands:
 
@@ -206,7 +206,7 @@ Request:
 {"version":1,"id":"l1","command":"forward_list"}
 ```
 
-Successful response includes all current daemon-owned forwards:
+Successful response includes all current server-owned forwards:
 
 ```json
 {
@@ -236,7 +236,7 @@ Request by local endpoint:
 }
 ```
 
-The daemon should require exactly one selector. Success means the listener has
+The server should require exactly one selector. Success means the listener has
 been closed and active bridges have been asked to close.
 
 ### `forward_remove_all`
@@ -251,34 +251,34 @@ The response should include a count of removed forwards.
 
 ## Runtime flow
 
-For each daemon-owned registration:
+For each server-owned registration:
 
-1. The daemon binds the local TCP listener.
-2. For each accepted host connection, the daemon dials or reuses the selected
+1. The server binds the local TCP listener.
+2. For each accepted host connection, the server dials or reuses the selected
    ADB target according to the implementation slice.
-3. The daemon opens the configured remote service, such as `tcp:9000`.
-4. The daemon copies bytes in both directions until one side closes or errors.
+3. The server opens the configured remote service, such as `tcp:9000`.
+4. The server copies bytes in both directions until one side closes or errors.
 5. Connection-level failures close only that host connection. Listener-level
    failures move the registration to `degraded` or remove it, depending on the
    failure.
 
 The first implementation should prefer simple correctness over pooling. Opening
 one ADB connection or stream per accepted host connection is easier to reason
-about and avoids daemon-wide device lifecycle ownership. Later milestones can
+about and avoids server-wide device lifecycle ownership. Later milestones can
 add connection reuse if tests prove it is safe.
 
 ## Lifecycle semantics
 
-### Daemon shutdown and restart
+### Server shutdown and restart
 
-On graceful shutdown, `adb-god` closes every forwarding listener and active
-bridge before exiting. Because the initial table is in-memory, a daemon restart
+On graceful shutdown, `adb-gos` closes every forwarding listener and active
+bridge before exiting. Because the initial table is in-memory, a server restart
 starts with no forwards. This must be documented in CLI help and `--list` output
 should not imply durable state.
 
 ### Systemd restart
 
-A systemd user-service restart has the same effect as daemon restart: all
+A systemd user-service restart has the same effect as server restart: all
 forwards are dropped. Users who need forwards recreated after login or restart
 should use their own service units or scripts until adb-go explicitly designs
 persistent on-disk configuration.
@@ -288,18 +288,18 @@ persistent on-disk configuration.
 A failed per-connection target dial or ADB stream open should reject that host
 connection and update `lastError`, but the listener may remain active so later
 connections can succeed after the device returns. If repeated failures occur,
-the daemon may report `state: degraded` while keeping the listener bound.
+the server may report `state: degraded` while keeping the listener bound.
 
 ### Port conflicts
 
 If another process owns the requested local address, creation fails with
-`address_in_use`. If another daemon-owned forward owns it:
+`address_in_use`. If another server-owned forward owns it:
 
 - `norebind: true` fails with `rebind_disallowed`.
-- `norebind: false` may replace the old daemon-owned registration after closing
+- `norebind: false` may replace the old server-owned registration after closing
   its listener and active bridges.
 
-The daemon must not remove or alter listeners it does not own.
+The server must not remove or alter listeners it does not own.
 
 ## Security and supportability
 
@@ -309,23 +309,23 @@ The daemon must not remove or alter listeners it does not own.
   add allowlists beyond the endpoint families supported by the specific
   milestone.
 - Do not log forwarded payload bytes.
-- Include forwarding counts in daemon diagnostics, but keep detailed mappings
-  and last setup errors in `forward --list` so `daemon status` remains concise.
+- Include forwarding counts in server diagnostics, but keep detailed mappings
+  and last setup errors in `forward --list` so `server status` remains concise.
 - Keep errors actionable and stable enough for CLI handling: unsupported
-  endpoint, daemon too old, daemon unavailable, address in use, rebind
+  endpoint, server too old, server unavailable, address in use, rebind
   disallowed, forward not found, and target connection failed.
 
 ## Suggested implementation slices
 
-1. Add daemon protocol request/response types and tests for forwarding commands
+1. Add server protocol request/response types and tests for forwarding commands
    without opening listeners.
-2. Implement TCP listener ownership in `adb-god` with create/list/remove/remove
+2. Implement TCP listener ownership in `adb-gos` with create/list/remove/remove
    all over loopback TCP endpoints.
 3. Bridge accepted connections to direct TCP ADB targets and `tcp:PORT` remote
    services.
 4. Add CLI `forward --background`, `--list`, `--remove`, `--remove-id`, and
-   `--remove-all` wired to the daemon protocol.
-5. Surface concise forwarding diagnostics in `daemon status` and `daemon doctor`
+   `--remove-all` wired to the server protocol.
+5. Surface concise forwarding diagnostics in `server status` and `server doctor`
    while keeping the detailed table in `forward --list`.
 6. Revisit USB target persistence, broader endpoint families, and optional
    durable forward restoration as separate designs.

@@ -1,4 +1,4 @@
-package daemon
+package server
 
 import (
 	"encoding/json"
@@ -85,8 +85,8 @@ type ForwardRemoveAllResult struct {
 	Removed int `json:"removed"`
 }
 
-// ForwardDiagnostics is the concise daemon-wide forwarding summary exposed by
-// daemon status and doctor. Detailed mappings intentionally remain behind the
+// ForwardDiagnostics is the concise server-wide forwarding summary exposed by
+// server status and doctor. Detailed mappings intentionally remain behind the
 // forward_list command so status stays safe and compact for support requests.
 type ForwardDiagnostics struct {
 	Total             int `json:"total"`

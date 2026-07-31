@@ -1,9 +1,9 @@
-package daemon
+package server
 
 import "encoding/json"
 
 const (
-	// ProtocolVersion is the version of the initial adb-god control protocol.
+	// ProtocolVersion is the version of the initial adb-gos control protocol.
 	ProtocolVersion = 1
 
 	CommandPing     = "ping"

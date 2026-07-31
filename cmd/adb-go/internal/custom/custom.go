@@ -23,7 +23,7 @@ Commands:
   help        Show this help message
   version     Print adb-go build and runtime information
   targets     List adb-go connection targets visible locally
-  devices     List devices known by the local adb-god daemon
+  devices     List devices known by the local adb-gos server
   shell       Run a shell command on a connected device
   logcat      Stream Android log output from a connected device
   getprop     Read Android system properties from a connected device
@@ -31,7 +31,7 @@ Commands:
   reboot      Reboot a connected device
   forward     Forward local TCP connections to a device TCP endpoint
   reverse     Reverse device TCP connections to a host TCP endpoint
-  daemon      Control the local adb-god daemon
+  server      Control the local adb-gos server process
   push        Push one local file to a connected device
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
@@ -86,8 +86,8 @@ var commandRunners = map[string]commandRunner{
 	"reverse": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 		return runReverseWithOptions(args, opts, stdout, stderr)
 	},
-	"daemon": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
-		return runDaemonWithJSON(args, opts.JSON, stdout, stderr)
+	"server": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runServerWithJSON(args, opts.JSON, stdout, stderr)
 	},
 	"push": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
 		return runPushWithOptions(args, opts, stdout, stderr)

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	adb "github.com/dector/adb-go"
-	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/cmd/adb-go/internal/cliserver"
+	"github.com/dector/adb-go/internal/server"
 )
 
 func runReverse(args []string, opts globalOptions, stdout, stderr io.Writer) int {
@@ -80,14 +80,14 @@ func runReverseCreate(opts globalOptions, remoteService, localService string, no
 	if !ok {
 		return 1
 	}
-	resp, err := reverseDaemonRequest(daemon.CommandReverseCreate, daemon.ReverseCreateParams{
-		Remote:   daemon.ReverseRemoteEndpoint{Service: strings.TrimSpace(remoteService)},
-		Local:    daemon.ReverseLocalEndpoint{Service: strings.TrimSpace(localService)},
-		Target:   daemon.ForwardTarget{Transport: "tcp", Address: target.TCPAddress},
+	resp, err := reverseServerRequest(server.CommandReverseCreate, server.ReverseCreateParams{
+		Remote:   server.ReverseRemoteEndpoint{Service: strings.TrimSpace(remoteService)},
+		Local:    server.ReverseLocalEndpoint{Service: strings.TrimSpace(localService)},
+		Target:   server.ForwardTarget{Transport: "tcp", Address: target.TCPAddress},
 		Norebind: norebind,
 	})
 	if err != nil || !resp.OK {
-		printCompatReverseDaemonError(stderr, resp, err)
+		printCompatReverseServerError(stderr, resp, err)
 		return 1
 	}
 	_ = stdout // Official adb is silent when reverse creation succeeds.
@@ -95,14 +95,14 @@ func runReverseCreate(opts globalOptions, remoteService, localService string, no
 }
 
 func runReverseList(opts globalOptions, stdout, stderr io.Writer) int {
-	resp, err := reverseDaemonRequest(daemon.CommandReverseList, nil)
+	resp, err := reverseServerRequest(server.CommandReverseList, nil)
 	if err != nil || !resp.OK {
-		printCompatReverseDaemonError(stderr, resp, err)
+		printCompatReverseServerError(stderr, resp, err)
 		return 1
 	}
-	var result daemon.ReverseListResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb: reverse --list: decode daemon response: %v\n", err)
+	var result server.ReverseListResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb: reverse --list: decode server response: %v\n", err)
 		return 1
 	}
 	var filterAddress string
@@ -135,9 +135,9 @@ func runReverseRemove(opts globalOptions, remoteService string, stdout, stderr i
 	if !ok {
 		return 1
 	}
-	resp, err := reverseDaemonRequest(daemon.CommandReverseRemove, daemon.ReverseRemoveParams{ID: id})
+	resp, err := reverseServerRequest(server.CommandReverseRemove, server.ReverseRemoveParams{ID: id})
 	if err != nil || !resp.OK {
-		printCompatReverseDaemonError(stderr, resp, err)
+		printCompatReverseServerError(stderr, resp, err)
 		return 1
 	}
 	_ = stdout
@@ -149,23 +149,23 @@ func runReverseRemoveAll(opts globalOptions, stdout, stderr io.Writer) int {
 	if !ok {
 		return 1
 	}
-	resp, err := reverseDaemonRequest(daemon.CommandReverseList, nil)
+	resp, err := reverseServerRequest(server.CommandReverseList, nil)
 	if err != nil || !resp.OK {
-		printCompatReverseDaemonError(stderr, resp, err)
+		printCompatReverseServerError(stderr, resp, err)
 		return 1
 	}
-	var result daemon.ReverseListResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb: reverse --remove-all: decode daemon response: %v\n", err)
+	var result server.ReverseListResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb: reverse --remove-all: decode server response: %v\n", err)
 		return 1
 	}
 	for _, r := range result.Reverses {
 		if r.Target.Address != target.TCPAddress {
 			continue
 		}
-		resp, err := reverseDaemonRequest(daemon.CommandReverseRemove, daemon.ReverseRemoveParams{ID: r.ID})
+		resp, err := reverseServerRequest(server.CommandReverseRemove, server.ReverseRemoveParams{ID: r.ID})
 		if err != nil || !resp.OK {
-			printCompatReverseDaemonError(stderr, resp, err)
+			printCompatReverseServerError(stderr, resp, err)
 			return 1
 		}
 	}
@@ -179,7 +179,7 @@ func resolveReverseTarget(opts globalOptions, stderr io.Writer) (compatTarget, b
 		fmt.Fprintf(stderr, "adb: reverse: %v\n", err)
 		return compatTarget{}, false
 	}
-	if target.State != daemon.DeviceStateDevice {
+	if target.State != server.DeviceStateDevice {
 		fmt.Fprintf(stderr, "adb: reverse: device %s not available: %s\n", target.Serial, target.State)
 		return compatTarget{}, false
 	}
@@ -191,14 +191,14 @@ func resolveReverseTarget(opts globalOptions, stderr io.Writer) (compatTarget, b
 }
 
 func findReverseID(targetAddress, remoteService string, stderr io.Writer) (string, bool) {
-	resp, err := reverseDaemonRequest(daemon.CommandReverseList, nil)
+	resp, err := reverseServerRequest(server.CommandReverseList, nil)
 	if err != nil || !resp.OK {
-		printCompatReverseDaemonError(stderr, resp, err)
+		printCompatReverseServerError(stderr, resp, err)
 		return "", false
 	}
-	var result daemon.ReverseListResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb: reverse --remove: decode daemon response: %v\n", err)
+	var result server.ReverseListResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb: reverse --remove: decode server response: %v\n", err)
 		return "", false
 	}
 	for _, r := range result.Reverses {
@@ -210,38 +210,38 @@ func findReverseID(targetAddress, remoteService string, stderr io.Writer) (strin
 	return "", false
 }
 
-func reverseDaemonRequest(command string, params any) (daemon.Response, error) {
-	if _, err := ensureDaemon(context.Background(), globalOptions{}); err != nil {
-		return daemon.Response{}, err
+func reverseServerRequest(command string, params any) (server.Response, error) {
+	if _, err := ensureServer(context.Background(), globalOptions{}); err != nil {
+		return server.Response{}, err
 	}
-	socketPath, err := defaultDaemonSocketPath()
+	socketPath, err := defaultServerSocketPath()
 	if err != nil {
-		return daemon.Response{}, err
+		return server.Response{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), daemonStartupTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), serverStartupTimeout)
 	defer cancel()
-	return clidaemon.Send(ctx, socketPath, command, params, sendDaemonRequest)
+	return cliserver.Send(ctx, socketPath, command, params, sendServerRequest)
 }
 
-func decodeDaemonResult(result map[string]any, out any) error {
-	return clidaemon.DecodeResult(result, out)
+func decodeServerResult(result map[string]any, out any) error {
+	return cliserver.DecodeResult(result, out)
 }
 
-func reverseCompatSerial(target daemon.ForwardTarget) string {
+func reverseCompatSerial(target server.ForwardTarget) string {
 	if target.Transport == "tcp" {
 		return target.Address
 	}
 	return target.Transport + ":" + target.Address
 }
 
-func printCompatReverseDaemonError(stderr io.Writer, resp daemon.Response, err error) {
+func printCompatReverseServerError(stderr io.Writer, resp server.Response, err error) {
 	if err != nil {
 		fmt.Fprintf(stderr, "adb: reverse: %v\n", err)
 		return
 	}
 	if resp.Error != nil {
-		fmt.Fprintf(stderr, "adb: reverse: %s\n", daemonErrorMessage(resp))
+		fmt.Fprintf(stderr, "adb: reverse: %s\n", serverErrorMessage(resp))
 		return
 	}
-	fmt.Fprintln(stderr, "adb: reverse: daemon returned an unsuccessful response")
+	fmt.Fprintln(stderr, "adb: reverse: server returned an unsuccessful response")
 }

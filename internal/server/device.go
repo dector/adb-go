@@ -1,4 +1,4 @@
-package daemon
+package server
 
 import (
 	"encoding/json"
@@ -15,8 +15,8 @@ const (
 	DeviceStateOffline = "offline"
 )
 
-// Device describes one daemon-known ADB transport for host-side CLI listing and
-// future target selection. The daemon intentionally stores transport metadata,
+// Device describes one server-known ADB transport for host-side CLI listing and
+// future target selection. The server intentionally stores transport metadata,
 // not an open ADB protocol connection.
 type Device struct {
 	Serial    string `json:"serial"`

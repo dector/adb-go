@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	adb "github.com/dector/adb-go"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/internal/server"
 )
 
 const reverseUsage = `Usage:
@@ -22,15 +22,15 @@ const reverseUsage = `Usage:
   adb-go reverse [--socket PATH] --remove-id ID
   adb-go reverse [--socket PATH] --remove-all
 
-Without daemon flags, starts foreground process-scoped reverse forwarding from a
+Without server flags, starts foreground process-scoped reverse forwarding from a
 TCP listener on the selected device to a TCP endpoint on host loopback. The
 reverse exists only while this command keeps running. Press Ctrl+C to remove the
 device-side reverse registration, close active bridge streams, and exit.
 
-With --background, registers a daemon-owned in-memory reverse in adb-god. The
+With --background, registers a server-owned in-memory reverse in adb-gos. The
 background path currently supports explicit TCP ADB targets only; USB targets
 and authentication-key persistence are intentionally out of scope. List and
-remove flags inspect or remove daemon-owned reverses without selecting a device.
+remove flags inspect or remove server-owned reverses without selecting a device.
 
 Only tcp:PORT endpoints are supported. Device-side tcp:0, host Unix sockets,
 Android local socket namespaces, JDWP, vsock, and generic service endpoints are
@@ -57,14 +57,14 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 	fs := flag.NewFlagSet("reverse", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
-	socketPathFlag := fs.String("socket", "", "absolute adb-god Unix domain socket path for daemon-owned reverses")
-	backgroundFlag := fs.Bool("background", false, "create a daemon-owned in-memory reverse and exit")
-	norebindFlag := fs.Bool("norebind", false, "fail instead of replacing an existing daemon-owned reverse with the same remote endpoint")
-	listFlag := fs.Bool("list", false, "list daemon-owned reverses")
-	removeFlag := fs.String("remove", "", "remove the daemon-owned reverse with this remote endpoint, for example tcp:8081")
-	removeIDFlag := fs.String("remove-id", "", "remove the daemon-owned reverse with this generated ID")
-	removeAllFlag := fs.Bool("remove-all", false, "remove all daemon-owned reverses")
-	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON for daemon list/create/remove operations")
+	socketPathFlag := fs.String("socket", "", "absolute adb-gos Unix domain socket path for server-owned reverses")
+	backgroundFlag := fs.Bool("background", false, "create a server-owned in-memory reverse and exit")
+	norebindFlag := fs.Bool("norebind", false, "fail instead of replacing an existing server-owned reverse with the same remote endpoint")
+	listFlag := fs.Bool("list", false, "list server-owned reverses")
+	removeFlag := fs.String("remove", "", "remove the server-owned reverse with this remote endpoint, for example tcp:8081")
+	removeIDFlag := fs.String("remove-id", "", "remove the server-owned reverse with this generated ID")
+	removeAllFlag := fs.Bool("remove-all", false, "remove all server-owned reverses")
+	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON for server list/create/remove operations")
 	plainFlag := fs.Bool("plain", false, "print tab-separated plain output for --list")
 	fs.Usage = func() { fmt.Fprint(stderr, reverseUsage) }
 
@@ -79,14 +79,14 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 		fs.Usage()
 		return 2
 	}
-	daemonOps := 0
+	serverOps := 0
 	for _, enabled := range []bool{*backgroundFlag, *listFlag, strings.TrimSpace(*removeFlag) != "", strings.TrimSpace(*removeIDFlag) != "", *removeAllFlag} {
 		if enabled {
-			daemonOps++
+			serverOps++
 		}
 	}
-	if daemonOps > 1 {
-		fmt.Fprint(stderr, "adb-go reverse: choose only one daemon operation: --background, --list, --remove, --remove-id, or --remove-all\n\n")
+	if serverOps > 1 {
+		fmt.Fprint(stderr, "adb-go reverse: choose only one server operation: --background, --list, --remove, --remove-id, or --remove-all\n\n")
 		fs.Usage()
 		return 2
 	}
@@ -95,8 +95,8 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 		fs.Usage()
 		return 2
 	}
-	if daemonOps > 0 {
-		socketPath, err := forwardDaemonSocketPath(strings.TrimSpace(*socketPathFlag))
+	if serverOps > 0 {
+		socketPath, err := forwardServerSocketPath(strings.TrimSpace(*socketPathFlag))
 		if err != nil {
 			fmt.Fprintf(stderr, "adb-go reverse: %v\n", err)
 			return 1
@@ -107,7 +107,7 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonList(socketPath, jsonOutput, plainOutput, stdout, stderr)
+			return runReverseServerList(socketPath, jsonOutput, plainOutput, stdout, stderr)
 		}
 		if strings.TrimSpace(*removeFlag) != "" {
 			if fs.NArg() != 0 {
@@ -120,7 +120,7 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonRemove(socketPath, daemon.ReverseRemoveParams{Remote: &daemon.ReverseRemoteEndpoint{Service: strings.TrimSpace(*removeFlag)}}, jsonOutput, out, stdout, stderr)
+			return runReverseServerRemove(socketPath, server.ReverseRemoveParams{Remote: &server.ReverseRemoteEndpoint{Service: strings.TrimSpace(*removeFlag)}}, jsonOutput, out, stdout, stderr)
 		}
 		if strings.TrimSpace(*removeIDFlag) != "" {
 			if fs.NArg() != 0 {
@@ -128,7 +128,7 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonRemove(socketPath, daemon.ReverseRemoveParams{ID: strings.TrimSpace(*removeIDFlag)}, jsonOutput, out, stdout, stderr)
+			return runReverseServerRemove(socketPath, server.ReverseRemoveParams{ID: strings.TrimSpace(*removeIDFlag)}, jsonOutput, out, stdout, stderr)
 		}
 		if *removeAllFlag {
 			if fs.NArg() != 0 {
@@ -136,7 +136,7 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonRemoveAll(socketPath, jsonOutput, out, stdout, stderr)
+			return runReverseServerRemoveAll(socketPath, jsonOutput, out, stdout, stderr)
 		}
 	}
 	if fs.NArg() != 2 {
@@ -175,12 +175,12 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 			fs.Usage()
 			return 2
 		}
-		socketPath, err := forwardDaemonSocketPath(strings.TrimSpace(*socketPathFlag))
+		socketPath, err := forwardServerSocketPath(strings.TrimSpace(*socketPathFlag))
 		if err != nil {
 			fmt.Fprintf(stderr, "adb-go reverse: %v\n", err)
 			return 1
 		}
-		return runReverseDaemonCreate(socketPath, fs.Arg(0), fs.Arg(1), targetAddr, *norebindFlag, jsonOutput, out, stdout, stderr)
+		return runReverseServerCreate(socketPath, fs.Arg(0), fs.Arg(1), targetAddr, *norebindFlag, jsonOutput, out, stdout, stderr)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -220,22 +220,22 @@ func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Wri
 	return 0
 }
 
-func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
-	out.Verbosef("reverse sending daemon create request to %s for %s -> %s via tcp:%s (norebind=%t)\n", socketPath, remoteService, localService, targetAddr, norebind)
-	params := daemon.ReverseCreateParams{
-		Remote:   daemon.ReverseRemoteEndpoint{Service: remoteService},
-		Local:    daemon.ReverseLocalEndpoint{Service: localService},
-		Target:   daemon.ForwardTarget{Transport: "tcp", Address: targetAddr},
+func runReverseServerCreate(socketPath, remoteService, localService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	out.Verbosef("reverse sending server create request to %s for %s -> %s via tcp:%s (norebind=%t)\n", socketPath, remoteService, localService, targetAddr, norebind)
+	params := server.ReverseCreateParams{
+		Remote:   server.ReverseRemoteEndpoint{Service: remoteService},
+		Local:    server.ReverseLocalEndpoint{Service: localService},
+		Target:   server.ForwardTarget{Transport: "tcp", Address: targetAddr},
 		Norebind: norebind,
 	}
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseCreate, params)
+	resp, err := sendForwardServerRequest(socketPath, server.CommandReverseCreate, params)
 	if err != nil || !resp.OK {
-		printReverseDaemonError(stderr, "create background reverse", socketPath, resp, err)
+		printReverseServerError(stderr, "create background reverse", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ReverseCreateResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go reverse: decode daemon create response: %v\n", err)
+	var result server.ReverseCreateResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: decode server create response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -246,19 +246,19 @@ func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr 
 		return 0
 	}
 	out.Infof("Reverse %s listening on device %s -> host %s via tcp:%s\n", result.Reverse.ID, result.Reverse.Remote.Service, result.Reverse.Local.Service, result.Reverse.Target.Address)
-	out.Infoln("Lifecycle: in-memory daemon-owned reverse; it is removed by --remove/--remove-all or adb-god shutdown.")
+	out.Infoln("Lifecycle: in-memory server-owned reverse; it is removed by --remove/--remove-all or adb-gos shutdown.")
 	return 0
 }
 
-func runReverseDaemonList(socketPath string, jsonOutput bool, plainOutput bool, stdout, stderr io.Writer) int {
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseList, nil)
+func runReverseServerList(socketPath string, jsonOutput bool, plainOutput bool, stdout, stderr io.Writer) int {
+	resp, err := sendForwardServerRequest(socketPath, server.CommandReverseList, nil)
 	if err != nil || !resp.OK {
-		printReverseDaemonError(stderr, "list background reverses", socketPath, resp, err)
+		printReverseServerError(stderr, "list background reverses", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ReverseListResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go reverse: decode daemon list response: %v\n", err)
+	var result server.ReverseListResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: decode server list response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -269,7 +269,7 @@ func runReverseDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 		return 0
 	}
 	if len(result.Reverses) == 0 {
-		fmt.Fprintln(stdout, "No daemon-owned reverse forwards.")
+		fmt.Fprintln(stdout, "No server-owned reverse forwards.")
 		fmt.Fprintln(stdout, "Create one with: adb-go reverse --background --addr HOST[:PORT] tcp:REMOTE_PORT tcp:LOCAL_PORT")
 		return 0
 	}
@@ -296,15 +296,15 @@ func runReverseDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 	return 0
 }
 
-func runReverseDaemonRemove(socketPath string, params daemon.ReverseRemoveParams, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseRemove, params)
+func runReverseServerRemove(socketPath string, params server.ReverseRemoveParams, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	resp, err := sendForwardServerRequest(socketPath, server.CommandReverseRemove, params)
 	if err != nil || !resp.OK {
-		printReverseDaemonError(stderr, "remove background reverse", socketPath, resp, err)
+		printReverseServerError(stderr, "remove background reverse", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ReverseRemoveResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go reverse: decode daemon remove response: %v\n", err)
+	var result server.ReverseRemoveResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: decode server remove response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -314,19 +314,19 @@ func runReverseDaemonRemove(socketPath string, params daemon.ReverseRemoveParams
 		}
 		return 0
 	}
-	out.Infof("Removed %d daemon-owned reverse(s).\n", result.Removed)
+	out.Infof("Removed %d server-owned reverse(s).\n", result.Removed)
 	return 0
 }
 
-func runReverseDaemonRemoveAll(socketPath string, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
-	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseRemoveAll, nil)
+func runReverseServerRemoveAll(socketPath string, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
+	resp, err := sendForwardServerRequest(socketPath, server.CommandReverseRemoveAll, nil)
 	if err != nil || !resp.OK {
-		printReverseDaemonError(stderr, "remove all background reverses", socketPath, resp, err)
+		printReverseServerError(stderr, "remove all background reverses", socketPath, resp, err)
 		return 1
 	}
-	var result daemon.ReverseRemoveAllResult
-	if err := decodeDaemonResult(resp.Result, &result); err != nil {
-		fmt.Fprintf(stderr, "adb-go reverse: decode daemon remove-all response: %v\n", err)
+	var result server.ReverseRemoveAllResult
+	if err := decodeServerResult(resp.Result, &result); err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: decode server remove-all response: %v\n", err)
 		return 1
 	}
 	if jsonOutput {
@@ -336,22 +336,22 @@ func runReverseDaemonRemoveAll(socketPath string, jsonOutput bool, out outputPol
 		}
 		return 0
 	}
-	out.Infof("Removed %d daemon-owned reverse(s).\n", result.Removed)
+	out.Infof("Removed %d server-owned reverse(s).\n", result.Removed)
 	return 0
 }
 
-func printReverseDaemonError(stderr io.Writer, action, socketPath string, resp daemon.Response, err error) {
+func printReverseServerError(stderr io.Writer, action, socketPath string, resp server.Response, err error) {
 	if err != nil {
-		fmt.Fprintf(stderr, "adb-go reverse: cannot %s: adb-god is not running or socket is unavailable at %s: %v\n", action, socketPath, err)
-		fmt.Fprintln(stderr, "Hint: start the daemon with `adb-go daemon service start` or inspect it with `adb-go daemon doctor`.")
+		fmt.Fprintf(stderr, "adb-go reverse: cannot %s: adb-gos is not running or socket is unavailable at %s: %v\n", action, socketPath, err)
+		fmt.Fprintln(stderr, "Hint: start the server process with `adb-go server service start` or inspect it with `adb-go server doctor`.")
 		return
 	}
 	if resp.Error != nil {
-		fmt.Fprintf(stderr, "adb-go reverse: cannot %s: daemon error %s: %s\n", action, resp.Error.Code, resp.Error.Message)
-		if resp.Error.Code == daemon.ErrorUnknownCommand {
-			fmt.Fprintln(stderr, "Hint: adb-god is too old for persistent reverse forwarding; upgrade adb-god or inspect it with `adb-go daemon doctor`.")
+		fmt.Fprintf(stderr, "adb-go reverse: cannot %s: server error %s: %s\n", action, resp.Error.Code, resp.Error.Message)
+		if resp.Error.Code == server.ErrorUnknownCommand {
+			fmt.Fprintln(stderr, "Hint: adb-gos is too old for persistent reverse forwarding; upgrade adb-gos or inspect it with `adb-go server doctor`.")
 		}
 		return
 	}
-	fmt.Fprintf(stderr, "adb-go reverse: cannot %s: daemon returned an unsuccessful response\n", action)
+	fmt.Fprintf(stderr, "adb-go reverse: cannot %s: server returned an unsuccessful response\n", action)
 }

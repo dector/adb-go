@@ -3,7 +3,7 @@
 This document records the M44.1 foreground forwarding design. It explains what
 official `adb forward` does, why adb-go initially implemented forwarding as a
 foreground direct-device bridge, and the small direct-device forwarding shape
-used by the current library and CLI. Future daemon-backed persistent forwarding
+used by the current library and CLI. Future server-backed persistent forwarding
 is designed separately in [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
 Reverse forwarding is the opposite direction and is designed separately in
 [`reverse-forwarding-design.md`](reverse-forwarding-design.md).
@@ -57,7 +57,7 @@ device over TCP or Linux USB. After the `CNXN`/`AUTH` handshake, adb-go opens
 local device services such as `shell:...`, `sync:`, `reboot:`, or `tcp:<port>`
 by sending normal ADB `OPEN` packets to `adbd`.
 
-Because there is no separate adb-go daemon process, adb-go has nowhere to store
+Because there is no separate adb-go server process, adb-go has nowhere to store
 global forwarding state after the caller exits. It also cannot send
 `host-prefix:forward:...` requests to `adbd`; those are ADB server smart-socket
 services, not direct device services. Therefore adb-go should not claim full
@@ -142,7 +142,7 @@ Potential later extensions, explicitly out of scope for the first code slice:
   `localfilesystem:`.
 - JDWP, vsock, `dev:`, `dev-raw:`, or raw advanced service targets.
 - Host Unix socket listeners.
-- Daemon-backed `--list`, `--remove`, `--remove-all`, or persistent mappings
+- Server-backed `--list`, `--remove`, `--remove-all`, or persistent mappings
   after process exit. The persistent variant has a separate design in
   [`persistent-forwarding-design.md`](persistent-forwarding-design.md).
 - Reverse forwarding in this historical forward-only design. adb-go now tracks
@@ -167,7 +167,7 @@ For the initial implementation:
 - Ctrl-C or process termination stops the local listener and active bridges.
 - The command should document that it is not a persistent adb-server
   registration. There is no `--list`, `--remove`, or `--remove-all` until/unless
-  adb-go grows a daemon or explicit local state model.
+  adb-go grows a server or explicit local state model.
 
 Example:
 

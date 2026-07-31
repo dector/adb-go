@@ -22,7 +22,7 @@ const (
 // Reboot asks the connected device to reboot into mode.
 //
 // adb-go uses the ADB "reboot:<mode>" service instead of a shell command so the
-// request follows the same direct daemon service path as official adb. A normal
+// request follows the same direct device service path as official adb. A normal
 // reboot is encoded as "reboot:"; bootloader and recovery are encoded as
 // "reboot:bootloader" and "reboot:recovery". The operation is disruptive: a
 // successful request may close the device-side ADB connection immediately.

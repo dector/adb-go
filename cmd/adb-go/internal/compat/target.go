@@ -7,8 +7,8 @@ import (
 	"io"
 
 	adb "github.com/dector/adb-go"
-	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
-	"github.com/dector/adb-go/internal/daemon"
+	"github.com/dector/adb-go/cmd/adb-go/internal/cliserver"
+	"github.com/dector/adb-go/internal/server"
 )
 
 type targetSelectorKind int
@@ -114,27 +114,27 @@ func selectOnlyTarget(targets []compatTarget, keep func(compatTarget) bool, labe
 }
 
 func listCompatTargets(ctx context.Context, opts globalOptions) ([]compatTarget, error) {
-	if _, err := ensureDaemon(ctx, opts); err != nil {
-		return nil, fmt.Errorf("failed to start daemon: %w", err)
+	if _, err := ensureServer(ctx, opts); err != nil {
+		return nil, fmt.Errorf("failed to start server: %w", err)
 	}
-	socketPath, err := defaultDaemonSocketPath()
+	socketPath, err := defaultServerSocketPath()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := clidaemon.Send(ctx, socketPath, daemon.CommandDeviceList, nil, sendDaemonRequest)
+	resp, err := cliserver.Send(ctx, socketPath, server.CommandDeviceList, nil, sendServerRequest)
 	if err != nil {
-		return nil, fmt.Errorf("query daemon: %w", err)
+		return nil, fmt.Errorf("query server: %w", err)
 	}
 	if !resp.OK {
-		return nil, fmt.Errorf("daemon error: %s", daemonErrorMessage(resp))
+		return nil, fmt.Errorf("server error: %s", serverErrorMessage(resp))
 	}
-	devices, err := decodeDaemonDevices(resp.Result["devices"])
+	devices, err := decodeServerDevices(resp.Result["devices"])
 	if err != nil {
-		return nil, fmt.Errorf("decode daemon response: %w", err)
+		return nil, fmt.Errorf("decode server response: %w", err)
 	}
 	targets := make([]compatTarget, 0, len(devices))
 	for _, device := range devices {
-		targets = append(targets, compatTargetFromDaemonDevice(device))
+		targets = append(targets, compatTargetFromServerDevice(device))
 	}
 	usbDevices, err := listUSBDevices(ctx)
 	if err != nil && !errors.Is(err, adb.ErrUnsupported) {
@@ -146,7 +146,7 @@ func listCompatTargets(ctx context.Context, opts globalOptions) ([]compatTarget,
 	return targets, nil
 }
 
-func compatTargetFromDaemonDevice(device daemon.Device) compatTarget {
+func compatTargetFromServerDevice(device server.Device) compatTarget {
 	return compatTarget{Serial: device.Serial, State: device.State, Transport: device.Transport, TCPAddress: device.Address}
 }
 
@@ -154,7 +154,7 @@ func compatTargetFromUSBDevice(device adb.USBDevice) compatTarget {
 	serial := fmt.Sprintf("usb:%03d:%03d", device.BusNumber, device.DeviceNumber)
 	return compatTarget{
 		Serial:    serial,
-		State:     daemon.DeviceStateDevice,
+		State:     server.DeviceStateDevice,
 		Transport: "usb",
 		USBOptions: adb.USBOptions{
 			DevicePath:   device.DevicePath,

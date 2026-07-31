@@ -2,7 +2,7 @@
 
 This document records the M67 reverse-forwarding design. It promotes reverse
 forwarding from the deferred roadmap into the active adb-go direction, but it is
-a documentation-only milestone: no protocol, client, daemon, or CLI behavior is
+a documentation-only milestone: no protocol, client, server, or CLI behavior is
 implemented here.
 
 ## Background
@@ -16,7 +16,7 @@ ADB forwarding has two directions:
   connects to `localhost:REMOTE` on the Android device, then `adbd` opens an ADB
   stream back to the host, and the host bridges that stream to `localhost:LOCAL`.
 
-adb-go already supports foreground and daemon-owned forward TCP mappings. Reverse
+adb-go already supports foreground and server-owned forward TCP mappings. Reverse
 forwarding is different because the long-lived listener is on the device, and
 `adbd` may initiate new logical ADB streams toward the host for accepted device
 connections.
@@ -144,7 +144,7 @@ device app -> 127.0.0.1:8081
 This supports common workflows such as an Android app reaching a development
 server running on the host without requiring the official ADB server.
 
-## Foreground, daemon, and compat decisions
+## Foreground, server, and compat decisions
 
 ### Custom `adb-go reverse`
 
@@ -163,29 +163,29 @@ device reverse registration and close active bridges.
 `--list`, `--remove`, and `--remove-all` are useful but should not be bolted onto
 foreground-only reverse forwarding as if they were durable global state. They
 belong either to direct-device management commands with very clear target
-selection or to daemon-owned reverse forwarding. The plan keeps them in later
+selection or to server-owned reverse forwarding. The plan keeps them in later
 milestones so the lifecycle and diagnostics can match the existing forward
 registry quality bar.
 
-### Daemon-owned reverse forwarding
+### Server-owned reverse forwarding
 
-Daemon-owned reverse forwarding is the right long-lived model. As of M71,
-`adb-god` owns an in-memory reverse registry, keeps the host bridge alive after
+Server-owned reverse forwarding is the right long-lived model. As of M71,
+`adb-gos` owns an in-memory reverse registry, keeps the host bridge alive after
 the creating CLI exits, lists registrations, and removes them later through the
 custom `adb-go reverse --background`, `--list`, `--remove`, `--remove-id`, and
 `--remove-all` commands.
 
-Compared with daemon-owned forward mappings, reverse mappings have one extra
-cleanup responsibility: the daemon must unregister the device-side listener when
-a mapping is removed, when a target disconnects permanently, or during daemon
-shutdown. If cleanup fails because the device is gone, the daemon should report a
-stale cleanup error but still remove local daemon state.
+Compared with server-owned forward mappings, reverse mappings have one extra
+cleanup responsibility: the server must unregister the device-side listener when
+a mapping is removed, when a target disconnects permanently, or during server
+shutdown. If cleanup fails because the device is gone, the server should report a
+stale cleanup error but still remove local server state.
 
 ### Compat `adb reverse`
 
 Compat mode should eventually use adb-shaped syntax and output. It may be backed
 by direct-device operations for simple one-shot/list/remove commands or by the
-adb-go daemon for persistent behavior. The important CLI-facing rule is that
+adb-go server for persistent behavior. The important CLI-facing rule is that
 official selectors from the compat target-selection foundation (`-s`, `-d`,
 `-e`, and `$ANDROID_SERIAL`) must select the device whose reverse table is
 managed.
@@ -224,7 +224,7 @@ error is more useful than hiding the failed cleanup.
 - Treat endpoints as caller-controlled input; validate syntax and supported
   families, but do not add command/path allowlists.
 - Make lifetime clear in CLI usage: foreground mappings stop when the process
-  exits; daemon-owned mappings stop when removed or when the daemon exits.
+  exits; server-owned mappings stop when removed or when the server exits.
 - Document that the initial reverse implementation is not a full Platform-Tools
   replacement because only TCP endpoints are supported.
 
@@ -238,7 +238,7 @@ error is more useful than hiding the failed cleanup.
    and clean up with `reverse:killforward...`.
 3. **Custom foreground CLI**: add `adb-go reverse REMOTE LOCAL` for TCP-to-TCP
    mappings with clear foreground lifetime and cleanup messaging.
-4. **Daemon registry**: add daemon-owned reverse create/list/remove/remove-all
+4. **Server registry**: add server-owned reverse create/list/remove/remove-all
    with diagnostics and in-memory lifetime semantics.
 5. **Compat command**: implement adb-shaped `adb reverse` behavior for supported
    TCP endpoints using official selectors and reference-output tests.
