@@ -13,7 +13,7 @@ import (
 )
 
 const targetsUsage = `Usage:
-  adb-go targets [--scan]
+  adb-go targets [--scan] [--plain]
 
 Lists adb-go connection targets visible from the local machine. This is an
 adb-go-specific alternative to "adb devices", not a clone of the official adb
@@ -41,6 +41,7 @@ func runTargetsWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	fs := flag.NewFlagSet("targets", flag.ContinueOnError)
 	scan := fs.Bool("scan", false, "scan localhost emulator TCP ports 5555..5585, odd ports only")
 	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON")
+	plainFlag := fs.Bool("plain", false, "print tab-separated plain output")
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprint(stderr, targetsUsage) }
 	if err := fs.Parse(args); err != nil {
@@ -53,6 +54,12 @@ func runTargetsWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	}
 
 	jsonOutput = *jsonFlag
+	plainOutput := *plainFlag
+	if jsonOutput && plainOutput {
+		fmt.Fprint(stderr, "adb-go targets: choose only one output mode: --json or --plain\n\n")
+		fs.Usage()
+		return 2
+	}
 	rows := []targetOutput{}
 	if addr := strings.TrimSpace(os.Getenv("ADB_GO_ADDR")); addr != "" {
 		rows = append(rows, targetOutput{Transport: "tcp", Selector: "--addr " + addr, Details: "from ADB_GO_ADDR"})
@@ -118,9 +125,21 @@ func runTargetsWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 		return 0
 	}
 
-	fmt.Fprintln(stdout, "TRANSPORT\tSELECTOR\tDETAILS")
+	tableRows := make([]tableRow, 0, len(rows))
 	for _, row := range rows {
-		fmt.Fprintf(stdout, "%s\t%s\t%s\n", row.Transport, row.Selector, row.Details)
+		tableRows = append(tableRows, tableRow{row.Transport, row.Selector, row.Details})
+	}
+	headers := []string{"TRANSPORT", "SELECTOR", "DETAILS"}
+	if plainOutput {
+		if err := writePlainTable(stdout, headers, tableRows); err != nil {
+			fmt.Fprintf(stderr, "adb-go targets: write table: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	if err := writeAlignedTable(stdout, headers, tableRows); err != nil {
+		fmt.Fprintf(stderr, "adb-go targets: write table: %v\n", err)
+		return 1
 	}
 	return 0
 }

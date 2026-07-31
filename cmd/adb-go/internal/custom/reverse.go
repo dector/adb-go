@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 
 	adb "github.com/dector/adb-go"
@@ -16,7 +17,7 @@ import (
 const reverseUsage = `Usage:
   adb-go reverse [--socket PATH] (--addr HOST[:PORT] | --usb [USB selection]) tcp:REMOTE_PORT tcp:LOCAL_PORT
   adb-go reverse [--socket PATH] --background --addr HOST[:PORT] [--norebind] tcp:REMOTE_PORT tcp:LOCAL_PORT
-  adb-go reverse [--socket PATH] --list
+  adb-go reverse [--socket PATH] --list [--plain]
   adb-go reverse [--socket PATH] --remove tcp:REMOTE_PORT
   adb-go reverse [--socket PATH] --remove-id ID
   adb-go reverse [--socket PATH] --remove-all
@@ -58,6 +59,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	removeIDFlag := fs.String("remove-id", "", "remove the daemon-owned reverse with this generated ID")
 	removeAllFlag := fs.Bool("remove-all", false, "remove all daemon-owned reverses")
 	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON for daemon list/create/remove operations")
+	plainFlag := fs.Bool("plain", false, "print tab-separated plain output for --list")
 	fs.Usage = func() { fmt.Fprint(stderr, reverseUsage) }
 
 	if err := fs.Parse(args); err != nil {
@@ -65,6 +67,12 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	}
 
 	jsonOutput = *jsonFlag
+	plainOutput := *plainFlag
+	if jsonOutput && plainOutput {
+		fmt.Fprint(stderr, "adb-go reverse: choose only one output mode: --json or --plain\n\n")
+		fs.Usage()
+		return 2
+	}
 	daemonOps := 0
 	for _, enabled := range []bool{*backgroundFlag, *listFlag, strings.TrimSpace(*removeFlag) != "", strings.TrimSpace(*removeIDFlag) != "", *removeAllFlag} {
 		if enabled {
@@ -93,7 +101,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonList(socketPath, jsonOutput, stdout, stderr)
+			return runReverseDaemonList(socketPath, jsonOutput, plainOutput, stdout, stderr)
 		}
 		if strings.TrimSpace(*removeFlag) != "" {
 			if fs.NArg() != 0 {
@@ -233,7 +241,7 @@ func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr 
 	return 0
 }
 
-func runReverseDaemonList(socketPath string, jsonOutput bool, stdout, stderr io.Writer) int {
+func runReverseDaemonList(socketPath string, jsonOutput bool, plainOutput bool, stdout, stderr io.Writer) int {
 	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseList, nil)
 	if err != nil || !resp.OK {
 		printReverseDaemonError(stderr, "list background reverses", socketPath, resp, err)
@@ -255,9 +263,25 @@ func runReverseDaemonList(socketPath string, jsonOutput bool, stdout, stderr io.
 		fmt.Fprintln(stdout, "No daemon-owned reverses.")
 		return 0
 	}
-	fmt.Fprintln(stdout, "ID\tSTATE\tREMOTE\tLOCAL\tTARGET\tACTIVE\tLAST_ERROR")
+	rows := make([]tableRow, 0, len(result.Reverses))
 	for _, r := range result.Reverses {
-		fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s:%s\t%d\t%s\n", r.ID, r.State, r.Remote.Service, r.Local.Service, r.Target.Transport, r.Target.Address, r.ActiveConnections, r.LastError)
+		lastError := r.LastError
+		if lastError == "" {
+			lastError = "-"
+		}
+		rows = append(rows, tableRow{r.ID, string(r.State), r.Remote.Service, r.Local.Service, r.Target.Transport + ":" + r.Target.Address, strconv.Itoa(r.ActiveConnections), lastError})
+	}
+	headers := []string{"ID", "STATE", "REMOTE", "LOCAL", "TARGET", "ACTIVE", "LAST_ERROR"}
+	if plainOutput {
+		if err := writePlainTable(stdout, headers, rows); err != nil {
+			fmt.Fprintf(stderr, "adb-go reverse: write table: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	if err := writeAlignedTable(stdout, headers, rows); err != nil {
+		fmt.Fprintf(stderr, "adb-go reverse: write table: %v\n", err)
+		return 1
 	}
 	return 0
 }

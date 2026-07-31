@@ -181,7 +181,8 @@ interfaces when available.
 
 `--scan` probes localhost emulator ADB ports `5555..5585`, odd ports only, with
 a short timeout. This is useful for emulator serials such as `emulator-5554`,
-whose ADB TCP endpoint is normally `127.0.0.1:5555`.
+whose ADB TCP endpoint is normally `127.0.0.1:5555`. Human output is an aligned
+table; pass `--plain` for a tab-separated table or `--json` for JSON.
 
 Example output:
 
@@ -445,11 +446,13 @@ adb-go forward --remove-id fwd-1
 adb-go forward --remove-all
 ```
 
-`--list` prints the generated ID, state, local endpoint, remote service, target,
-active connection count, and last setup error if the daemon has observed one.
-Use `--norebind` with `--background` to fail instead of replacing an existing
-mapping for the same local endpoint. By default, creating a new daemon-owned
-forward on the same local endpoint replaces the old daemon-owned mapping.
+`--list` prints an aligned table with the generated ID, state, local endpoint,
+remote service, target, active connection count, and last setup error if the
+daemon has observed one. Pass `--plain` for a tab-separated table or `--json` for
+JSON. Use `--norebind` with `--background` to fail instead of replacing an
+existing mapping for the same local endpoint. By default, creating a new
+daemon-owned forward on the same local endpoint replaces the old daemon-owned
+mapping.
 
 If a daemon command reports that the socket is unavailable or the daemon is too
 old for forwarding commands, start or inspect the daemon with:
@@ -502,9 +505,11 @@ bridged connections.
 For persistent background reverse forwarding, start `adb-god` and pass
 `--background`. Daemon-owned reverses are in-memory: they survive the creating
 CLI process, but they are removed by `adb-go reverse --remove`,
-`adb-go reverse --remove-all`, or `adb-god` shutdown. Background reverse
-currently supports explicit unauthenticated TCP ADB targets only; USB targets and
-`--auth-key` persistence are intentionally deferred.
+`adb-go reverse --remove-all`, or `adb-god` shutdown. `--list` uses the same
+aligned table style as `forward --list`; pass `--plain` for tabs or `--json` for
+JSON. Background reverse currently supports explicit unauthenticated TCP ADB
+targets only; USB targets and `--auth-key` persistence are intentionally
+deferred.
 
 Unsupported reverse forms include Android local socket namespaces, JDWP, vsock,
 host Unix sockets, generic service targets, durable on-disk reverse tables, and

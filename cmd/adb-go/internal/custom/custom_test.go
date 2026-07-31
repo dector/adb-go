@@ -139,10 +139,28 @@ func TestRunTargetsScanListsDiscoveredTCPTargets(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 	got := stdout.String()
-	for _, want := range []string{"TRANSPORT", "tcp\t--addr 127.0.0.1:5555\tscanned localhost emulator port", "tcp\t--addr 127.0.0.1:5557\tscanned localhost emulator port, auth required"} {
+	for _, want := range []string{"TRANSPORT  SELECTOR", "tcp        --addr 127.0.0.1:5555  scanned localhost emulator port", "tcp        --addr 127.0.0.1:5557  scanned localhost emulator port, auth required"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("stdout = %q, want substring %q", got, want)
 		}
+	}
+}
+
+func TestRunTargetsPlainOutputUsesTabs(t *testing.T) {
+	t.Setenv("ADB_GO_ADDR", "127.0.0.1:5555")
+	var stdout, stderr bytes.Buffer
+	restore := replaceListUSBDevices(func(ctx context.Context) ([]adb.USBDevice, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	code := Run([]string{"targets", "--plain"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(targets --plain) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if got := stdout.String(); !strings.Contains(got, "TRANSPORT\tSELECTOR\tDETAILS") || !strings.Contains(got, "tcp\t--addr 127.0.0.1:5555\tfrom ADB_GO_ADDR") {
+		t.Fatalf("stdout = %q, want tab-separated table", got)
 	}
 }
 
@@ -188,7 +206,7 @@ func TestRunTargetsListsEnvAndUSBTargets(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
 	}
 	got := stdout.String()
-	for _, want := range []string{"TRANSPORT", "tcp\t--addr 127.0.0.1:5555", "usb\t--usb-path /dev/bus/usb/001/002", "vid:pid=18d1:4ee7", "endpoints=in:0x81,out:0x02"} {
+	for _, want := range []string{"TRANSPORT  SELECTOR", "tcp        --addr 127.0.0.1:5555", "usb        --usb-path /dev/bus/usb/001/002", "vid:pid=18d1:4ee7", "endpoints=in:0x81,out:0x02"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("stdout = %q, want substring %q", got, want)
 		}
@@ -1400,7 +1418,7 @@ func TestRunForwardDaemonListAndRemoveCommands(t *testing.T) {
 		wantCommand string
 		wantStdout  string
 	}{
-		{name: "list", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandForwardList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"forwards": []daemon.Forward{{ID: "fwd-1", State: daemon.ForwardStateListening, Local: daemon.ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:9000"}, Remote: daemon.ForwardRemoteEndpoint{Service: "tcp:8000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "fwd-1\tlistening\t127.0.0.1:9000\ttcp:8000\ttcp:127.0.0.1:5555\t2"},
+		{name: "list", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandForwardList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"forwards": []daemon.Forward{{ID: "fwd-1", State: daemon.ForwardStateListening, Local: daemon.ForwardLocalEndpoint{Network: "tcp", Address: "127.0.0.1:9000"}, Remote: daemon.ForwardRemoteEndpoint{Service: "tcp:8000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "fwd-1  listening  127.0.0.1:9000  tcp:8000  tcp:127.0.0.1:5555  2       -"},
 		{name: "remove-local", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove", "tcp:9000"}, wantCommand: daemon.CommandForwardRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned forward(s)."},
 		{name: "remove-id", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove-id", "fwd-1"}, wantCommand: daemon.CommandForwardRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned forward(s)."},
 		{name: "remove-all", args: []string{"forward", "--socket", "/tmp/adb-god.sock", "--remove-all"}, wantCommand: daemon.CommandForwardRemoveAll, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 3}}, wantStdout: "Removed 3 daemon-owned forward(s)."},
@@ -1468,7 +1486,7 @@ func TestRunReverseDaemonListAndRemoveCommands(t *testing.T) {
 		wantCommand string
 		wantStdout  string
 	}{
-		{name: "list", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandReverseList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": []daemon.Reverse{{ID: "rev-1", State: daemon.ReverseStateListening, Remote: daemon.ReverseRemoteEndpoint{Service: "tcp:8081"}, Local: daemon.ReverseLocalEndpoint{Service: "tcp:3000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "rev-1\tlistening\ttcp:8081\ttcp:3000\ttcp:127.0.0.1:5555\t2"},
+		{name: "list", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--list"}, wantCommand: daemon.CommandReverseList, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"reverses": []daemon.Reverse{{ID: "rev-1", State: daemon.ReverseStateListening, Remote: daemon.ReverseRemoteEndpoint{Service: "tcp:8081"}, Local: daemon.ReverseLocalEndpoint{Service: "tcp:3000"}, Target: daemon.ForwardTarget{Transport: "tcp", Address: "127.0.0.1:5555"}, ActiveConnections: 2}}}}, wantStdout: "rev-1  listening  tcp:8081  tcp:3000  tcp:127.0.0.1:5555  2       -"},
 		{name: "remove-remote", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove", "tcp:8081"}, wantCommand: daemon.CommandReverseRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned reverse(s)."},
 		{name: "remove-id", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove-id", "rev-1"}, wantCommand: daemon.CommandReverseRemove, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 1}}, wantStdout: "Removed 1 daemon-owned reverse(s)."},
 		{name: "remove-all", args: []string{"reverse", "--socket", "/tmp/adb-god.sock", "--remove-all"}, wantCommand: daemon.CommandReverseRemoveAll, response: daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"removed": 3}}, wantStdout: "Removed 3 daemon-owned reverse(s)."},

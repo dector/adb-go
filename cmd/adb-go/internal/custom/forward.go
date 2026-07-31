@@ -51,7 +51,7 @@ var startReverse = func(ctx context.Context, client deviceClient, remote adb.Rev
 const forwardUsage = `Usage:
   adb-go forward [--socket PATH] (--addr HOST[:PORT] | --usb [USB selection]) tcp:LOCAL_PORT tcp:REMOTE_PORT
   adb-go forward [--socket PATH] --background --addr HOST[:PORT] [--norebind] tcp:LOCAL_PORT tcp:REMOTE_PORT
-  adb-go forward [--socket PATH] --list
+  adb-go forward [--socket PATH] --list [--plain]
   adb-go forward [--socket PATH] --remove tcp:LOCAL_PORT
   adb-go forward [--socket PATH] --remove-id ID
   adb-go forward [--socket PATH] --remove-all
@@ -91,6 +91,7 @@ func runForwardWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	removeIDFlag := fs.String("remove-id", "", "remove the daemon-owned forward with this generated ID")
 	removeAllFlag := fs.Bool("remove-all", false, "remove all daemon-owned forwards")
 	jsonFlag := fs.Bool("json", jsonOutput, "print machine-readable JSON for daemon list/create/remove operations")
+	plainFlag := fs.Bool("plain", false, "print tab-separated plain output for --list")
 	fs.Usage = func() { fmt.Fprint(stderr, forwardUsage) }
 
 	if err := fs.Parse(args); err != nil {
@@ -98,6 +99,12 @@ func runForwardWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	}
 
 	jsonOutput = *jsonFlag
+	plainOutput := *plainFlag
+	if jsonOutput && plainOutput {
+		fmt.Fprint(stderr, "adb-go forward: choose only one output mode: --json or --plain\n\n")
+		fs.Usage()
+		return 2
+	}
 	daemonOps := 0
 	for _, enabled := range []bool{*backgroundFlag, *listFlag, strings.TrimSpace(*removeFlag) != "", strings.TrimSpace(*removeIDFlag) != "", *removeAllFlag} {
 		if enabled {
@@ -130,7 +137,7 @@ func runForwardWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 			fs.Usage()
 			return 2
 		}
-		return runForwardDaemonList(socketPath, jsonOutput, stdout, stderr)
+		return runForwardDaemonList(socketPath, jsonOutput, plainOutput, stdout, stderr)
 	}
 	if strings.TrimSpace(*removeFlag) != "" {
 		if fs.NArg() != 0 {
@@ -287,7 +294,7 @@ func runForwardDaemonCreate(socketPath, localAddr, remoteService, targetAddr str
 	return 0
 }
 
-func runForwardDaemonList(socketPath string, jsonOutput bool, stdout, stderr io.Writer) int {
+func runForwardDaemonList(socketPath string, jsonOutput bool, plainOutput bool, stdout, stderr io.Writer) int {
 	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandForwardList, nil)
 	if err != nil || !resp.OK {
 		printForwardDaemonError(stderr, "list background forwards", socketPath, resp, err)
@@ -309,9 +316,25 @@ func runForwardDaemonList(socketPath string, jsonOutput bool, stdout, stderr io.
 		fmt.Fprintln(stdout, "No daemon-owned forwards.")
 		return 0
 	}
-	fmt.Fprintln(stdout, "ID\tSTATE\tLOCAL\tREMOTE\tTARGET\tACTIVE\tLAST_ERROR")
+	rows := make([]tableRow, 0, len(result.Forwards))
 	for _, f := range result.Forwards {
-		fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s:%s\t%d\t%s\n", f.ID, f.State, f.Local.Address, f.Remote.Service, f.Target.Transport, f.Target.Address, f.ActiveConnections, f.LastError)
+		lastError := f.LastError
+		if lastError == "" {
+			lastError = "-"
+		}
+		rows = append(rows, tableRow{f.ID, string(f.State), f.Local.Address, f.Remote.Service, f.Target.Transport + ":" + f.Target.Address, strconv.Itoa(f.ActiveConnections), lastError})
+	}
+	headers := []string{"ID", "STATE", "LOCAL", "REMOTE", "TARGET", "ACTIVE", "LAST_ERROR"}
+	if plainOutput {
+		if err := writePlainTable(stdout, headers, rows); err != nil {
+			fmt.Fprintf(stderr, "adb-go forward: write table: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	if err := writeAlignedTable(stdout, headers, rows); err != nil {
+		fmt.Fprintf(stderr, "adb-go forward: write table: %v\n", err)
+		return 1
 	}
 	return 0
 }
