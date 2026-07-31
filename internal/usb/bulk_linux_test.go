@@ -36,7 +36,7 @@ func TestOpenBulkTransportMapsClaimPermissionError(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	restore := replaceUSBFSIoctl(func(fd uintptr, request uintptr, arg uintptr) (int, error) {
+	restore := replaceUSBFSIoctl(func(fd uintptr, request uintptr, arg unsafe.Pointer) (int, error) {
 		if request != usbdevfsClaimInterface {
 			t.Fatalf("ioctl request = %#x, want claim %#x", request, usbdevfsClaimInterface)
 		}
@@ -60,15 +60,15 @@ func TestBulkTransportReadWriteAndCloseUseUSBFSIoctls(t *testing.T) {
 
 	var releases int
 	var bulks []usbdevfsBulkTransfer
-	restore := replaceUSBFSIoctl(func(fd uintptr, request uintptr, arg uintptr) (int, error) {
+	restore := replaceUSBFSIoctl(func(fd uintptr, request uintptr, arg unsafe.Pointer) (int, error) {
 		switch request {
 		case usbdevfsBulk:
-			transfer := *(*usbdevfsBulkTransfer)(unsafe.Pointer(arg))
+			transfer := *(*usbdevfsBulkTransfer)(arg)
 			bulks = append(bulks, transfer)
 			return int(transfer.Length), nil
 		case usbdevfsReleaseInterface:
 			releases++
-			iface := *(*uint32)(unsafe.Pointer(arg))
+			iface := *(*uint32)(arg)
 			if iface != 3 {
 				t.Fatalf("release interface = %d, want 3", iface)
 			}
@@ -116,7 +116,7 @@ func TestOpenBulkTransportHonorsCanceledContext(t *testing.T) {
 	}
 }
 
-func replaceUSBFSIoctl(fn func(fd uintptr, request uintptr, arg uintptr) (int, error)) func() {
+func replaceUSBFSIoctl(fn func(fd uintptr, request uintptr, arg unsafe.Pointer) (int, error)) func() {
 	old := usbfsIoctl
 	usbfsIoctl = fn
 	return func() { usbfsIoctl = old }

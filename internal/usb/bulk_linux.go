@@ -57,8 +57,8 @@ type linuxBulkTransport struct {
 	claimed   bool
 }
 
-var usbfsIoctl = func(fd uintptr, request uintptr, arg uintptr) (int, error) {
-	r0, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, request, arg)
+var usbfsIoctl = func(fd uintptr, request uintptr, arg unsafe.Pointer) (int, error) {
+	r0, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, request, uintptr(arg))
 	if errno != 0 {
 		return int(r0), errno
 	}
@@ -144,7 +144,7 @@ func (t *linuxBulkTransport) Close() error {
 		// cancellation mechanism that unblocks those operations.
 		if t.claimed {
 			iface := t.iface
-			if _, err := usbfsIoctl(t.file.Fd(), usbdevfsReleaseInterface, uintptr(unsafe.Pointer(&iface))); err != nil {
+			if _, err := usbfsIoctl(t.file.Fd(), usbdevfsReleaseInterface, unsafe.Pointer(&iface)); err != nil {
 				t.closeErr = fmt.Errorf("adb usb release interface %d on %s: %w", t.iface, t.path, err)
 			}
 			t.claimed = false
@@ -161,7 +161,7 @@ func (t *linuxBulkTransport) claimInterface() error {
 	defer t.mu.Unlock()
 
 	iface := t.iface
-	if _, err := usbfsIoctl(t.file.Fd(), usbdevfsClaimInterface, uintptr(unsafe.Pointer(&iface))); err != nil {
+	if _, err := usbfsIoctl(t.file.Fd(), usbdevfsClaimInterface, unsafe.Pointer(&iface)); err != nil {
 		return fmt.Errorf("adb usb claim interface %d on %s: %w", t.iface, t.path, err)
 	}
 	t.claimed = true
@@ -178,7 +178,7 @@ func (t *linuxBulkTransport) bulk(endpoint uint8, p []byte) (int, error) {
 		Timeout:  defaultUSBFSBulkTimeoutMillis,
 		Data:     uintptr(unsafe.Pointer(&p[0])),
 	}
-	n, err := usbfsIoctl(t.file.Fd(), usbdevfsBulk, uintptr(unsafe.Pointer(&transfer)))
+	n, err := usbfsIoctl(t.file.Fd(), usbdevfsBulk, unsafe.Pointer(&transfer))
 	if err != nil {
 		return 0, fmt.Errorf("adb usb bulk endpoint %#02x on %s: %w", endpoint, t.path, err)
 	}
