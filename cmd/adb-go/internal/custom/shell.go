@@ -116,9 +116,10 @@ const getPropUsage = `Usage:
   adb-go getprop (--addr HOST[:PORT] | --usb [USB selection]) [PROPERTY]
 
 Reads Android system properties from the selected ADB device. With PROPERTY,
-prints that single property value. With no PROPERTY, prints all properties in
-stable name order using getprop's standard [name]: [value] format. TCP
-addresses come from --addr, or from ADB_GO_ADDR when --addr is omitted. USB
+prints that single property value. If PROPERTY is not set, adb-go reports
+"property not found" and exits with status 1. With no PROPERTY, prints all
+properties in stable name order using getprop's standard [name]: [value] format.
+TCP addresses come from --addr, or from ADB_GO_ADDR when --addr is omitted. USB
 support is Linux-only initially. For example:
 
   adb-go getprop --addr 127.0.0.1:5555 ro.product.model
@@ -160,13 +161,25 @@ func runGetPropWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	defer client.Close()
 
 	if fs.NArg() == 1 {
-		value, err := client.GetProp(context.Background(), fs.Arg(0))
+		name := fs.Arg(0)
+		value, err := client.GetProp(context.Background(), name)
 		if err != nil {
 			printCommandError(stderr, "getprop", err)
 			return 1
 		}
+		if value == "" {
+			props, err := client.Properties(context.Background())
+			if err != nil {
+				printCommandError(stderr, "getprop", err)
+				return 1
+			}
+			if _, ok := props[name]; !ok {
+				fmt.Fprintf(stderr, "adb-go getprop: property not found: %s\n", name)
+				return 1
+			}
+		}
 		if jsonOutput {
-			if err := writeJSON(stdout, map[string]string{"name": fs.Arg(0), "value": value}); err != nil {
+			if err := writeJSON(stdout, map[string]string{"name": name, "value": value}); err != nil {
 				fmt.Fprintf(stderr, "adb-go getprop: encode JSON: %v\n", err)
 				return 1
 			}

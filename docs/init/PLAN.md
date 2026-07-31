@@ -4,7 +4,7 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M73.3 — Improve missing property feedback.
+- Current milestone: none active; M73.3 is complete and only deferred cross-platform USB milestones remain.
 - Completed milestone range: Milestones 17–72 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, adb-compatible reverse TCP forwarding, and M73.1–M73.2 empty-state UX polish.
 - Active focus: output/UX polish from `polish2.md`, continuing with better empty states.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
@@ -98,26 +98,26 @@ Done when:
 
 ## M73.3 — Improve missing property feedback
 
-Status: Not started
+Status: Done
 
 Commit: `fix(cli): report missing properties clearly`
 
 Tasks:
 
-- [ ] Update custom `getprop NAME` behavior so a missing property reports an explicit “property not found” style message.
-- [ ] Preserve normal `getprop` listing behavior and successful `getprop NAME` output.
-- [ ] Avoid changing low-level property APIs unless needed; prefer CLI-level presentation if the transport response already exposes enough information.
-- [ ] Document any intentional exit-code behavior for missing properties in command help or tests.
+- [x] Update custom `getprop NAME` behavior so a missing property reports an explicit “property not found” style message.
+- [x] Preserve normal `getprop` listing behavior and successful `getprop NAME` output.
+- [x] Avoid changing low-level property APIs unless needed; prefer CLI-level presentation if the transport response already exposes enough information.
+- [x] Document any intentional exit-code behavior for missing properties in command help or tests.
 
 Tests:
 
-- [ ] CLI tests cover missing `getprop NAME` output and exit code.
-- [ ] Existing getprop success/list tests continue to pass.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover missing `getprop NAME` output and exit code.
+- [x] Existing getprop success/list tests continue to pass.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Asking for a missing property gives a clear result instead of looking like blank or ambiguous command output.
+- [x] Asking for a missing property gives a clear result instead of looking like blank or ambiguous command output.
 
 ## Cross-platform USB
 

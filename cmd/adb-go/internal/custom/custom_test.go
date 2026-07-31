@@ -901,6 +901,52 @@ func TestRunGetPropReadsOnePropertyThroughADB(t *testing.T) {
 	}
 }
 
+func TestRunGetPropReportsMissingPropertyThroughADB(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:getprop 'missing.property'", writeCLIShellOutput(t, "\n"))
+	server.Handle("shell:getprop", writeCLIShellOutput(t, "[ro.product.model]: [Pixel Fixture]\n"))
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"getprop", "--addr", server.Addr(), "missing.property"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("Run(getprop missing property) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "property not found: missing.property") {
+		t.Fatalf("stderr = %q, want property-not-found message", got)
+	}
+}
+
+func TestRunGetPropAllowsExistingEmptyProperty(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{
+			getProp: func(ctx context.Context, name string) (string, error) {
+				return "", nil
+			},
+			properties: func(ctx context.Context) (map[string]string, error) {
+				return map[string]string{"empty.property": ""}, nil
+			},
+		}, nil
+	})
+	defer restore()
+
+	code := Run([]string{"getprop", "--addr", "127.0.0.1:5555", "empty.property"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(getprop empty property) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "\n" {
+		t.Fatalf("stdout = %q, want blank property value line", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
 func TestRunGetPropReadsAllPropertiesThroughADB(t *testing.T) {
 	server := fakeadb.Start(t)
 	server.Handle("shell:getprop", writeCLIShellOutput(t, "[ro.product.model]: [Pixel Fixture]\n[ro.build.version.sdk]: [35]\n"))
