@@ -4,8 +4,8 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M74.1 is next, adding a global quiet output mode.
-- Completed milestone range: Milestones 17–73 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, adb-compatible reverse TCP forwarding, and M73 output/empty-state UX polish.
+- Current milestone: M74.2 is next, adding a global verbose output mode.
+- Completed milestone range: Milestones 17–73 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, adb-compatible reverse TCP forwarding, M73 output/empty-state UX polish, and M74.1 quiet output mode.
 - Active focus: output control polish with global `--quiet` and `--verbose` modes.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
@@ -51,7 +51,7 @@ These milestones add global output controls for custom `adb-go` commands. Compat
 
 ## M74.1 — Add quiet output mode
 
-Status: Not started
+Status: Done
 
 Commit: `feat(cli): add quiet output mode`
 

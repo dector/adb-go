@@ -95,3 +95,31 @@ func tableCells(row tableRow, width int) []string {
 	}
 	return cells
 }
+
+type cliOptions struct {
+	JSON  bool
+	Quiet bool
+}
+
+type outputPolicy struct {
+	quiet bool
+	info  io.Writer
+}
+
+func newOutputPolicy(stdout io.Writer, quiet bool) outputPolicy {
+	return outputPolicy{quiet: quiet, info: stdout}
+}
+
+func (p outputPolicy) Infof(format string, args ...any) {
+	if p.quiet {
+		return
+	}
+	fmt.Fprintf(p.info, format, args...)
+}
+
+func (p outputPolicy) Infoln(args ...any) {
+	if p.quiet {
+		return
+	}
+	fmt.Fprintln(p.info, args...)
+}

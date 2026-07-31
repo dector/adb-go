@@ -48,6 +48,12 @@ func runReverse(args []string, stdout, stderr io.Writer) int {
 }
 
 func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+	return runReverseWithOptions(args, cliOptions{JSON: jsonOutput}, stdout, stderr)
+}
+
+func runReverseWithOptions(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+	jsonOutput := opts.JSON
+	out := newOutputPolicy(stdout, opts.Quiet)
 	fs := flag.NewFlagSet("reverse", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	conn := addConnectionFlags(fs)
@@ -114,7 +120,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonRemove(socketPath, daemon.ReverseRemoveParams{Remote: &daemon.ReverseRemoteEndpoint{Service: strings.TrimSpace(*removeFlag)}}, jsonOutput, stdout, stderr)
+			return runReverseDaemonRemove(socketPath, daemon.ReverseRemoveParams{Remote: &daemon.ReverseRemoteEndpoint{Service: strings.TrimSpace(*removeFlag)}}, jsonOutput, out, stdout, stderr)
 		}
 		if strings.TrimSpace(*removeIDFlag) != "" {
 			if fs.NArg() != 0 {
@@ -122,7 +128,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonRemove(socketPath, daemon.ReverseRemoveParams{ID: strings.TrimSpace(*removeIDFlag)}, jsonOutput, stdout, stderr)
+			return runReverseDaemonRemove(socketPath, daemon.ReverseRemoveParams{ID: strings.TrimSpace(*removeIDFlag)}, jsonOutput, out, stdout, stderr)
 		}
 		if *removeAllFlag {
 			if fs.NArg() != 0 {
@@ -130,7 +136,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 				fs.Usage()
 				return 2
 			}
-			return runReverseDaemonRemoveAll(socketPath, jsonOutput, stdout, stderr)
+			return runReverseDaemonRemoveAll(socketPath, jsonOutput, out, stdout, stderr)
 		}
 	}
 	if fs.NArg() != 2 {
@@ -174,7 +180,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 			fmt.Fprintf(stderr, "adb-go reverse: %v\n", err)
 			return 1
 		}
-		return runReverseDaemonCreate(socketPath, fs.Arg(0), fs.Arg(1), targetAddr, *norebindFlag, jsonOutput, stdout, stderr)
+		return runReverseDaemonCreate(socketPath, fs.Arg(0), fs.Arg(1), targetAddr, *norebindFlag, jsonOutput, out, stdout, stderr)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -198,7 +204,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 			_ = reverse.Close()
 		}
 	}()
-	fmt.Fprintf(stdout, "Reverse forwarding %s -> host %s. Press Ctrl+C to stop and remove the device-side listener.\n", fs.Arg(0), fs.Arg(1))
+	out.Infof("Reverse forwarding %s -> host %s. Press Ctrl+C to stop and remove the device-side listener.\n", fs.Arg(0), fs.Arg(1))
 
 	if err := reverse.Wait(); err != nil {
 		printCommandError(stderr, "reverse", err)
@@ -212,7 +218,7 @@ func runReverseWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer
 	return 0
 }
 
-func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr string, norebind bool, jsonOutput bool, stdout, stderr io.Writer) int {
+func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr string, norebind bool, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
 	params := daemon.ReverseCreateParams{
 		Remote:   daemon.ReverseRemoteEndpoint{Service: remoteService},
 		Local:    daemon.ReverseLocalEndpoint{Service: localService},
@@ -236,8 +242,8 @@ func runReverseDaemonCreate(socketPath, remoteService, localService, targetAddr 
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Reverse %s listening on device %s -> host %s via tcp:%s\n", result.Reverse.ID, result.Reverse.Remote.Service, result.Reverse.Local.Service, result.Reverse.Target.Address)
-	fmt.Fprintln(stdout, "Lifecycle: in-memory daemon-owned reverse; it is removed by --remove/--remove-all or adb-god shutdown.")
+	out.Infof("Reverse %s listening on device %s -> host %s via tcp:%s\n", result.Reverse.ID, result.Reverse.Remote.Service, result.Reverse.Local.Service, result.Reverse.Target.Address)
+	out.Infoln("Lifecycle: in-memory daemon-owned reverse; it is removed by --remove/--remove-all or adb-god shutdown.")
 	return 0
 }
 
@@ -287,7 +293,7 @@ func runReverseDaemonList(socketPath string, jsonOutput bool, plainOutput bool, 
 	return 0
 }
 
-func runReverseDaemonRemove(socketPath string, params daemon.ReverseRemoveParams, jsonOutput bool, stdout, stderr io.Writer) int {
+func runReverseDaemonRemove(socketPath string, params daemon.ReverseRemoveParams, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
 	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseRemove, params)
 	if err != nil || !resp.OK {
 		printReverseDaemonError(stderr, "remove background reverse", socketPath, resp, err)
@@ -305,11 +311,11 @@ func runReverseDaemonRemove(socketPath string, params daemon.ReverseRemoveParams
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Removed %d daemon-owned reverse(s).\n", result.Removed)
+	out.Infof("Removed %d daemon-owned reverse(s).\n", result.Removed)
 	return 0
 }
 
-func runReverseDaemonRemoveAll(socketPath string, jsonOutput bool, stdout, stderr io.Writer) int {
+func runReverseDaemonRemoveAll(socketPath string, jsonOutput bool, out outputPolicy, stdout, stderr io.Writer) int {
 	resp, err := sendForwardDaemonRequest(socketPath, daemon.CommandReverseRemoveAll, nil)
 	if err != nil || !resp.OK {
 		printReverseDaemonError(stderr, "remove all background reverses", socketPath, resp, err)
@@ -327,7 +333,7 @@ func runReverseDaemonRemoveAll(socketPath string, jsonOutput bool, stdout, stder
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Removed %d daemon-owned reverse(s).\n", result.Removed)
+	out.Infof("Removed %d daemon-owned reverse(s).\n", result.Removed)
 	return 0
 }
 

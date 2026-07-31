@@ -240,7 +240,7 @@ a full clone of the official `adb` command.
 go install github.com/dector/adb-go/cmd/adb-go@latest
 
 adb-go version
-adb-go shell --addr 127.0.0.1:5555 echo hello
+adb-go --quiet shell --addr 127.0.0.1:5555 echo hello
 adb-go push --addr 127.0.0.1:5555 ./local.txt /data/local/tmp/local.txt
 adb-go pull --addr 127.0.0.1:5555 /data/local/tmp/remote.txt ./remote.txt
 adb-go install-apk --addr 127.0.0.1:5555 ./app.apk
@@ -254,6 +254,13 @@ adb-go reboot --addr 127.0.0.1:5555 recovery
 adb-go forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
 adb-go reverse --addr 127.0.0.1:5555 tcp:8081 tcp:3000
 ```
+
+Global `--quiet` suppresses non-error informational status messages while keeping
+explicit command payloads on stdout. For example, `adb-go --quiet shell ...`
+still prints the device command's stdout, `logcat`, `getprop`, `targets`,
+`--json`/`--plain`, `version`, and screencap's chosen file path still emit their
+requested output, and errors/warnings continue to use stderr. Status-only lines
+such as foreground/background forwarding lifecycle messages are hidden.
 
 `adb-go version` prints the adb-go build version, Go runtime version, target OS,
 and target architecture. Development builds report `dev`; release builds can

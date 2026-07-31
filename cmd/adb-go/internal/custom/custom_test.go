@@ -573,6 +573,40 @@ func TestRunShellStreamsOutput(t *testing.T) {
 	}
 }
 
+func TestRunQuietShellKeepsPayloadOutput(t *testing.T) {
+	server := fakeadb.Start(t)
+	server.Handle("shell:echo hello", writeCLIShellOutput(t, "hello\n"))
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"--quiet", "shell", "--addr", server.Addr(), "echo", "hello"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(--quiet shell) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.String() != "hello\n" {
+		t.Fatalf("stdout = %q, want shell payload output", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunQuietLeavesErrorsVisible(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{"--quiet", "shell", "echo", "hello"}, &stdout, &stderr)
+
+	if code != 2 {
+		t.Fatalf("Run(--quiet shell missing addr) exit code = %d, want 2", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "missing required --addr") || !strings.Contains(got, "Usage:") {
+		t.Fatalf("stderr = %q, want quiet-mode error and usage", got)
+	}
+}
+
 func TestRunShellJoinsCommandArguments(t *testing.T) {
 	server := fakeadb.Start(t)
 	opened := make(chan string, 1)
@@ -1461,6 +1495,30 @@ func TestRunForwardUsesConnectionFlagsAndStartsForegroundSession(t *testing.T) {
 	}
 	if got := stdout.String(); !strings.Contains(got, "Forwarding 127.0.0.1:9000 -> tcp:8000") || !strings.Contains(got, "Ctrl+C") {
 		t.Fatalf("stdout = %q, want foreground forward status", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunQuietForwardSuppressesForegroundStatus(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restoreConnect := replaceConnectDevice(func(ctx context.Context, target connectionTarget) (deviceClient, error) {
+		return fakeCLIClient{}, nil
+	})
+	defer restoreConnect()
+	restoreForward := replaceStartForward(func(ctx context.Context, client deviceClient, localAddr string, remote adb.ForwardTarget) (forwardSession, error) {
+		return fakeForwardSession{addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000}}, nil
+	})
+	defer restoreForward()
+
+	code := Run([]string{"--quiet", "forward", "--addr", "127.0.0.1:5555", "tcp:9000", "tcp:8000"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(--quiet forward) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want quiet mode to suppress foreground forward status", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())

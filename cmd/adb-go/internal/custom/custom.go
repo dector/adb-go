@@ -17,7 +17,7 @@ import (
 const usage = `adb-go is a pure-Go Android Debug Bridge client.
 
 Usage:
-  adb-go <command> [arguments]
+  adb-go [--quiet] <command> [arguments]
 
 Commands:
   help        Show this help message
@@ -36,6 +36,12 @@ Commands:
   pull        Pull one remote file from a connected device
   install-apk Install one local APK on a connected device
 
+Global options:
+  --quiet     Suppress non-error informational status messages. Command payloads
+              such as shell/logcat stdout, listings, JSON/plain output, version
+              information, and chosen file paths still print.
+  --json      Print machine-readable JSON for supported commands.
+
 adb-go is not a full replacement for the official adb binary yet. The CLI is a
 thin wrapper around the adb-go library and will grow command coverage gradually.
 `
@@ -45,41 +51,52 @@ thin wrapper around the adb-go library and will grow command coverage gradually.
 // the project convention from Git tags for release/snapshot builds.
 var Version = "dev"
 
-type commandRunner func([]string, bool, io.Writer, io.Writer) int
+type commandRunner func([]string, cliOptions, io.Writer, io.Writer) int
 
 var commandRunners = map[string]commandRunner{
-	"version": func(args []string, _ bool, stdout, stderr io.Writer) int { return runVersion(args, stdout, stderr) },
-	"targets": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
-		return runTargetsWithJSON(args, jsonOutput, stdout, stderr)
+	"version": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
+		return runVersion(args, stdout, stderr)
 	},
-	"devices": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
-		return runDevicesWithJSON(args, jsonOutput, stdout, stderr)
+	"targets": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runTargetsWithJSON(args, opts.JSON, stdout, stderr)
 	},
-	"shell":  func(args []string, _ bool, stdout, stderr io.Writer) int { return runShell(args, stdout, stderr) },
-	"logcat": func(args []string, _ bool, stdout, stderr io.Writer) int { return runLogcat(args, stdout, stderr) },
-	"getprop": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
-		return runGetPropWithJSON(args, jsonOutput, stdout, stderr)
+	"devices": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runDevicesWithJSON(args, opts.JSON, stdout, stderr)
 	},
-	"screencap": func(args []string, _ bool, stdout, stderr io.Writer) int { return runScreencap(args, stdout, stderr) },
-	"reboot":    func(args []string, _ bool, stdout, stderr io.Writer) int { return runReboot(args, stdout, stderr) },
-	"forward": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
-		return runForwardWithJSON(args, jsonOutput, stdout, stderr)
+	"shell": func(args []string, _ cliOptions, stdout, stderr io.Writer) int { return runShell(args, stdout, stderr) },
+	"logcat": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
+		return runLogcat(args, stdout, stderr)
 	},
-	"reverse": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
-		return runReverseWithJSON(args, jsonOutput, stdout, stderr)
+	"getprop": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runGetPropWithJSON(args, opts.JSON, stdout, stderr)
 	},
-	"daemon": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
-		return runDaemonWithJSON(args, jsonOutput, stdout, stderr)
+	"screencap": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
+		return runScreencap(args, stdout, stderr)
 	},
-	"push":        func(args []string, _ bool, stdout, stderr io.Writer) int { return runPush(args, stdout, stderr) },
-	"pull":        func(args []string, _ bool, stdout, stderr io.Writer) int { return runPull(args, stdout, stderr) },
-	"install-apk": func(args []string, _ bool, stdout, stderr io.Writer) int { return runInstallAPK(args, stdout, stderr) },
+	"reboot": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
+		return runReboot(args, stdout, stderr)
+	},
+	"forward": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runForwardWithOptions(args, opts, stdout, stderr)
+	},
+	"reverse": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runReverseWithOptions(args, opts, stdout, stderr)
+	},
+	"daemon": func(args []string, opts cliOptions, stdout, stderr io.Writer) int {
+		return runDaemonWithJSON(args, opts.JSON, stdout, stderr)
+	},
+	"push": func(args []string, _ cliOptions, stdout, stderr io.Writer) int { return runPush(args, stdout, stderr) },
+	"pull": func(args []string, _ cliOptions, stdout, stderr io.Writer) int { return runPull(args, stdout, stderr) },
+	"install-apk": func(args []string, _ cliOptions, stdout, stderr io.Writer) int {
+		return runInstallAPK(args, stdout, stderr)
+	},
 }
 
 func Run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("adb-go", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	jsonOutput := fs.Bool("json", false, "print machine-readable JSON for supported commands")
+	quietOutput := fs.Bool("quiet", false, "suppress non-error informational status messages")
 	helpOutput := fs.Bool("help", false, "show this help message")
 	shortHelpOutput := fs.Bool("h", false, "show this help message")
 	fs.Usage = func() { fmt.Fprint(stderr, usage) }
@@ -107,7 +124,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
-	return runner(commandArgs, *jsonOutput, stdout, stderr)
+	return runner(commandArgs, cliOptions{JSON: *jsonOutput, Quiet: *quietOutput}, stdout, stderr)
 }
 
 type versionInfo struct {

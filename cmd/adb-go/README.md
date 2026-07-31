@@ -8,6 +8,7 @@ clone of the official `adb` command.
 
 - [Install](#install)
 - [Target selection](#target-selection)
+- [Global output options](#global-output-options)
 - [USB targets](#usb-targets)
 - [Authentication](#authentication)
 - [Commands](#commands)
@@ -86,6 +87,22 @@ adb-go reboot recovery
 adb-go forward tcp:9000 tcp:9000
 adb-go reverse tcp:8081 tcp:3000
 ```
+
+## Global output options
+
+Pass global `--quiet` before the command name to suppress non-error human status
+messages:
+
+```sh
+adb-go --quiet forward --addr 127.0.0.1:5555 tcp:9000 tcp:9000
+adb-go --quiet shell --addr 127.0.0.1:5555 echo hello
+```
+
+Quiet mode does not mute requested command payloads or outputs whose absence
+would be ambiguous for scripts and humans: shell/logcat stdout, getprop values,
+target/device listings, JSON/plain output, `version`, and screencap's chosen
+local path continue to print. Errors, warnings, usage failures, and daemon/device
+diagnostics continue to write to stderr.
 
 ## USB targets
 
