@@ -3,8 +3,8 @@ package client
 import "errors"
 
 var (
-	// ErrAuthRequired reports that the ADB peer requires authentication that is
-	// not implemented by adb-go yet.
+	// ErrAuthRequired reports that the ADB peer requires authentication and no
+	// supplied credential completed authorization.
 	ErrAuthRequired = errors.New("adb authentication required")
 
 	// ErrUnsupported reports that the requested operation is not supported yet.

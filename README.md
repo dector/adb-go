@@ -52,7 +52,7 @@ block-beta
 | TCP connections |  |
 | USB connections | Linux only |
 | USB device exploration | Linux only |
-| Key authentication |  |
+| Key authentication | Explicit existing RSA keys |
 | Shell execution |  |
 | Shell streaming |  |
 | Service opening |  |
@@ -216,7 +216,9 @@ Details and troubleshooting: [`client/README.md`](client/README.md#connect-over-
 ## Authentication helpers
 
 Authenticated devices can use an explicitly supplied existing ADB RSA private
-key. adb-go does not generate, discover, or persist keys in v0.
+key. adb-go signs `AUTH TOKEN` challenges and can offer the matching public key
+for the device authorization prompt. Key management remains explicit: adb-go
+does not generate, discover, or persist keys in v0.
 
 ```go
 credential, err := adb.LoadPrivateKey("/home/me/.android/adbkey")
@@ -325,7 +327,8 @@ cross-cutting implementation notes live in [`docs/README.md`](docs/README.md).
 
 - Transport support is limited to explicit TCP endpoints and Linux USB via
   `/dev/bus/usb`; macOS and Windows USB are not implemented yet.
-- ADB authentication requires explicit existing RSA key files.
+- ADB authentication is implemented for explicitly supplied existing RSA key
+  files; adb-go does not auto-discover, generate, or persist keys.
 - No broad device discovery, server management, or official `adb devices`
   compatibility in v0. The CLI has an adb-go-specific `targets` command.
 - `adb-god` can own in-memory TCP forwarding listeners, but it does not persist

@@ -87,7 +87,9 @@ future USB string-descriptor implementation.
 ## Authenticate with an existing ADB key
 
 If a device replies with `AUTH`, load an existing ADB RSA private key and pass it
-to the connection call explicitly:
+to the connection call explicitly. adb-go signs device `AUTH TOKEN` challenges
+and can offer the matching public key so Android can show its authorization
+prompt:
 
 ```go
 credential, err := adb.LoadPrivateKey("/home/me/.android/adbkey")
@@ -469,7 +471,7 @@ IDs. If discovery finds no candidates, check that USB debugging is enabled, the
 USB mode exposes an ADB interface, the device is visible under `/dev/bus/usb`,
 and your udev rule matches the actual vendor ID. If the handshake fails with
 `adb.ErrAuthRequired`, the transport worked but the device requires ADB RSA
-authentication and no trusted explicit key completed the challenge.
+authentication and no supplied trusted key completed authorization.
 
 ## Security and trust
 

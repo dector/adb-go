@@ -1,5 +1,9 @@
 # adb-go Specification
 
+> Historical initialization spec. Some v0 items described here, including USB
+> and ADB authentication, have since been implemented; see the root README and
+> `docs/authentication.md` for current behavior.
+
 ## Summary
 
 `adb-go` is a pure-Go implementation of the Android Debug Bridge (ADB) protocol. It is primarily a Go library for embedding ADB behavior in applications. The long-term goal is to support an official CLI built on the library that can eventually replace the official `adb` binary for supported workflows.
@@ -30,7 +34,7 @@ v0 is a practical MVP for TCP ADB:
 
 - TCP connections only
 - No USB support yet
-- No ADB authentication implementation yet
+- No ADB authentication implementation yet (historical initial scope; explicit-key authentication is now implemented)
 - Targets emulators and authorized/insecure test devices
 - Supports explicit device address connection only
 - No device discovery/listing in v0
@@ -39,7 +43,7 @@ v0 is a practical MVP for TCP ADB:
 - Supports single-file push and pull
 - Supports generic service opening for advanced users
 
-README must clearly state that v0 is not a full `adb` replacement yet and must list current limitations and differences from official `adb`, including TCP-only operation, no auth, no USB, and incomplete command coverage.
+README must clearly state that v0 is not a full `adb` replacement yet and must list current limitations and differences from official `adb`, including the transport/authentication state at the time and incomplete command coverage.
 
 ## Transport
 
@@ -55,7 +59,7 @@ USB is deferred until after the pure-Go TCP protocol implementation is working. 
 
 ## Authentication
 
-ADB authentication is deferred for v0.
+ADB authentication was deferred in the initial v0 scope; explicit existing-key authentication is now implemented.
 
 - Add TODOs and design seams for future RSA authentication
 - Do not persist or manage keys/config in v0

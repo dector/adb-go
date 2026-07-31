@@ -19,8 +19,10 @@ same transport seam without changing the ADB protocol layer.
 
 ## Non-goals for the first USB slice
 
-- No ADB authentication implementation. If the device responds with `AUTH`, the
-  high-level client should keep returning `ErrAuthRequired` just like TCP.
+- No automatic ADB key discovery, generation, persistence, or daemon-managed
+  authentication state. USB uses the same explicit credential model as TCP:
+  callers can pass trusted RSA keys, otherwise authenticated devices return
+  `ErrAuthRequired`.
 - No cross-platform USB implementation yet. Non-Linux builds should compile and
   return a clear unsupported error from USB entry points.
 - No dependency on libusb or platform tools.

@@ -19,6 +19,11 @@ The high-level flow is:
    Once the user accepts the prompt, the device completes the handshake with
    `CNXN`.
 
+If no credential is supplied, or if the supplied credential is not accepted and
+the device does not authorize the offered public key, the high-level API returns
+an error matching `adb.ErrAuthRequired`; the protocol package returns an error
+matching `protocol.ErrAuthRequired`.
+
 adb-go intentionally keeps key management explicit. It can load existing
 unencrypted RSA private keys, such as common `~/.android/adbkey` files, but it
 does not create keys, rotate keys, install keys, integrate with OS keychains, or
