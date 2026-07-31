@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: none active; M73.3 is complete and only deferred cross-platform USB milestones remain.
-- Completed milestone range: Milestones 17–72 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, adb-compatible reverse TCP forwarding, and M73.1–M73.2 empty-state UX polish.
-- Active focus: output/UX polish from `polish2.md`, continuing with better empty states.
+- Current milestone: M74.1 is next, adding a global quiet output mode.
+- Completed milestone range: Milestones 17–73 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, adb-compatible reverse TCP forwarding, and M73 output/empty-state UX polish.
+- Active focus: output control polish with global `--quiet` and `--verbose` modes.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -45,79 +45,59 @@ Milestone rules:
 - Use grouped numbering such as `M40.1`, `M40.2`, and `M41.1` for related slices of one feature area.
 - Do not keep fully implemented milestone bodies in this file long term; summarize completed ranges in `Progress` instead.
 
-## Empty-state UX polish
+## Output verbosity polish
 
-These milestones cover `polish2.md` item 3: make empty command results consistently helpful, with `targets` as the style reference.
+These milestones add global output controls for custom `adb-go` commands. Compatibility-mode output should remain adb-shaped unless a milestone explicitly says otherwise.
 
-## M73.1 — Improve list-command empty states
+## M74.1 — Add quiet output mode
 
-Status: Done
+Status: Not started
 
-Commit: `fix(cli): improve forwarding empty states`
-
-Tasks:
-
-- [x] Update custom `forward --list` empty output to clearly say there are no daemon-owned forwards and show the shortest creation hint.
-- [x] Update custom `reverse --list` empty output to clearly say there are no daemon-owned reverse forwards and show the shortest creation hint.
-- [x] Keep non-empty list output unchanged except where required for shared formatting helpers.
-- [x] Ensure daemon unavailable / protocol errors still report as errors, not empty states.
-
-Tests:
-
-- [x] CLI tests cover empty `forward --list` and `reverse --list` output.
-- [x] Existing forwarding list tests continue to pass.
-- [x] `go test ./...` passes
-
-Done when:
-
-- [x] Forward and reverse list commands give actionable, friendly messages when the daemon has no owned registrations.
-
-## M73.2 — Distinguish device-list empty states
-
-Status: Done
-
-Commit: `fix(cli): improve devices empty states`
+Commit: `feat(cli): add quiet output mode`
 
 Tasks:
 
-- [x] Update custom `devices` output to distinguish a reachable daemon with no known devices from daemon discovery/listing failures.
-- [x] Preserve script-friendly behavior for any existing machine-readable or adb-compatible device listing output.
-- [x] Keep compat `adb devices` output adb-shaped; only change compat output if official adb-style behavior already permits the message.
-- [x] Reuse the existing `targets` empty-state tone where it fits without making `devices` too verbose.
+- [ ] Add a global `--quiet` flag, plus any shared CLI option plumbing needed for command handlers to inspect it.
+- [ ] Route all non-error human-facing informational output through a shared output policy so quiet mode can suppress it consistently.
+- [ ] Preserve command payload output that users explicitly request or scripts consume, such as shell command stdout, file data/status required for success, and machine-readable/listing output where silence would be ambiguous.
+- [ ] Ensure errors, warnings, prompts, and diagnostic failures continue to write to stderr in quiet mode.
+- [ ] Document quiet-mode semantics in command help and CLI docs.
 
 Tests:
 
-- [x] CLI tests cover custom `devices` with daemon reachable and no devices.
-- [x] CLI tests cover daemon unavailable/listing failure still returning an error.
-- [x] Compat `devices` tests continue to pass.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover `--quiet` suppressing success/info messages while leaving stderr errors visible.
+- [ ] CLI tests cover representative payload-producing commands that must still emit requested stdout in quiet mode.
+- [ ] Existing adb-compatible output tests continue to pass.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Users can tell the difference between “daemon running, no devices” and “could not ask the daemon for devices.”
+- [ ] Users can run custom commands with `--quiet` and see only stderr diagnostics plus explicitly requested command payloads.
 
-## M73.3 — Improve missing property feedback
+## M74.2 — Add verbose output mode
 
-Status: Done
+Status: Not started
 
-Commit: `fix(cli): report missing properties clearly`
+Commit: `feat(cli): add verbose output mode`
 
 Tasks:
 
-- [x] Update custom `getprop NAME` behavior so a missing property reports an explicit “property not found” style message.
-- [x] Preserve normal `getprop` listing behavior and successful `getprop NAME` output.
-- [x] Avoid changing low-level property APIs unless needed; prefer CLI-level presentation if the transport response already exposes enough information.
-- [x] Document any intentional exit-code behavior for missing properties in command help or tests.
+- [ ] Add a global `--verbose` flag and reject or clearly define combinations with `--quiet`.
+- [ ] Introduce a shared verbose logging/output path for extra human-facing progress and decision details that defaults to stderr.
+- [ ] Add useful verbose details for representative flows such as target selection, daemon connection/use, direct USB/TCP connection attempts, and file transfer/install progress boundaries.
+- [ ] Keep default output unchanged and avoid leaking verbose lines into adb-compatible or machine-readable stdout.
+- [ ] Document verbose-mode semantics in command help and CLI docs.
 
 Tests:
 
-- [x] CLI tests cover missing `getprop NAME` output and exit code.
-- [x] Existing getprop success/list tests continue to pass.
-- [x] `go test ./...` passes
+- [ ] CLI tests cover verbose output appearing on stderr without changing normal stdout payloads.
+- [ ] CLI tests cover the selected `--quiet`/`--verbose` interaction.
+- [ ] Existing default-output and compatibility tests continue to pass.
+- [ ] `go test ./...` passes
 
 Done when:
 
-- [x] Asking for a missing property gives a clear result instead of looking like blank or ambiguous command output.
+- [ ] Users can opt into additional stderr diagnostics with `--verbose` while normal command output remains stable.
 
 ## Cross-platform USB
 
