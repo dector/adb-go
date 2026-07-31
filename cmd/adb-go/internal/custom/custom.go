@@ -44,52 +44,66 @@ thin wrapper around the adb-go library and will grow command coverage gradually.
 // the project convention from Git tags for release/snapshot builds.
 var Version = "dev"
 
+type commandRunner func([]string, bool, io.Writer, io.Writer) int
+
+var commandRunners = map[string]commandRunner{
+	"version": func(args []string, _ bool, stdout, stderr io.Writer) int { return runVersion(args, stdout, stderr) },
+	"targets": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+		return runTargetsWithJSON(args, jsonOutput, stdout, stderr)
+	},
+	"shell":  func(args []string, _ bool, stdout, stderr io.Writer) int { return runShell(args, stdout, stderr) },
+	"logcat": func(args []string, _ bool, stdout, stderr io.Writer) int { return runLogcat(args, stdout, stderr) },
+	"getprop": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+		return runGetPropWithJSON(args, jsonOutput, stdout, stderr)
+	},
+	"screencap": func(args []string, _ bool, stdout, stderr io.Writer) int { return runScreencap(args, stdout, stderr) },
+	"reboot":    func(args []string, _ bool, stdout, stderr io.Writer) int { return runReboot(args, stdout, stderr) },
+	"forward": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+		return runForwardWithJSON(args, jsonOutput, stdout, stderr)
+	},
+	"reverse": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+		return runReverseWithJSON(args, jsonOutput, stdout, stderr)
+	},
+	"daemon": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+		return runDaemonWithJSON(args, jsonOutput, stdout, stderr)
+	},
+	"push":        func(args []string, _ bool, stdout, stderr io.Writer) int { return runPush(args, stdout, stderr) },
+	"pull":        func(args []string, _ bool, stdout, stderr io.Writer) int { return runPull(args, stdout, stderr) },
+	"install-apk": func(args []string, _ bool, stdout, stderr io.Writer) int { return runInstallAPK(args, stdout, stderr) },
+}
+
 func Run(args []string, stdout, stderr io.Writer) int {
-	jsonOutput := false
-	for len(args) > 0 && args[0] == "--json" {
-		jsonOutput = true
-		args = args[1:]
+	fs := flag.NewFlagSet("adb-go", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	jsonOutput := fs.Bool("json", false, "print machine-readable JSON for supported commands")
+	helpOutput := fs.Bool("help", false, "show this help message")
+	shortHelpOutput := fs.Bool("h", false, "show this help message")
+	fs.Usage = func() { fmt.Fprint(stderr, usage) }
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
-	if len(args) == 0 {
+	if *helpOutput || *shortHelpOutput {
 		fmt.Fprint(stdout, usage)
 		return 0
 	}
 
-	switch args[0] {
-	case "help", "-h", "--help":
+	command, commandArgs, ok := splitFlagSetCommand(fs)
+	if !ok {
 		fmt.Fprint(stdout, usage)
 		return 0
-	case "version":
-		return runVersion(args[1:], stdout, stderr)
-	case "targets":
-		return runTargetsWithJSON(args[1:], jsonOutput, stdout, stderr)
-	case "shell":
-		return runShell(args[1:], stdout, stderr)
-	case "logcat":
-		return runLogcat(args[1:], stdout, stderr)
-	case "getprop":
-		return runGetPropWithJSON(args[1:], jsonOutput, stdout, stderr)
-	case "screencap":
-		return runScreencap(args[1:], stdout, stderr)
-	case "reboot":
-		return runReboot(args[1:], stdout, stderr)
-	case "forward":
-		return runForwardWithJSON(args[1:], jsonOutput, stdout, stderr)
-	case "reverse":
-		return runReverseWithJSON(args[1:], jsonOutput, stdout, stderr)
-	case "daemon":
-		return runDaemonWithJSON(args[1:], jsonOutput, stdout, stderr)
-	case "push":
-		return runPush(args[1:], stdout, stderr)
-	case "pull":
-		return runPull(args[1:], stdout, stderr)
-	case "install-apk":
-		return runInstallAPK(args[1:], stdout, stderr)
-	default:
-		fmt.Fprintf(stderr, "adb-go: unknown command %q\n\n", args[0])
+	}
+	if command == "help" || command == "-h" || command == "--help" {
+		fmt.Fprint(stdout, usage)
+		return 0
+	}
+
+	runner, ok := commandRunners[command]
+	if !ok {
+		fmt.Fprintf(stderr, "adb-go: unknown command %q\n\n", command)
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
+	return runner(commandArgs, *jsonOutput, stdout, stderr)
 }
 
 type versionInfo struct {

@@ -89,14 +89,13 @@ func runDaemonService(args []string, socketPath string, stdout, stderr io.Writer
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() == 0 {
+	command, commandArgs, ok := splitFlagSetCommand(fs)
+	if !ok {
 		fmt.Fprint(stderr, "adb-go daemon service: requires COMMAND\n\n")
 		fs.Usage()
 		return 2
 	}
 
-	command := fs.Arg(0)
-	commandArgs := fs.Args()[1:]
 	switch command {
 	case "install":
 		return runDaemonServiceInstall(commandArgs, socketPath, stdout, stderr)

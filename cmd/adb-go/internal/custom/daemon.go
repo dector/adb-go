@@ -50,7 +50,8 @@ func runDaemonWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer)
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() == 0 {
+	command, commandArgs, ok := splitFlagSetCommand(fs)
+	if !ok {
 		fmt.Fprint(stderr, "adb-go daemon: requires COMMAND\n\n")
 		fs.Usage()
 		return 2
@@ -67,8 +68,6 @@ func runDaemonWithJSON(args []string, jsonOutput bool, stdout, stderr io.Writer)
 	}
 
 	jsonOutput = *jsonFlag
-	command := fs.Arg(0)
-	commandArgs := fs.Args()[1:]
 	if command == "service" {
 		return runDaemonService(commandArgs, socketPath, stdout, stderr)
 	}
