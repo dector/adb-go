@@ -19,7 +19,7 @@
 - [Current limitations](#current-limitations)
 - [Testing](#testing)
 
-History of changes is available in [`CHANELOG.md`](CHANELOG.md).
+History of changes is available in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Overview
 
