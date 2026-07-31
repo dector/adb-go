@@ -2,7 +2,6 @@ package compat
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	adb "github.com/dector/adb-go"
+	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
 	"github.com/dector/adb-go/internal/daemon"
 )
 
@@ -50,7 +50,7 @@ func runKillServer(args []string, opts globalOptions, stdout, stderr io.Writer) 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), daemonStartupTimeout)
 	defer cancel()
-	resp, err := sendDaemonRequest(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandShutdown})
+	resp, err := clidaemon.Send(ctx, socketPath, daemon.CommandShutdown, nil, sendDaemonRequest)
 	if err != nil {
 		// Official adb treats killing an absent server as success. Match that CLI
 		// contract: after this command returns, no reachable server is required.
@@ -80,7 +80,7 @@ func runDevices(args []string, opts globalOptions, stdout, stderr io.Writer) int
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), daemonStartupTimeout)
 	defer cancel()
-	resp, err := sendDaemonRequest(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandDeviceList})
+	resp, err := clidaemon.Send(ctx, socketPath, daemon.CommandDeviceList, nil, sendDaemonRequest)
 	if err != nil {
 		fmt.Fprintf(stderr, "adb: devices: query daemon: %v\n", err)
 		return 1
@@ -118,7 +118,7 @@ func ensureDaemon(ctx context.Context, opts globalOptions) (bool, error) {
 		return false, err
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-	resp, err := sendDaemonRequest(probeCtx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandPing})
+	resp, err := clidaemon.Send(probeCtx, socketPath, daemon.CommandPing, nil, sendDaemonRequest)
 	cancel()
 	if err == nil && resp.OK {
 		return false, nil
@@ -129,7 +129,7 @@ func ensureDaemon(ctx context.Context, opts globalOptions) (bool, error) {
 	deadline := time.Now().Add(daemonStartupTimeout)
 	for time.Now().Before(deadline) {
 		probeCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-		resp, err := sendDaemonRequest(probeCtx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandPing})
+		resp, err := clidaemon.Send(probeCtx, socketPath, daemon.CommandPing, nil, sendDaemonRequest)
 		cancel()
 		if err == nil && resp.OK {
 			return true, nil
@@ -153,12 +153,8 @@ func startADBGoDaemonProcess(ctx context.Context, socketPath string) error {
 }
 
 func decodeDaemonDevices(v any) ([]daemon.Device, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
 	var devices []daemon.Device
-	if err := json.Unmarshal(b, &devices); err != nil {
+	if err := clidaemon.DecodeValue(v, &devices); err != nil {
 		return nil, err
 	}
 	return devices, nil

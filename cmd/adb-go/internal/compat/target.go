@@ -7,6 +7,7 @@ import (
 	"io"
 
 	adb "github.com/dector/adb-go"
+	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
 	"github.com/dector/adb-go/internal/daemon"
 )
 
@@ -120,7 +121,7 @@ func listCompatTargets(ctx context.Context, opts globalOptions) ([]compatTarget,
 	if err != nil {
 		return nil, err
 	}
-	resp, err := sendDaemonRequest(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandDeviceList})
+	resp, err := clidaemon.Send(ctx, socketPath, daemon.CommandDeviceList, nil, sendDaemonRequest)
 	if err != nil {
 		return nil, fmt.Errorf("query daemon: %w", err)
 	}

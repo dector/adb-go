@@ -20,6 +20,7 @@ import (
 	"time"
 
 	adb "github.com/dector/adb-go"
+	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
 	"github.com/dector/adb-go/internal/daemon"
 )
 
@@ -515,7 +516,7 @@ func runDaemon(args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	resp, err := daemon.Send(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: protocolCommand})
+	resp, err := clidaemon.Send(ctx, socketPath, protocolCommand, nil, sendDaemonRequest)
 	if err != nil {
 		fmt.Fprintf(stderr, "adb-go daemon %s: daemon is not running or socket is unavailable at %s: %v\n", command, socketPath, err)
 		return 1
@@ -635,7 +636,7 @@ func runDaemonDoctor(args []string, socketPath string, stdout, stderr io.Writer)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	resp, err := daemon.Send(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: daemon.CommandStatus})
+	resp, err := clidaemon.Send(ctx, socketPath, daemon.CommandStatus, nil, sendDaemonRequest)
 	if err != nil {
 		fmt.Fprintf(stdout, "daemonProtocol: not responding (%v)\n", err)
 		hints = append(hints, "No compatible adb-god daemon answered the control protocol; verify the daemon process and socket path match.")
@@ -1807,25 +1808,13 @@ func runForwardDaemonRemoveAll(socketPath string, stdout, stderr io.Writer) int 
 }
 
 func sendForwardDaemonRequest(socketPath, command string, params any) (daemon.Response, error) {
-	var raw json.RawMessage
-	if params != nil {
-		data, err := json.Marshal(params)
-		if err != nil {
-			return daemon.Response{}, fmt.Errorf("encode daemon params: %w", err)
-		}
-		raw = data
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	return sendDaemonRequest(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: command, Params: raw})
+	return clidaemon.Send(ctx, socketPath, command, params, sendDaemonRequest)
 }
 
 func decodeDaemonResult(result map[string]any, out any) error {
-	data, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, out)
+	return clidaemon.DecodeResult(result, out)
 }
 
 func printForwardDaemonError(stderr io.Writer, action, socketPath string, resp daemon.Response, err error) {

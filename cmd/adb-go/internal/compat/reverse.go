@@ -2,12 +2,12 @@ package compat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 
 	adb "github.com/dector/adb-go"
+	"github.com/dector/adb-go/cmd/adb-go/internal/clidaemon"
 	"github.com/dector/adb-go/internal/daemon"
 )
 
@@ -220,26 +220,11 @@ func reverseDaemonRequest(command string, params any) (daemon.Response, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), daemonStartupTimeout)
 	defer cancel()
-	return sendDaemonRequest(ctx, socketPath, daemon.Request{Version: daemon.ProtocolVersion, Command: command, Params: mustRawParams(params)})
-}
-
-func mustRawParams(params any) json.RawMessage {
-	if params == nil {
-		return nil
-	}
-	raw, err := json.Marshal(params)
-	if err != nil {
-		panic(err)
-	}
-	return raw
+	return clidaemon.Send(ctx, socketPath, command, params, sendDaemonRequest)
 }
 
 func decodeDaemonResult(result map[string]any, out any) error {
-	body, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(body, out)
+	return clidaemon.DecodeResult(result, out)
 }
 
 func reverseCompatSerial(target daemon.ForwardTarget) string {
