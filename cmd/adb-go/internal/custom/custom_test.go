@@ -105,7 +105,7 @@ func TestRunVersionRejectsArguments(t *testing.T) {
 func TestRunUnknownCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
-	code := Run([]string{"devices"}, &stdout, &stderr)
+	code := Run([]string{"bogus"}, &stdout, &stderr)
 
 	if code != 2 {
 		t.Fatalf("Run(unknown) exit code = %d, want 2", code)
@@ -113,8 +113,80 @@ func TestRunUnknownCommand(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if got := stderr.String(); !strings.Contains(got, `unknown command "devices"`) || !strings.Contains(got, "Usage:") {
+	if got := stderr.String(); !strings.Contains(got, `unknown command "bogus"`) || !strings.Contains(got, "Usage:") {
 		t.Fatalf("stderr = %q, want unknown command error and usage", got)
+	}
+}
+
+func TestRunDevicesReportsEmptyDaemonDeviceList(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+		if socketPath != "/tmp/adb-god.sock" {
+			t.Fatalf("socketPath = %q, want configured socket", socketPath)
+		}
+		if req.Command != daemon.CommandDeviceList {
+			t.Fatalf("command = %q, want %q", req.Command, daemon.CommandDeviceList)
+		}
+		return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"devices": []daemon.Device{}}}, nil
+	})
+	defer restore()
+
+	code := Run([]string{"devices", "--socket", "/tmp/adb-god.sock"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(devices) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	got := stdout.String()
+	for _, want := range []string{"No daemon-known devices.", "daemon is reachable", "adb-go targets"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunDevicesReportsDaemonUnavailableAsError(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+		return daemon.Response{}, errors.New("connect: no such file")
+	})
+	defer restore()
+
+	code := Run([]string{"devices", "--socket", "/tmp/missing-adb-god.sock"}, &stdout, &stderr)
+
+	if code != 1 {
+		t.Fatalf("Run(devices unavailable) exit code = %d, want 1", code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
+	}
+	got := stderr.String()
+	for _, want := range []string{"cannot list daemon-known devices", "adb-god is not running", "daemon service start"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stderr = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestRunDevicesJSONPreservesEmptyList(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	restore := replaceSendDaemonRequest(func(ctx context.Context, socketPath string, req daemon.Request) (daemon.Response, error) {
+		return daemon.Response{Version: daemon.ProtocolVersion, OK: true, Result: map[string]any{"devices": []daemon.Device{}}}, nil
+	})
+	defer restore()
+
+	code := Run([]string{"--json", "devices", "--socket", "/tmp/adb-god.sock"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("Run(--json devices) exit code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+	if got := stdout.String(); got != "{\n  \"devices\": []\n}\n" {
+		t.Fatalf("stdout = %q, want empty devices JSON", got)
 	}
 }
 

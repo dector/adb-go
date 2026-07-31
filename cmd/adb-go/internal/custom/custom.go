@@ -23,6 +23,7 @@ Commands:
   help        Show this help message
   version     Print adb-go build and runtime information
   targets     List adb-go connection targets visible locally
+  devices     List devices known by the local adb-god daemon
   shell       Run a shell command on a connected device
   logcat      Stream Android log output from a connected device
   getprop     Read Android system properties from a connected device
@@ -50,6 +51,9 @@ var commandRunners = map[string]commandRunner{
 	"version": func(args []string, _ bool, stdout, stderr io.Writer) int { return runVersion(args, stdout, stderr) },
 	"targets": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
 		return runTargetsWithJSON(args, jsonOutput, stdout, stderr)
+	},
+	"devices": func(args []string, jsonOutput bool, stdout, stderr io.Writer) int {
+		return runDevicesWithJSON(args, jsonOutput, stdout, stderr)
 	},
 	"shell":  func(args []string, _ bool, stdout, stderr io.Writer) int { return runShell(args, stdout, stderr) },
 	"logcat": func(args []string, _ bool, stdout, stderr io.Writer) int { return runLogcat(args, stdout, stderr) },

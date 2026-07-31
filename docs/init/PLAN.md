@@ -4,9 +4,9 @@ This plan is organized as small milestones. Each milestone should be implemented
 
 ## Progress
 
-- Current milestone: M73.2 — Distinguish device-list empty states.
-- Completed milestone range: Milestones 17–72 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, and adb-compatible reverse TCP forwarding.
-- Active focus: output/UX polish from `polish2.md`, starting with better empty states.
+- Current milestone: M73.3 — Improve missing property feedback.
+- Completed milestone range: Milestones 17–72 completed the initial CLI shell/push/pull work, CLI documentation, Linux USB transport design, transport abstraction, Linux USB discovery, Linux usbfs bulk transport, high-level USB connection API, CLI USB connection option, USB documentation, adb-go-specific target listing, explicit ADB authentication support, the client APK install helper, the CLI `install-apk` command, APK install documentation, logcat library/CLI/documentation support, property helpers, screencap support, reboot library/CLI/documentation support, foreground and daemon-backed port forwarding foundations, CLI mode routing and adb-compatible skeleton work, compat daemon/device target-selection foundations, the reverse port forwarding design, protocol support for device-initiated streams, the direct-device client reverse TCP API, the custom foreground reverse command, daemon-owned reverse forwarding, adb-compatible reverse TCP forwarding, and M73.1–M73.2 empty-state UX polish.
+- Active focus: output/UX polish from `polish2.md`, continuing with better empty states.
 - Completed USB direction: Linux-only first, using the kernel usbfs interface under `/dev/bus/usb` behind build tags. This remains pure Go because it talks to device files and ioctls directly instead of linking native USB libraries.
 
 ## Milestone template
@@ -74,27 +74,27 @@ Done when:
 
 ## M73.2 — Distinguish device-list empty states
 
-Status: Not started
+Status: Done
 
 Commit: `fix(cli): improve devices empty states`
 
 Tasks:
 
-- [ ] Update custom `devices` output to distinguish a reachable daemon with no known devices from daemon discovery/listing failures.
-- [ ] Preserve script-friendly behavior for any existing machine-readable or adb-compatible device listing output.
-- [ ] Keep compat `adb devices` output adb-shaped; only change compat output if official adb-style behavior already permits the message.
-- [ ] Reuse the existing `targets` empty-state tone where it fits without making `devices` too verbose.
+- [x] Update custom `devices` output to distinguish a reachable daemon with no known devices from daemon discovery/listing failures.
+- [x] Preserve script-friendly behavior for any existing machine-readable or adb-compatible device listing output.
+- [x] Keep compat `adb devices` output adb-shaped; only change compat output if official adb-style behavior already permits the message.
+- [x] Reuse the existing `targets` empty-state tone where it fits without making `devices` too verbose.
 
 Tests:
 
-- [ ] CLI tests cover custom `devices` with daemon reachable and no devices.
-- [ ] CLI tests cover daemon unavailable/listing failure still returning an error.
-- [ ] Compat `devices` tests continue to pass.
-- [ ] `go test ./...` passes
+- [x] CLI tests cover custom `devices` with daemon reachable and no devices.
+- [x] CLI tests cover daemon unavailable/listing failure still returning an error.
+- [x] Compat `devices` tests continue to pass.
+- [x] `go test ./...` passes
 
 Done when:
 
-- [ ] Users can tell the difference between “daemon running, no devices” and “could not ask the daemon for devices.”
+- [x] Users can tell the difference between “daemon running, no devices” and “could not ask the daemon for devices.”
 
 ## M73.3 — Improve missing property feedback
 
