@@ -1,5 +1,9 @@
 # adb-go
 
+<p align="center">
+  <img src="docs/adb-go.webp" alt="adb-go" width="640">
+</p>
+
 `adb-go` is a pure-Go implementation of the [ADB (Android Debug Bridge)](https://developer.android.com/tools/adb) protocol.
 
 > [!NOTE]
